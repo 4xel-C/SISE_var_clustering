@@ -48,8 +48,8 @@ HClustVar <- R6::R6Class(
     # -----------------------------------------------------------------------
     # Constructor
     # -----------------------------------------------------------------------
-    initialize = function(data, n_clusters = NULL, height_cut = NULL) {
-      super$initialize(data, n_clusters)
+    initialize = function(data, height_cut = NULL) {
+      super$initialize(data)
 
     },
 

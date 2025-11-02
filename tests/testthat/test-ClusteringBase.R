@@ -3,9 +3,6 @@
 # ==============================================================================
 # File: tests/testthat/test-ClusteringBase.R
 
-library(testthat)
-library(R6)
-
 # ------------------------------------------------------------------------------
 # HELPER: Create a concrete implementation for testing abstract class
 # ------------------------------------------------------------------------------
