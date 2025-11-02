@@ -1,3 +1,20 @@
+
+#' Variable Clustering class based on AHC with distances matrix.
+#'
+#' @description
+#'
+#'
+#' @details
+#' The `ClusteringBase` class provides:
+#' - private fields for storing data, number of clusters, labels, and fit status
+#' - Input validation and data preprocessing utilities
+#' - Detection of variable types (quantitative vs qualitative)
+#' - Abstract methods that must be implemented by child classes
+#'
+#' @note
+#' This class is not exported outside the package. It serves only as an internal prototype.
+#'
+#' @noRd
 HClustVar <- R6::R6Class(
   "HClustVar",
   inherit = ClusteringBase,
@@ -7,36 +24,7 @@ HClustVar <- R6::R6Class(
   # PRIVATE FIELDS
   # ==========================================================================
   private = list(
-    .dendrogram = NULL,
-    .height_cut = NULL,
-    .dissimilarity_matrix = NULL,
 
-    # -----------------------------------------------------------------------
-    # CORE VALIDATION METHODS
-    # -----------------------------------------------------------------------
-    #' Validate height_cut input.
-    #' @param height Integer or NULL
-    validate_height_cut = function(height) {
-
-      # Return NULL if no value imputed.
-      if (is.null(height)) {
-        return(NULL)
-      }
-
-      # Check type and single element numeric vector.
-      if (!is.numeric(height) || length(height) != 1) {
-        stop("'height' must be a single integer, got: ",
-             paste(height, collapse = ", "))
-      }
-
-      # Convert into integer if float.
-      height <- as.integer(height)
-
-      if (height < 1) {
-        stop("'height' must be at least 1, got: ", height)
-      }
-      return(height)
-    }
   ),
 
   # ==========================================================================
@@ -48,9 +36,9 @@ HClustVar <- R6::R6Class(
     # -----------------------------------------------------------------------
     # Constructor
     # -----------------------------------------------------------------------
-    initialize = function(data, height_cut = NULL) {
-      super$initialize(data)
+    initialize = function() {
 
+      # TODO: A implémenter
     },
 
     fit = function() {

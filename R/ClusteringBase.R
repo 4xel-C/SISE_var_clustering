@@ -161,24 +161,11 @@ ClusteringBase <- R6::R6Class(
     # Constructor
     # -----------------------------------------------------------------------
 
-    initialize = function(data = NULL, n_clusters = NULL) {
-
+    initialize = function() {
       # Constructor preventing direct implementation -> Abstract class.
       if (class(self)[1] == "ClusteringBase") {
         stop("ClusteringBase is an abstract class and shouldn't be directly instanciated.")
       }
-
-      if (!is.null(data)) {
-        # Validate and save data
-        private$.data <- private$validate_data_structure(data)
-        private$.n_clusters <- n_clusters
-        private$check_missing_values()
-
-        types <- private$detect_variable_types()
-        private$.quanti_indices <- types[[1]]
-        private$.quali_indices <- types[[2]]
-      }
-
     },
 
     # -----------------------------------------------------------------------
@@ -204,6 +191,31 @@ ClusteringBase <- R6::R6Class(
     # -----------------------------------------------------------------------
     # Utility methods (available to all child classes)
     # -----------------------------------------------------------------------
+
+
+    #' Load and validate clustering input data
+    #'
+    #' @description
+    #' Performs all necessary checks and preprocessing steps to ensure the input
+    #' dataset is compatible with the clustering algorithm.
+    #'
+    #' This method is intended to be called inside child classes (e.g., within
+    #' their `fit()` method) before running the algorithm. It centralizes the
+    #' validation logic: verifying data structure, missing values, and detecting
+    #' variable types (quantitative vs qualitative).
+    load_and_check_data = function(data) {
+
+      if (!is.null(data)) {
+        # Validate and save data
+        private$.data <- private$validate_data_structure(data)
+        private$check_missing_values()
+
+        types <- private$detect_variable_types()
+        private$.quanti_indices <- types[[1]]
+        private$.quali_indices <- types[[2]]
+
+      }
+    },
 
     #' Get quantitative variables only
     #' @return Data.frame with quantitative variables
