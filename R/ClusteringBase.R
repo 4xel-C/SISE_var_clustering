@@ -120,7 +120,7 @@ ClusteringBase <- R6::R6Class(
     detect_variable_types = function() {
 
       # Get the quantitative and the qualitatives data indices.
-      quant.index <- which(sapply(private$.data, is.numeric))
+      quant.index <- unname(which(sapply(private$.data, is.numeric)))
       qual.index <- setdiff(seq_along(private$.data), quant.index)
 
       return(list(quant.index, qual.index))
@@ -223,6 +223,7 @@ ClusteringBase <- R6::R6Class(
       }
       return(private$.data[, private$.quali_indices, drop = FALSE]) # Drop to keep the dataframe format.
     }
+
   ), # End public
 
   # ==========================================================================
@@ -231,22 +232,65 @@ ClusteringBase <- R6::R6Class(
 
   active = list(
 
-    # Data getter (read-only from outside)
-    data = function() {return(private$.data)},
+    # -------------------------------------------------------------------------
+    # data getter
+    # -------------------------------------------------------------------------
+    data = function() { return(private$.data) },
 
-    # n_clusters getter
-    n_clusters = function(value) {return(private$.n_clusters)},
+    # -------------------------------------------------------------------------
+    # n_clusters getter/setter
+    # -------------------------------------------------------------------------
+    n_clusters = function(value) {
+      if (missing(value)) {
+        return(private$.n_clusters)
+      }
 
-    # labels getter (read-only)
-    labels = function() {return(private$.labels)},
+      # Check that the value is a correct integer.
+      if (!is.numeric(value) || length(value) != 1 || value <= 0 || value %% 1 != 0) {
+        stop("'n_clusters' must be a positive integer scalar.")
+      }
 
-    # Quantitative variable indices
-    quanti_indices = function() {return(private$.quanti_indices)},
+      private$.n_clusters <- private$validate_n_clusters(value)
+    },
 
-    # Qualitative variable indices
-    quali_indices = function() {return(private$.quali_indices)}
+    # -------------------------------------------------------------------------
+    # labels getter/setter
+    # -------------------------------------------------------------------------
+    labels = function(value) {
+      if (missing(value)) {
+        return(private$.labels)
+      }
 
-  ) # end active
+      # Cheking length consistency with data.
+      if (!is.null(private$.data) && length(value) != nrow(private$.data)) {
+        stop("'labels' length must match number of observations.")
+      }
+
+      private$.labels <- value
+    },
+
+    # -------------------------------------------------------------------------
+    # fitted getter/setter
+    # -------------------------------------------------------------------------
+    fitted = function(value) {
+      if (missing(value)) {
+        return(private$.fitted)
+      }
+
+      # Must be boolean.
+      if (!is.logical(value) || length(value) != 1) {
+        stop("'fitted' must be a single logical value (TRUE/FALSE).")
+      }
+      private$.fitted <- value
+    },
+
+    # -------------------------------------------------------------------------
+    # Quantitative / qualitative indices getter
+    # -------------------------------------------------------------------------
+    quanti_indices = function() private$.quanti_indices,
+    quali_indices  = function() private$.quali_indices
+  )
 )
+
 
 
