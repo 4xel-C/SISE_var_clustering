@@ -25,6 +25,9 @@ HClustVar <- R6::R6Class(
   # ==========================================================================
   private = list(
 
+    # Metric to calculate distances between variables.
+    .dist.metric = NULL
+
   ),
 
   # ==========================================================================
@@ -36,9 +39,14 @@ HClustVar <- R6::R6Class(
     # -----------------------------------------------------------------------
     # Constructor
     # -----------------------------------------------------------------------
-    initialize = function() {
+    initialize = function(dist.metric="auto") {
 
-      # TODO: A implémenter
+      # Checking metric select.
+      if (dist.metric %in% c("rsquare", "r", "disimilarity", "auto")) {
+        stop("Parameter 'dist.metric' has invalid value. Choose: 'rsquare', 'r', 'disimilarity', 'auto'. Got: ", dist.metric)
+      }
+
+      private$.dist.metric <- dist.metric
     },
 
     fit = function() {
