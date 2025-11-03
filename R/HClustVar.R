@@ -26,7 +26,91 @@ HClustVar <- R6::R6Class(
   private = list(
 
     # Metric to calculate distances between variables.
-    .dist.metric = NULL
+    .dist.metric = NULL,
+
+    # Type of variable to make clustering on.
+    .vartype = NULL,
+
+    # Contains the distances matrix.
+    .dist.matrix = NULL,
+
+    # Contains the method to calculate the distance matrix.
+    .dist.method = NULL,
+
+
+    # ==========================================================================
+    # PRIVATE MEHTODS
+    # ==========================================================================
+
+    #' Validate input parameters for class instanciation.
+    #' @param vartype The type of variable to make the clustering on. Accepted values: ['quant', 'qual', 'mixed'].
+    #' @param dist.metric The metric to use on the algorithm. Only available when vartype = 'quant'. Accepted values:
+    check_input = function(vartype, dist.metric) {
+
+      # Checking metric selection
+      if (vartype == "quant" && !(dist.metric %in% c("rsquare", "r"))) {
+        stop(paste0("Parameter 'dist.metric' has invalid value. Choose: 'rsquare', 'r'. Got: ", dist.metric))
+
+        # Checking vartype selection
+      } else if (!(vartype %in% c("quant", "qual", "mixed"))) {
+        stop(paste0("Parameter 'vartype' has invalid value. Choose: 'quant', 'qual', 'mixed'. Got: ", vartype))
+
+        # Warn if dist.metric is specified but ignored
+      } else if (vartype %in% c("qual", "mixed") && !is.null(dist.metric)) {
+        warning("'dist.metric' parameter will be ignored as it only affects 'quant' vartype")
+      }
+    },
+
+    #' Transform the quantitative columns of a dataframe into a discrete variable.
+    #' Split the variable into 4 quantiles.
+    quantile_discretisation = function(df, quanti_index, n_groups) {
+
+      # Create a copy of the original dataframe.
+      df_copy <- df
+
+      for (i in quanti_index) {
+
+        # transform the quantitative columns into qualitatives.
+        df_copy[i] <- cut(
+            df[[i]],
+            breaks = quantile(df[[i]], probs = seq(0, 1, length.out = n_groups + 1), na.rm = TRUE), # Set the breaks on the desired quantile of the column.
+            include.lowest = TRUE,
+            labels = paste0("Q", 1:n_groups)  # Create the new label.
+          )
+      }
+
+      return(df_copy)
+    },
+
+    #' Calculate Cramer's V between two variables
+    cramer_v = function(x, y) {
+      contingency <- table(x, y)
+      chi2 <- chisq.test(contingency, correct = FALSE)$statistic
+      n <- sum(contingency)
+      min_dim <- min(nrow(contingency), ncol(contingency)) - 1
+
+      v <- sqrt(chi2 / (n * min_dim))
+      return(as.numeric(v))
+    },
+
+    #' Calculate Cramer's V matrix
+    cramer_matrix = function(df) {
+      n_vars <- ncol(df)
+      var_names <- colnames(df)
+
+      cramer_mat <- matrix(1, nrow = n_vars, ncol = n_vars,
+                           dimnames = list(var_names, var_names))
+
+      for (i in 1:(n_vars - 1)) {
+        for (j in (i + 1):n_vars) {
+          v <- private$cramer_v(df[[i]], df[[j]])
+          cramer_mat[i, j] <- v
+          cramer_mat[j, i] <- v
+        }
+      }
+
+      return(cramer_mat)
+    }
 
   ),
 
@@ -39,18 +123,72 @@ HClustVar <- R6::R6Class(
     # -----------------------------------------------------------------------
     # Constructor
     # -----------------------------------------------------------------------
-    initialize = function(dist.metric="auto") {
+    initialize = function(vartype = "mixed", dist.metric = NULL) {
 
-      # Checking metric select.
-      if (dist.metric %in% c("rsquare", "r", "disimilarity", "auto")) {
-        stop("Parameter 'dist.metric' has invalid value. Choose: 'rsquare', 'r', 'disimilarity', 'auto'. Got: ", dist.metric)
+      # Select default parameter for the metric if NULL.
+      if (vartype == "quant" && is.null(dist.metric)) {
+        dist.metric <- "rsquare"
       }
 
+      private$check_input(vartype, dist.metric)
+
       private$.dist.metric <- dist.metric
+      private$.vartype <- vartype
     },
 
-    fit = function() {
-      # TODO: A implémenter
+    # -----------------------------------------------------------------------
+    # Fit method
+    # -----------------------------------------------------------------------
+
+    fit = function(data) {
+
+      # Validate data.
+      load_and_check_data(data)
+
+      # Check if enough var types for the
+      validate_algorithm_requirements(private$.vartype)
+
+      # If the
+
+      # Create the distances matrix
+      if (vartype == "quant" && private$.dist.metric == "r") {
+
+        # Generate the correlation matrix.
+        cor_matrix <- cor(self$get_quanti_data())
+
+        # Create the dissimilarity matrix used as base distances matrix.
+        private$.dist.matrix <- as.dist(sqrt(1 - cor_matrix))
+
+      } else if (vartype == "quant" && dist.metric == "rsquare") {
+        # Generate the correlation matrix.
+        cor_matrix <- cor(self$get_quanti_data())
+
+        # Create the dissimilarity matrix used as base distances matrix.
+        private$.dist.matrix <- as.dist(sqrt(1 - cor_matrix**2))
+
+      } else if (vartype == "qual") {
+
+        # TODO: To be implemented
+
+
+        if (vartype == "mixed") {
+
+          # Preparation of the data by transforming quantitatives into qualitatives.
+          df_discretised <- self$quantile_discretisation(self$data, self$quanti_indices, 4)
+
+          # TODO: To be implemented
+        }
+
+        # calculate the dissimilarity matrix.
+        df_qual <- set$get_quali_data
+
+        # TODO
+      } else if (vartype == "mixed") {
+        # TODO
+      } else {
+        stop("Invalid class construction.")
+      }
+
     },
 
     cut_tree = function(k = NULL, h = NULL) {
@@ -64,9 +202,14 @@ HClustVar <- R6::R6Class(
   ),
 
   # ==========================================================================
-  # Getters/Setters
+  # ACTIVE BINDINGS (getters/setters)
   # ==========================================================================
+
   active = list(
-    dissimilarity = function() {private$.dissimilarity_matrix}
+
+    dist.metric = function() {return(private$.dist.metric)},
+    vartype = function() {return(private$.vartype)},
+    dist.matrix = function() {return(private$.dist.matrix)}
+
   )
 )

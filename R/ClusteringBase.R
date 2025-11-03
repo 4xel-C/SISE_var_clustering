@@ -41,6 +41,7 @@ ClusteringBase <- R6::R6Class(
 
     #' Validate input data structure
     #' @param data Data.frame or matrix
+    #' @return The data as a dataframe and column named if needed.
     validate_data_structure = function(data) {
 
       # Check type
@@ -124,29 +125,6 @@ ClusteringBase <- R6::R6Class(
       qual.index <- setdiff(seq_along(private$.data), quant.index)
 
       return(list(quant.index, qual.index))
-    },
-
-
-    #' Validate data compatibility for specific algorithms.
-    #' To be be used while instantiating child classes to validate data types.
-    #' @param requires_type Character: "quanti", "quali", or "mixed"
-    validate_algorithm_requirements = function(requires_type = "mixed") {
-
-      has_quanti <- length(private$.quanti_indices) > 0
-      has_quali <- length(private$.quali_indices) > 0
-
-      if (requires_type == "quanti" && !has_quanti) {
-        stop("This algorithm requires at least one quantitative variable.")
-      }
-
-      if (requires_type == "quali" && !has_quali) {
-        stop("This algorithm requires at least one qualitative variable.")
-      }
-
-      if (requires_type == "mixed" && !(has_quanti && has_quali)) {
-        warning("Algorithm expects mixed data, but data is homogeneous (",
-                ifelse(has_quanti, "all quantitative", "all qualitative"), ")")
-      }
     }
   ),  # end private
 
@@ -234,6 +212,28 @@ ClusteringBase <- R6::R6Class(
         stop("No qualitative variables found in data.")
       }
       return(private$.data[, private$.quali_indices, drop = FALSE]) # Drop to keep the dataframe format.
+    },
+
+    #' Validate data compatibility for specific algorithms.
+    #' To be be used within child classes to validate data types.
+    #' @param type Character: "quant", "qual", "mixed".
+    validate_algorithm_requirements = function(type) {
+
+      has_quanti <- length(private$.quanti_indices) > 1
+      has_quali <- length(private$.quali_indices) > 1
+
+
+      if (!type %in% c("quant", "qual", "mixed")) {
+        stop("Invalid requirement type.")
+      }
+
+      if (type == "quant" && !has_quanti) {
+        stop("This algorithm requires at least one quantitative variable.")
+      }
+
+      if (type == "qual" && !has_quali) {
+        stop("This algorithm requires at least one qualitative variable.")
+      }
     }
 
   ), # End public
@@ -245,9 +245,16 @@ ClusteringBase <- R6::R6Class(
   active = list(
 
     # -------------------------------------------------------------------------
-    # data getter
+    # data getter/setter
     # -------------------------------------------------------------------------
-    data = function() { return(private$.data) },
+    data = function(value) {
+
+      if (missing(value)) {
+        return(private$.data)
+      } else {
+        private$.data <- value
+      }
+    },
 
     # -------------------------------------------------------------------------
     # n_clusters getter/setter
@@ -293,6 +300,7 @@ ClusteringBase <- R6::R6Class(
       if (!is.logical(value) || length(value) != 1) {
         stop("'fitted' must be a single logical value (TRUE/FALSE).")
       }
+
       private$.fitted <- value
     },
 
