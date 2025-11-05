@@ -168,6 +168,17 @@ test_that("quantile_discretisation transform quantitative into qualitative", {
   expect_equal(df_disc$var3, df$var3)
 })
 
+test_that("quantile_discretisation n_groups behave correctly", {
+  df_disc <- quantile_discretisation(df, quanti_index = c("var1", "var2"), n_groups = 3)
+  expect_equal(levels(df_disc$var1), c("Q1", "Q2", "Q3"))
+
+  df_disc <- quantile_discretisation(df, quanti_index = c("var1", "var2"), n_groups = 2)
+  expect_equal(levels(df_disc$var1), c("Q1", "Q2"))
+
+  df_disc <- quantile_discretisation(df, quanti_index = c("var1", "var2"), n_groups = 1)
+  expect_equal(levels(df_disc$var1), c("Q1"))
+})
+
 test_that("quantile_discretisation keep dataframe size", {
   df_disc <- quantile_discretisation(df, quanti_index = c("var1", "var2"), n_groups = 4)
   expect_equal(dim(df_disc), dim(df))

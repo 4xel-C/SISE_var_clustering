@@ -37,6 +37,9 @@ HClustVar <- R6::R6Class(
     # Contains the method to calculate the distance matrix.
     .dist.method = NULL,
 
+    # Keep the HAC object.
+    .tree = NULL,
+
 
     # ==========================================================================
     # PRIVATE MEHTODS
@@ -75,12 +78,18 @@ HClustVar <- R6::R6Class(
 
       for (i in quanti_index) {
 
+        # Get the quantiles.
+        # Use unique to avoid small dataset creating duplicate quantile chen number of groups too high.
+        quantiles <- unique(quantile(df[[i]], probs = seq(0, 1, length.out = n_groups + 1), na.rm = TRUE))
+
         # transform the quantitative columns into qualitatives.
         df_copy[i] <- cut(
             df[[i]],
-            breaks = quantile(df[[i]], probs = seq(0, 1, length.out = n_groups + 1), na.rm = TRUE), # Set the breaks on the desired quantile of the column.
+
+            # Set the breaks on the desired quantile of the column.
+            breaks = quantiles,
             include.lowest = TRUE,
-            labels = paste0("Q", 1:n_groups)  # Create the new label.
+            labels = paste0("Q", 1:(length(quantiles) - 1))  # Create the new label.
           )
       }
 
@@ -168,54 +177,53 @@ HClustVar <- R6::R6Class(
     # -----------------------------------------------------------------------
     # Fit method
     # -----------------------------------------------------------------------
-
     fit = function(data) {
 
       # Validate data.
-      load_and_check_data(data)
+      self$load_and_check_data(data)
 
       # Check if enough var types for the
-      validate_algorithm_requirements(private$.vartype)
+      self$validate_algorithm_requirements(private$.vartype)
 
       # Create the distances matrix
-      if (vartype == "quant" && private$.dist.metric == "r") {
+      if (private$.vartype == "quant") {
 
-        # Generate the correlation matrix.
+        # Generate the correlation matrix based on correlation.
         cor_matrix <- cor(self$get_quanti_data())
+
+        # Use the squared correlation matrix if requested.
+        if (private$.dist.metric == "rsquare") cor_matrix <- cor_matrix^2
 
         # Create the dissimilarity matrix used as base distances matrix.
         private$.dist.matrix <- as.dist(sqrt(1 - cor_matrix))
 
-      } else if (vartype == "quant" && dist.metric == "rsquare") {
-        # Generate the correlation matrix.
-        cor_matrix <- cor(self$get_quanti_data())
+      } else if (private$.vartype %in% c("qual", "mixed")) {
 
-        # Create the dissimilarity matrix used as base distances matrix.
-        private$.dist.matrix <- as.dist(sqrt(1 - cor_matrix**2))
+        # Prepare the data depending if we want the mixed clustering or not.
+        if (private$.vartype == "qual") {
 
-      } else if (vartype == "qual") {
+          # Get the qualtative data only.
+          df_quali <- self$get_quali_data()
 
-        # TODO: To be implemented
-
-
-        if (vartype == "mixed") {
+        } else if (private$.vartype == "mixed") {
 
           # Preparation of the data by transforming quantitatives into qualitatives.
-          df_discretised <- self$quantile_discretisation(self$data, self$quanti_indices, 4)
-
-          # TODO: To be implemented
+          df_quali <- private$quantile_discretisation(data, self$quanti_indices, 4)
         }
 
-        # calculate the dissimilarity matrix.
-        df_qual <- set$get_quali_data
+        # Compute the cramer's V matrix.
+        vmatrix <- private$cramer_matrix(df_quali)
 
-        # TODO
-      } else if (vartype == "mixed") {
-        # TODO
+        # Generetae the dissimilarity matrix.
+        private$.dist.matrix <- as.dist(1 - vmatrix)
+
+      # Raise an error if no corresponding type.
       } else {
-        stop("Invalid class construction.")
+        stop("Invalid class structure: an error occured or one of the attribute has been manually edited.")
       }
 
+      # Compute CAH.
+      private$.tree <- hclust(private$.dist.matrix, method = "ward.D")
     },
 
     cut_tree = function(k = NULL, h = NULL) {
@@ -224,7 +232,7 @@ HClustVar <- R6::R6Class(
 
     # Dendrogramme
     plot_dendrogram = function(k = NULL, ...) {
-      # TODO: A implémenter
+      plot(private$.tree)
     }
   ),
 
