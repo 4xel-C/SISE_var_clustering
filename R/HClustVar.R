@@ -1,18 +1,179 @@
-
-#' Variable Clustering class based on AHC with distances matrix.
+#' Hierarchical Variable Clustering
 #'
 #' @description
-#'
+#' Implements a variable clustering algorithm using Agglomerative Hierarchical
+#' Clustering (AHC). Supports quantitative, qualitative, or mixed data.
+#' Quantitative variables can be clustered using correlation-based distances,
+#' and qualitative variables using Cramer's V.
 #'
 #' @details
-#' The `ClusteringBase` class provides:
-#' - private fields for storing data, number of clusters, labels, and fit status
-#' - Input validation and data preprocessing utilities
-#' - Detection of variable types (quantitative vs qualitative)
-#' - Abstract methods that must be implemented by child classes
+#' The `HClustVar` class inherits from `ClusteringBase` and provides:
+#' - Automatic detection of variable types (quantitative, qualitative, mixed)
+#' - Calculation of a distance matrix suitable for hierarchical clustering
+#' - Internal preprocessing of quantitative variables (quantile discretization)
+#' - Cramer's V calculation for categorical associations
+#' - Storage of the resulting hierarchical clustering tree
+#'
+#' @section Public Methods:
+#' \describe{
+#'   \item{\code{initialize(vartype = "auto", dist.metric = NULL)}}{
+#'     Creates a new instance of HClustVar.
+#'     \itemize{
+#'       \item \code{vartype}: Type of variables ("auto", "quant", "qual", "mixed")
+#'       \item \code{dist.metric}: Distance metric ("rsquare", "r") for vartype = "quant"
+#'     }
+#'   }
+#'   \item{\code{fit(data)}}{
+#'     Fits the clustering model on the provided data.
+#'     \itemize{
+#'       \item \code{data}: Data frame containing the variables to cluster
+#'     }
+#'     This method:
+#'     \itemize{
+#'       \item Validates and loads the data
+#'       \item Automatically determines variable type if vartype = "auto"
+#'       \item Calculates the appropriate distance matrix
+#'       \item Performs hierarchical clustering using Ward's method
+#'     }
+#'   }
+#'   \item{\code{cut_tree(k = NULL, h = NULL)}}{
+#'     Cuts the hierarchical tree to obtain k clusters or at height h.
+#'     \itemize{
+#'       \item \code{k}: Desired number of clusters
+#'       \item \code{h}: Cutting height
+#'     }
+#'     \emph{Note: Method to be implemented (TODO)}
+#'   }
+#'   \item{\code{plot_dendrogram(k = NULL, ...)}}{
+#'     Displays the dendrogram of the hierarchical clustering.
+#'     \itemize{
+#'       \item \code{k}: Number of clusters to highlight (optional)
+#'       \item \code{...}: Additional arguments passed to plot()
+#'     }
+#'   }
+#' }
+#'
+#' @section Active Bindings (getters):
+#' \describe{
+#'   \item{\code{dist.metric}}{
+#'     Returns the distance metric used ("rsquare" or "r" for quantitative variables)
+#'   }
+#'   \item{\code{vartype}}{
+#'     Returns the type of variables processed ("quant", "qual", or "mixed")
+#'   }
+#'   \item{\code{dist.matrix}}{
+#'     Returns the calculated distance matrix (object of class "dist")
+#'   }
+#' }
+#'
+#' @section Behavior by Variable Type:
+#' \subsection{Quantitative variables (vartype = "quant")}{
+#'   \itemize{
+#'     \item Calculates the correlation matrix between variables
+#'     \item Applies the chosen metric (r or rsquare)
+#'     \item Creates a dissimilarity matrix: \code{dist = sqrt(1 - cor)}
+#'   }
+#' }
+#' \subsection{Qualitative variables (vartype = "qual")}{
+#'   \itemize{
+#'     \item Calculates Cramer's V between all pairs of variables
+#'     \item Creates a dissimilarity matrix: \code{dist = 1 - cramer_v}
+#'   }
+#' }
+#' \subsection{Mixed variables (vartype = "mixed")}{
+#'   \itemize{
+#'     \item Discretizes quantitative variables into 4 quantiles
+#'     \item Treats all variables as qualitative
+#'     \item Calculates Cramer's V on the entire dataset
+#'     \item Creates a dissimilarity matrix: \code{dist = 1 - cramer_v}
+#'   }
+#' }
+#' \subsection{Automatic detection (vartype = "auto")}{
+#'   \itemize{
+#'     \item Selects "quant" if all variables are quantitative
+#'     \item Selects "qual" if all variables are qualitative
+#'     \item Selects "mixed" if both types are present
+#'   }
+#' }
+#'
+#' @section Clustering Algorithm:
+#' Ward's method (ward.D) is used for hierarchical clustering.
+#' This method minimizes within-cluster variance and produces
+#' relatively homogeneous clusters.
+#'
+#' @section Error and Warning Handling:
+#' \itemize{
+#'   \item Error if \code{dist.metric} is invalid for vartype = "quant"
+#'   \item Error if \code{vartype} is invalid
+#'   \item Warning if \code{dist.metric} is specified for vartype "qual" or "mixed"
+#'   \item Warning if automatic detection changes the metric
+#' }
+#'
+#' @examples
+#' \dontrun{
+#' # Example with quantitative variables
+#' data_quant <- data.frame(
+#'   var1 = rnorm(100),
+#'   var2 = rnorm(100),
+#'   var3 = rnorm(100)
+#' )
+#'
+#' hc_quant <- HClustVar$new(vartype = "quant", dist.metric = "rsquare")
+#' hc_quant$fit(data_quant)
+#' hc_quant$plot_dendrogram()
+#'
+#' # Example with qualitative variables
+#' data_qual <- data.frame(
+#'   cat1 = factor(sample(letters[1:3], 100, replace = TRUE)),
+#'   cat2 = factor(sample(letters[4:6], 100, replace = TRUE)),
+#'   cat3 = factor(sample(letters[7:9], 100, replace = TRUE))
+#' )
+#'
+#' hc_qual <- HClustVar$new(vartype = "qual")
+#' hc_qual$fit(data_qual)
+#' hc_qual$plot_dendrogram()
+#'
+#' # Example with automatic detection
+#' data_mixed <- data.frame(
+#'   num1 = rnorm(100),
+#'   num2 = rnorm(100),
+#'   cat1 = factor(sample(letters[1:3], 100, replace = TRUE))
+#' )
+#'
+#' hc_auto <- HClustVar$new(vartype = "auto")
+#' hc_auto$fit(data_mixed)
+#' hc_auto$plot_dendrogram()
+#'
+#' # Access properties
+#' print(hc_auto$vartype)      # "mixed"
+#' print(hc_auto$dist.matrix)  # Distance matrix
+#' }
+#'
+#' @section Dependencies:
+#' This class requires:
+#' \itemize{
+#'   \item The R6 package
+#'   \item The parent class ClusteringBase
+#'   \item Base R functions: cor(), hclust(), chisq.test(), table()
+#' }
 #'
 #' @note
-#' This class is not exported outside the package. It serves only as an internal prototype.
+#' This class is not exported; it is intended for internal use
+#' within the package.
+#'
+#' @seealso
+#' \code{\link{ClusteringBase}} for the parent class
+#' \code{\link[stats]{hclust}} for hierarchical clustering
+#' \code{\link[stats]{cor}} for correlation calculations
+#'
+#' @references
+#' \itemize{
+#'   \item Abdallah, H. ; Saporta, G. Revue de Statistique Appliquée, Tome 46 (1998) no. 4, pp. 5-26
+#'   \item Rakotomalala R. Tutoriel Tanagra, « Classification de variables qualitatives», décembre 2013
+#' }
+#'
+#' @family clustering classes
+#' @keywords internal
 #'
 #' @noRd
 HClustVar <- R6::R6Class(
@@ -26,28 +187,28 @@ HClustVar <- R6::R6Class(
 
     # Metric to calculate distances between variables.
     .dist.metric = NULL,
-
     # Type of variable to make clustering on.
     .vartype = NULL,
-
     # Contains the distances matrix.
     .dist.matrix = NULL,
-
     # Contains the method to calculate the distance matrix.
     .dist.method = NULL,
-
     # Keep the HAC object.
     .tree = NULL,
+    # CAH method chosen.
+    .cah.method = NULL,
 
 
     # ==========================================================================
-    # PRIVATE MEHTODS
+    # PRIVATE METHODS
     # ==========================================================================
 
-    #' Validate input parameters for class instanciation.
-    #' @param vartype The type of variable to make the clustering on. Accepted values: ['quant', 'qual', 'mixed'].
-    #' @param dist.metric The metric to use on the algorithm. Only available when vartype = 'quant'. Accepted values: ['r', 'rsquare'].
-    check_input = function(vartype, dist.metric) {
+    # Validate input parameters for class instantiation
+    # Checks that 'vartype' and 'dist.metric' are valid.
+    # - vartype: 'quant', 'qual', 'mixed', or 'auto'
+    # - dist.metric: 'r' or 'rsquare' (only if vartype = 'quant')
+    # - cah.method: 'ward.D', 'ward.D2', 'single', 'complete', 'average', 'mcquitty', 'median', 'centroid'.
+    check_input = function(vartype, dist.metric, cah.method) {
 
       # Checking metric selection
       if (vartype == "quant" && !(dist.metric %in% c("rsquare", "r"))) {
@@ -61,10 +222,19 @@ HClustVar <- R6::R6Class(
       } else if (vartype %in% c("qual", "mixed") && !is.null(dist.metric)) {
         warning("'dist.metric' parameter will be ignored as it only affects 'quant' vartype")
       }
+
+      # Test CAH method selection.
+      if (!cah.method %in% c("ward.D", "ward.D2", "single", "complete", "average", "mcquitty", "median", "centroid")) {
+        stop("Unknow CAH method selected. Please select: 'ward.D', 'ward.D2', 'single', 'complete', 'average', 'mcquitty', 'median', 'centroid'")
+      }
     },
 
-    #' Transform the quantitative columns of a dataframe into a discrete variable.
-    #' Split the variable into 4 quantiles.
+
+    # Transform quantitative columns into discrete variables (quantile-based). Leave unchanged one hot encoded columns.
+    # - df: data.frame containing the data
+    # - quanti_index: integer vector of column indices for quantitative variables
+    # - n_groups: number of quantile groups to split each variable into
+    # Returns a data.frame with quantitative columns discretized into factor levels.
     quantile_discretisation = function(df, quanti_index, n_groups) {
 
       # If no quantitative variable specified.
@@ -169,22 +339,64 @@ HClustVar <- R6::R6Class(
     # -----------------------------------------------------------------------
     # Constructor
     # -----------------------------------------------------------------------
-    initialize = function(vartype = "auto", dist.metric = NULL) {
+
+    #' @title Constructor for HClustVar
+    #'
+    #' @description
+    #' Initializes a new instance of the `HClustVar` class.
+    #' Sets up the variable type, distance metric, and hierarchical clustering method.
+    #'
+    #' @param vartype Character, optional. Type of variables to cluster.
+    #'   Accepted values: 'quant', 'qual', 'mixed', 'auto'. Default: 'auto'.
+    #' @param dist.metric Character, optional. Distance metric for quantitative variables.
+    #'   Accepted values: 'r', 'rsquare'. Ignored if vartype is not 'quant'.
+    #' @param cah.method Character, optional. Method for hierarchical clustering.
+    #'   Passed to `hclust()`.
+    #'   Accepted values: 'ward.D', 'ward.D2', 'single', 'complete', 'average', 'mcquitty', 'median', 'centroid'
+    #'   Default: 'ward.D'.
+    #'
+    #' @details
+    #' The constructor validates input parameters using `private$check_input` and
+    #' assigns them to private fields.
+    #'
+    #' @return A new instance of `HClustVar`.
+    #' @noRd
+    initialize = function(vartype = "auto", dist.metric = NULL, cah.method = "ward.D") {
 
       # Select default parameter for the metric if NULL.
       if (vartype == "quant" && is.null(dist.metric)) {
         dist.metric <- "rsquare"
       }
 
-      private$check_input(vartype, dist.metric)
+      private$check_input(vartype, dist.metric, cah.method)
 
       private$.dist.metric <- dist.metric
       private$.vartype <- vartype
+      private$.cah.method <- cah.method
     },
 
     # -----------------------------------------------------------------------
     # Fit method
     # -----------------------------------------------------------------------
+
+    #' Fit hierarchical clustering on variables
+    #'
+    #' @description
+    #' Computes the hierarchical clustering based on the variable type (quantitative,
+    #' qualitative, or mixed) and the specified distance metric.
+    #'
+    #' @param data data.frame or matrix containing the variables to cluster.
+    #'
+    #' @details
+    #' - If `vartype = "auto"`, the method automatically selects 'quant', 'qual', or 'mixed'
+    #'   based on the input data.
+    #' - For quantitative variables, computes correlation or squared correlation as dissimilarity.
+    #' - For qualitative or mixed variables, transforms quantitative columns into quantiles (discretization)
+    #'   and computes Cramer's V dissimilarity matrix.
+    #' - Finally, applies hierarchical clustering (`hclust`) using the method defined in `.cah.method`.
+    #'
+    #' @return None. The clustering tree is stored internally in `private$.tree`.
+    #' @noRd
     fit = function(data) {
 
       # Validate data.
@@ -260,15 +472,25 @@ HClustVar <- R6::R6Class(
       }
 
       # Compute CAH.
-      private$.tree <- hclust(private$.dist.matrix, method = "ward.D")
+      private$.tree <- hclust(private$.dist.matrix, method = private$.cah.method)
     },
 
     cut_tree = function(k = NULL, h = NULL) {
       # TODO: A implémenter
     },
 
-    # Dendrogramme
-    plot_dendrogram = function(k = NULL, ...) {
+
+    #' Plot dendrogram of the hierarchical clustering
+    #'
+    #' @description
+    #' Displays the dendrogram of the computed hierarchical clustering tree.
+    #'
+    #' @details
+    #' The dendrogram visualizes the hierarchical clustering of variables.
+    #' The tree must be computed beforehand using `fit()`.
+    #' @return None. Generates a plot.
+    #' @noRd
+    plot_dendrogram = function() {
       plot(private$.tree)
     }
   ),
@@ -279,8 +501,13 @@ HClustVar <- R6::R6Class(
 
   active = list(
 
+    # Returns the distance metric used for quantitative variables ('r' or 'rsquare')
     dist.metric = function() {return(private$.dist.metric)},
+
+    # Returns the type of variables considered for clustering ('quant', 'qual', 'mixed', 'auto')
     vartype = function() {return(private$.vartype)},
+
+    # Returns the computed dissimilarity/distance matrix
     dist.matrix = function() {return(private$.dist.matrix)}
 
   )

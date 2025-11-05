@@ -77,9 +77,9 @@ test_that("labels setter validates length", {
   obj <- DummyClustering$new()
   obj$load_and_check_data(df_quanti)
 
-  obj$labels <- 1:5
-  expect_equal(obj$labels, 1:5)
-  expect_error(obj$labels <- 1:3)
+  obj$labels <- 1:2
+  expect_equal(obj$labels, 1:2)
+  expect_error(obj$labels <- 1:5)
 })
 
 
