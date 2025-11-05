@@ -19,7 +19,6 @@ HClustVar <- R6::R6Class(
   "HClustVar",
   inherit = ClusteringBase,
 
-
   # ==========================================================================
   # PRIVATE FIELDS
   # ==========================================================================
@@ -47,16 +46,16 @@ HClustVar <- R6::R6Class(
 
     #' Validate input parameters for class instanciation.
     #' @param vartype The type of variable to make the clustering on. Accepted values: ['quant', 'qual', 'mixed'].
-    #' @param dist.metric The metric to use on the algorithm. Only available when vartype = 'quant'. Accepted values:
+    #' @param dist.metric The metric to use on the algorithm. Only available when vartype = 'quant'. Accepted values: ['r', 'rsquare'].
     check_input = function(vartype, dist.metric) {
 
       # Checking metric selection
       if (vartype == "quant" && !(dist.metric %in% c("rsquare", "r"))) {
-        stop(paste0("Parameter 'dist.metric' has invalid value. Choose: 'rsquare', 'r'. Got: ", dist.metric))
+        stop(paste0("Parameter 'dist.metric' has invalid value for quantitative variables. Choose: 'rsquare', 'r'. Got: ", dist.metric))
 
         # Checking vartype selection
-      } else if (!(vartype %in% c("quant", "qual", "mixed"))) {
-        stop(paste0("Parameter 'vartype' has invalid value. Choose: 'quant', 'qual', 'mixed'. Got: ", vartype))
+      } else if (!(vartype %in% c("quant", "qual", "mixed", "auto"))) {
+        stop(paste0("Parameter 'vartype' has invalid value. Choose: 'quant', 'qual', 'mixed', 'auto'. Got: ", vartype))
 
         # Warn if dist.metric is specified but ignored
       } else if (vartype %in% c("qual", "mixed") && !is.null(dist.metric)) {
@@ -77,6 +76,15 @@ HClustVar <- R6::R6Class(
       df_copy <- df
 
       for (i in quanti_index) {
+
+        # Check if the numerical value is one hot encoded.
+        if (length(unique(df[[i]])) <= 2) {
+          if (all(df$colonne %in% c(0, 1))) {
+
+            # Ignore the loop and go to the next column.
+            next
+          }
+        }
 
         # Get the quantiles.
         # Use unique to avoid small dataset creating duplicate quantile chen number of groups too high.
@@ -111,7 +119,7 @@ HClustVar <- R6::R6Class(
       contingency <- table(x, y)
 
       # Get the chi2 statistic.
-      chi2 <- chisq.test(contingency, correct = FALSE)$statistic
+      chi2 <- suppressWarnings(chisq.test(contingency, correct = FALSE)$statistic)
 
       # Get the total count.
       n <- sum(contingency)
@@ -161,7 +169,7 @@ HClustVar <- R6::R6Class(
     # -----------------------------------------------------------------------
     # Constructor
     # -----------------------------------------------------------------------
-    initialize = function(vartype = "mixed", dist.metric = NULL) {
+    initialize = function(vartype = "auto", dist.metric = NULL) {
 
       # Select default parameter for the metric if NULL.
       if (vartype == "quant" && is.null(dist.metric)) {
@@ -182,7 +190,36 @@ HClustVar <- R6::R6Class(
       # Validate data.
       self$load_and_check_data(data)
 
-      # Check if enough var types for the
+      # if "auto" selected, choose the best vartypes.
+      if (private$.vartype == "auto") {
+
+        # Select quantitative if only quantitatives columns.
+        if (length(private$.quali_indices) == 0) {
+          private$.vartype = "quant"
+
+          if (is.null(private$.dist.metric)) {
+            private$.dist.metric <- "rsquare"
+          } else if (!private$.dist.metric %in% c('r', 'rsquare')) {
+            warning("Chosen metric does not match quantitatives data. Changing for 'rsquare'.")
+            dist.metric <- "rsquare"
+          }
+
+          # Select qualitative variable.
+        } else if (length(private$.quanti_indices) == 0) {
+          private$.vartype <-  "qual"
+
+          # Raise a warning if dist.metric specified.
+          if (!is.null(private$.dist.metric)) {
+            warning("Dataframe has only qualitative values, param. dist.metric is ignored.")
+          }
+
+
+        } else {
+          private$.vartype <-  "mixed"
+        }
+      }
+
+      # Check if selected the data contains at least 2 columns of the selected vartype.
       self$validate_algorithm_requirements(private$.vartype)
 
       # Create the distances matrix

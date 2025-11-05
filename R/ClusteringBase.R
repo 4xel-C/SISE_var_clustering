@@ -20,7 +20,6 @@ ClusteringBase <- R6::R6Class(
   # Calling string.
   "ClusteringBase",
 
-
   # ==========================================================================
   # PRIVATE FIELDS
   # ==========================================================================
@@ -227,12 +226,12 @@ ClusteringBase <- R6::R6Class(
         stop("Invalid requirement type.")
       }
 
-      if (type == "quant" && !has_quanti) {
-        stop("This algorithm requires at least one quantitative variable.")
+      if (type == "quant" && length(private$.quanti_indices) < 2) {
+        stop("Not enough quantitatives columns. Consider changing vartype.")
       }
 
-      if (type == "qual" && !has_quali) {
-        stop("This algorithm requires at least one qualitative variable.")
+      if (type == "qual" && length(private$.quali_indices) < 2) {
+        stop("Not enough qualitative columns. Consider changer vartype.")
       }
     }
 

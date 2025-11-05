@@ -7,7 +7,7 @@
 # ==============================================================================
 test_that("Constructor sets default values correctly", {
   obj <- HClustVar$new()
-  expect_equal(obj$vartype, "mixed")
+  expect_equal(obj$vartype, "auto")
   expect_null(obj$dist.metric)
 })
 
@@ -44,6 +44,68 @@ test_that("check_input() errors for invalid vartype or dist.metric", {
   expect_error(
     obj$initialize(vartype = "quant", dist.metric = "invalid"),
     "Parameter 'dist.metric' has invalid value"
+  )
+})
+
+
+test_that("HClustVar auto detection with quantitative data", {
+  df_quanti <- data.frame(
+    var1 = rnorm(10),
+    var2 = rnorm(10),
+    var3 = rnorm(10)
+  )
+
+  hc_auto_quanti <- HClustVar$new(vartype = "auto")
+  expect_silent(hc_auto_quanti$fit(df_quanti))
+
+  expect_equal(hc_auto_quanti$vartype, "quant")
+  expect_equal(hc_auto_quanti$dist.metric, "rsquare")
+  expect_s3_class(hc_auto_quanti$dist.matrix, "dist")
+})
+
+
+test_that("HClustVar auto detection with qualitative data", {
+  df_quali <- data.frame(
+    color = factor(sample(c("red", "blue", "green"), 10, TRUE)),
+    shape = factor(sample(c("circle", "square"), 10, TRUE))
+  )
+
+  hc_auto_quali <- HClustVar$new(vartype = "auto")
+  expect_silent(hc_auto_quali$fit(df_quali))
+
+  expect_equal(hc_auto_quali$vartype, "qual")
+  expect_null(hc_auto_quali$dist.metric)
+  expect_s3_class(hc_auto_quali$dist.matrix, "dist")
+})
+
+
+test_that("HClustVar auto detection with mixed data", {
+  df_mixed <- data.frame(
+    age = rnorm(10),
+    income = rnorm(10),
+    gender = factor(sample(c("M", "F"), 10, TRUE))
+  )
+
+  hc_auto_mixed <- HClustVar$new(vartype = "auto")
+  expect_silent(hc_auto_mixed$fit(df_mixed))
+
+  expect_equal(hc_auto_mixed$vartype, "mixed")
+  expect_null(hc_auto_mixed$dist.metric)
+  expect_s3_class(hc_auto_mixed$dist.matrix, "dist")
+})
+
+
+test_that("HClustVar handles invalid metric gracefully", {
+  df_quali <- data.frame(
+    color = factor(sample(c("red", "blue", "green"), 10, TRUE)),
+    shape = factor(sample(c("circle", "square"), 10, TRUE))
+  )
+
+  hc_invalid <- HClustVar$new(vartype = "auto", dist.metric = "r")
+
+  expect_warning(
+    hc_invalid$fit(df_quali),
+    regexp = "Dataframe has only qualitative values, param. dist.metric is ignored."
   )
 })
 
