@@ -65,6 +65,11 @@ HClustVar <- R6::R6Class(
     #' Split the variable into 4 quantiles.
     quantile_discretisation = function(df, quanti_index, n_groups) {
 
+      # If no quantitative variable specified.
+      if (length(quanti_index) == 0) {
+        return(df)
+      }
+
       # Create a copy of the original dataframe.
       df_copy <- df
 
@@ -83,17 +88,42 @@ HClustVar <- R6::R6Class(
     },
 
     #' Calculate Cramer's V between two variables
+    #'
+    #' Internal helper function to compute Cramer's V,
+    #' a measure of association between two categorical variables.
+    #'
+    #' @param x A factor or vector representing the first categorical variable.
+    #' @param y A factor or vector representing the second categorical variable.
+    #'
+    #' @return A numeric value representing Cramer's V (between 0 and 1).
     cramer_v = function(x, y) {
+
+      # Create the contingency table.
       contingency <- table(x, y)
+
+      # Get the chi2 statistic.
       chi2 <- chisq.test(contingency, correct = FALSE)$statistic
+
+      # Get the total count.
       n <- sum(contingency)
+
+      # Get the min dimension for the dof.
       min_dim <- min(nrow(contingency), ncol(contingency)) - 1
 
+      # Calculate the cramer V.
       v <- sqrt(chi2 / (n * min_dim))
       return(as.numeric(v))
     },
 
     #' Calculate Cramer's V matrix
+    #'
+    #' Internal helper method that computes a matrix of pairwise Cramer's V
+    #' coefficients between all categorical variables in a data frame.
+    #'
+    #' @param df A data frame containing categorical variables.
+    #'
+    #' @return A symmetric numeric matrix where each element represents the
+    #' Cramer's V value between two variables (values range from 0 to 1).
     cramer_matrix = function(df) {
       n_vars <- ncol(df)
       var_names <- colnames(df)
@@ -108,7 +138,6 @@ HClustVar <- R6::R6Class(
           cramer_mat[j, i] <- v
         }
       }
-
       return(cramer_mat)
     }
 
@@ -147,8 +176,6 @@ HClustVar <- R6::R6Class(
 
       # Check if enough var types for the
       validate_algorithm_requirements(private$.vartype)
-
-      # If the
 
       # Create the distances matrix
       if (vartype == "quant" && private$.dist.metric == "r") {
