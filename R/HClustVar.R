@@ -36,13 +36,6 @@
 #'       \item Performs hierarchical clustering using Ward's method
 #'     }
 #'   }
-#'   \item{\code{cut_tree(k = NULL, h = NULL)}}{
-#'     Cuts the hierarchical tree to obtain k clusters or at height h.
-#'     \itemize{
-#'       \item \code{k}: Desired number of clusters
-#'       \item \code{h}: Cutting height
-#'     }
-#'     \emph{Note: Method to be implemented (TODO)}
 #'   }
 #'   \item{\code{plot_dendrogram(k = NULL, ...)}}{
 #'     Displays the dendrogram of the hierarchical clustering.
@@ -197,11 +190,19 @@ HClustVar <- R6::R6Class(
     .tree = NULL,
     # CAH method chosen.
     .cah.method = NULL,
+    # centroids (computed after cut_tree function, latent components of each cluster as dataframe stored as a list of vectors).
+    .centroids = NULL,
+    # a vector of eigen value of the latent component of each cluster.
+    .clusters.eigen = NULL,
 
 
     # ==========================================================================
     # PRIVATE METHODS
     # ==========================================================================
+
+    # -----------------------------------------------------------------------
+    # Check input method
+    # -----------------------------------------------------------------------
 
     # Validate input parameters for class instantiation
     # Checks that 'vartype' and 'dist.metric' are valid.
@@ -229,6 +230,9 @@ HClustVar <- R6::R6Class(
       }
     },
 
+    # -----------------------------------------------------------------------
+    # Discretisation method
+    # -----------------------------------------------------------------------
 
     # Transform quantitative columns into discrete variables (quantile-based). Leave unchanged one hot encoded columns.
     # - df: data.frame containing the data
@@ -249,7 +253,10 @@ HClustVar <- R6::R6Class(
 
         # Check if the numerical value is one hot encoded.
         if (length(unique(df[[i]])) <= 2) {
-          if (all(df$colonne %in% c(0, 1))) {
+          if (all(df[[i]] %in% c(0, 1))) {
+
+            # Transform into factor.
+            df_copy[[i]] <- as.factor(df[[i]])
 
             # Ignore the loop and go to the next column.
             next
@@ -261,7 +268,7 @@ HClustVar <- R6::R6Class(
         quantiles <- unique(quantile(df[[i]], probs = seq(0, 1, length.out = n_groups + 1), na.rm = TRUE))
 
         # transform the quantitative columns into qualitatives.
-        df_copy[i] <- cut(
+        df_copy[[i]] <- cut(
             df[[i]],
 
             # Set the breaks on the desired quantile of the column.
@@ -269,10 +276,18 @@ HClustVar <- R6::R6Class(
             include.lowest = TRUE,
             labels = paste0("Q", 1:(length(quantiles) - 1))  # Create the new label.
           )
+
+        # Ensure the factor conversion.
+        df_copy[[i]] <- as.factor(df_copy[[i]])
       }
 
       return(df_copy)
     },
+
+
+    # -----------------------------------------------------------------------
+    # Cramer's V matrix calculation.
+    # -----------------------------------------------------------------------
 
     #' Calculate Cramer's V between two variables
     #'
@@ -326,8 +341,52 @@ HClustVar <- R6::R6Class(
         }
       }
       return(cramer_mat)
-    }
+    },
 
+    # -----------------------------------------------------------------------
+    # Compute centroids method.
+    # -----------------------------------------------------------------------
+
+
+    # TODO: Documentation
+    # Compute centroids when cutting tree
+    compute_centroids = function() {
+
+      # Initialise centroids matrix.
+      centroids <- matrix(nrow = nrow(self$data), ncol = 0)
+
+      # Compute
+      eigens <- c()
+
+      # Iteration on all clusters.
+      for (i in 1:self$n_clusters) {
+
+        cluster_vars <- names(self$labels)[self$labels == i]
+        sub_data <- self$data[, cluster_vars, drop = FALSE]
+
+        if (all(sapply(sub_data, is.numeric))) {
+          res <- FactoMineR::PCA(sub_data, ncp = 1, graph = FALSE, scale.unit = TRUE)
+
+        } else if (all(sapply(sub_data, is.factor))) {
+          res <- FactoMineR::MCA(sub_data, ncp = 1, graph = FALSE)
+
+        } else {
+          res <- FactoMineR::FAMD(sub_data, ncp = 1, graph = FALSE)
+        }
+
+        # Append the result to centroids list and eigens vector.
+        eigens <- c(eigens, res$eig[1, 1])
+        centroids <- cbind(centroids, res$ind$coord)
+
+        } # endfor
+
+      # Update the colname for centroids for clarity
+      colnames(centroids) <- paste0("C", 1:self$n_clusters)
+
+      # Set the private attributes.
+      self$centroids <- centroids
+      self$clusters.eigen <- eigens
+    }
   ),
 
   # ==========================================================================
@@ -385,7 +444,7 @@ HClustVar <- R6::R6Class(
     #' Computes the hierarchical clustering based on the variable type (quantitative,
     #' qualitative, or mixed) and the specified distance metric.
     #'
-    #' @param data data.frame or matrix containing the variables to cluster.
+    #' @param data data.frame or matrix containing the variables to cluster. Be careful to set your qualitatives or dummified data as factors.
     #'
     #' @details
     #' - If `vartype = "auto"`, the method automatically selects 'quant', 'qual', or 'mixed'
@@ -473,25 +532,130 @@ HClustVar <- R6::R6Class(
 
       # Compute CAH.
       private$.tree <- hclust(private$.dist.matrix, method = private$.cah.method)
+
+      # Update the fitted variable.
+      self$fitted <- TRUE
     },
 
+
+    # -----------------------------------------------------------------------
+    # cut_tree method
+    # -----------------------------------------------------------------------
+
+    #' Cut the hierarchical clustering tree into clusters
+    #'
+    #' @description
+    #' Cuts the hierarchical clustering tree of a fitted model into clusters.
+    #' This method updates the `labels` and `n_clusters`attributes of the object with cluster assignments.
+    #'
+    #' @details
+    #' The method uses `cutree()` internally to generate cluster labels for each observation.
+    #' You can specify either the number of clusters (`k`) or a cut height (`h`):
+    #' - If `k` is provided, the tree is cut to produce exactly `k` clusters.
+    #' - If `h` is provided, the tree is cut at the specified height, and the number of clusters
+    #'   is determined automatically.
+    #' - If both `k` and `h` are provided, `cutree()` will prioritize `k`.
+    #'
+    #' The model must be fitted beforehand (`self$fitted` must be TRUE), otherwise an error
+    #' is raised.
+    #'
+    #' @param k Integer, optional. Number of clusters to generate.
+    #' @param h Numeric, optional. Height at which to cut the tree.
+    #'
+    #' @return A vector of cluster labels corresponding to each observation. The labels are also
+    #'         stored in the object's `labels` attribute.
+    #'
+    #' @examples
+    #' \dontrun{
+    #' # Using an instance of the class:
+    #' obj$cut_tree(k = 3)       # cut into 3 clusters
+    #' obj$cut_tree(h = 150)     # cut at height 150
+    #' }
+    #'
+    #' @noRd
     cut_tree = function(k = NULL, h = NULL) {
-      # TODO: A implémenter
+
+      # Check if the model is fitted.
+      if (!self$fitted) {
+        stop("Your model is not fitted with any data!")
+      }
+
+      # Update the labels attribute.
+      self$labels <- cutree(self$tree, k, h)
+
+      # update the number of clusters
+      self$n_clusters <- length(unique(self$labels))
+
+      return(self$labels)
+
     },
 
+    # -----------------------------------------------------------------------
+    # plot dendrogram method
+    # -----------------------------------------------------------------------
 
     #' Plot dendrogram of the hierarchical clustering
     #'
     #' @description
-    #' Displays the dendrogram of the computed hierarchical clustering tree.
+    #' Displays the dendrogram of the computed hierarchical clustering tree,
+    #' with optional colored rectangles highlighting the cluster groups.
     #'
     #' @details
-    #' The dendrogram visualizes the hierarchical clustering of variables.
-    #' The tree must be computed beforehand using `fit()`.
+    #' The dendrogram visualizes the hierarchical relationships between variables
+    #' obtained from the hierarchical clustering algorithm.
+    #' If a number of clusters `k` is provided, the function colors and outlines
+    #' the corresponding groups in the dendrogram using distinct colors.
+    #'
+    #' @param k (integer) Optional. Number of clusters to highlight in the dendrogram.
+    #'        If `k = 0` (default), the dendrogram is drawn without colored groups.
+    #'
     #' @return None. Generates a plot.
+    #'
+    #' @examples
+    #' # Example usage (assuming the model has been fitted):
+    #' # obj$plot_dendrogram(k = 3)
+    #'
     #' @noRd
-    plot_dendrogram = function() {
-      plot(private$.tree)
+    plot_dendrogram = function(k = 0) {
+      plot(private$.tree, main = "Dendrogramme - CAH", xlab = "Variables")
+
+      # If k is specified, draw the rectangles.
+      if (k > 0 && is.numeric(k)) {
+        rect.hclust(private$.tree, k = as.integer(k), border = rainbow(k))
+      }
+    },
+
+    # -----------------------------------------------------------------------
+    # Predict method
+    # -----------------------------------------------------------------------
+
+    # TODO: documlentation
+    predict = function(new_data) {
+
+      # Check if model is fitted
+      if (!self$fitted) {
+        stop("Model must be fitted before prediction")
+      }
+
+      # Check if labels exist
+      if (is.null(self$labels)) {
+        stop("Tree must be cut before prediction. Use cut_tree() first.")
+      }
+
+      # Validate new_data
+      if (!is.data.frame(new_data) && !is.matrix(new_data)) {
+        stop("new_data must be a data.frame or matrix")
+      }
+
+      # Check row compatibility
+      if (nrow(new_data) != nrow(self$data)) {
+        stop("new_data must have the same number of rows as training data")
+      }
+
+      private$compute_centroids()
+
+      # TODO: Finish implementation of calculate centroids first.
+
     }
   ),
 
@@ -508,7 +672,49 @@ HClustVar <- R6::R6Class(
     vartype = function() {return(private$.vartype)},
 
     # Returns the computed dissimilarity/distance matrix
-    dist.matrix = function() {return(private$.dist.matrix)}
+    dist.matrix = function() {return(private$.dist.matrix)},
+
+    # return the tree computed from the clustering.
+    tree = function() {return(private$.tree)},
+
+    # centroids setter / getter.
+    centroids = function(value) {
+      if (missing(value)) {
+        return(private$.centroids)
+      }
+
+      # check type
+      if (!(is.data.frame(value) || is.matrix(value))) {
+        stop("Centroids should be a dataframe/matrix composed of 1st principal component of each clusters.")
+      }
+
+      # Check the 'value' dataframe dimensions
+      if (!nrow(value) == nrow(self$data) || !ncol(value) == self$n_clusters) {
+        stop("Centroids dataframe/matrix should have the same number of row than the fitted dataframe and 1 column by clusters")
+      }
+
+      private$.centroids <- value
+
+    },
+
+    # centroids setter / getter.
+    clusters.eigen = function(value) {
+      if (missing(value)) {
+        return(private$.clusters.eigen)
+      }
+
+      # check type
+      if (!is.numeric(value)) {
+        stop("clusters.eigen vector should contains only numerical values.")
+      }
+
+      # Check the 'value' vector length.
+      if (length(value) != self$n_clusters) {
+        stop("The clusters.eigen vector should contains one value per cluster.")
+      }
+
+      private$.clusters.eigen <- value
+    }
 
   )
 )
