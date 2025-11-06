@@ -252,15 +252,14 @@ HClustVar <- R6::R6Class(
       for (i in quanti_index) {
 
         # Check if the numerical value is one hot encoded.
-        if (length(unique(df[[i]])) <= 2) {
-          if (all(df[[i]] %in% c(0, 1))) {
+        if (length(unique(df[[i]])) <= 2 && all(df[[i]] %in% c(0, 1))) {
 
-            # Transform into factor.
-            df_copy[[i]] <- as.factor(df[[i]])
+          # Transform into factor.
+          df_copy[[i]] <- as.factor(df[[i]])
 
-            # Ignore the loop and go to the next column.
-            next
-          }
+          # Ignore the loop and go to the next column.
+          next
+
         }
 
         # Get the quantiles.
@@ -386,7 +385,30 @@ HClustVar <- R6::R6Class(
       # Set the private attributes.
       self$centroids <- centroids
       self$clusters.eigen <- eigens
+    },
+
+
+    # TODO: documentation
+    # Compute the correlation ratio between a qualitative variable and a quantitative variable.
+    correlation_ratio = function(quali, quanti) {
+
+      # compute total sum of squares.
+      sst <- sum(
+        (quanti - mean(quanti))**2
+      )
+
+      # compute sum of squares between.
+      ssb <- sum(
+        tapply(quanti, quali, function(v) {length(v) * (mean(v) - mean(quanti))^2})
+      )
+
+      # calculate correlation factor.
+      eta2 <- ssb / sst
+
+      return(eta2)
     }
+
+
   ),
 
   # ==========================================================================
@@ -545,7 +567,7 @@ HClustVar <- R6::R6Class(
     #' Cut the hierarchical clustering tree into clusters
     #'
     #' @description
-    #' Cuts the hierarchical clustering tree of a fitted model into clusters.
+    #' Cuts the hierarchical clustering tree of a fitted model into clusters and compute their centroids.
     #' This method updates the `labels` and `n_clusters`attributes of the object with cluster assignments.
     #'
     #' @details
@@ -585,6 +607,9 @@ HClustVar <- R6::R6Class(
 
       # update the number of clusters
       self$n_clusters <- length(unique(self$labels))
+
+      # Compute the centroids of the clusters.
+      private$compute_centroids()
 
       return(self$labels)
 
@@ -632,6 +657,7 @@ HClustVar <- R6::R6Class(
     # TODO: documlentation
     predict = function(new_data) {
 
+      # --- 1. Check prerequisites ---
       # Check if model is fitted
       if (!self$fitted) {
         stop("Model must be fitted before prediction")
@@ -652,11 +678,52 @@ HClustVar <- R6::R6Class(
         stop("new_data must have the same number of rows as training data")
       }
 
-      private$compute_centroids()
+      # For each variable of the new data, compute the correlation for each clusters and assign them to the closest.
 
-      # TODO: Finish implementation of calculate centroids first.
+      # --- 2. Initialize result vector ---
+      result <- c()
 
-    }
+
+      # --- 3. Iterate over each variable (column) in the new dataset ---
+      # Iteration on each new variable.
+      for (i in 1:ncol(new_data)) {
+
+        # --- 4. Quantitative illustrative variable --
+        if (is.numeric(new_data[, i])) {
+
+          # Check the dist.metric
+          if (!is.null(self$dist.metric) && self$dist.metric == "r") {
+            correlations <- apply(self$centroids, 2, FUN = function(x) {cor(x, new_data[, i])})
+
+            # add the maximum index to the result vector.
+            result <- c(result, which.max(correlations))
+
+          } else {
+            correlations <- apply(self$centroids, 2, FUN = function(x) {cor(x, new_data[, i])**2})
+
+
+            # add the maximum index to the result vector.
+            result <- c(result, which.max(correlations))
+          } # end if
+
+
+          # --- 5. Qualitative illustrative variable ---
+        } else {
+
+          correlations <- apply(self$centroids, 2, FUN = function(x) {private$correlation_ratio(new_data[, i], x)})
+
+          result <- c(result, which.max(correlations))
+
+        }
+      } # end for
+
+      # Rename the vector of label.
+      names(result) <- names(new_data)
+
+      # Return the vector of label.
+      return(result)
+
+    } # end predict
   ),
 
   # ==========================================================================

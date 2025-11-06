@@ -374,16 +374,8 @@ test_that("compute_centroids works with purely quantitative data", {
     var3 = rnorm(10)
   )
 
-  data_sup <- data.frame(
-    var4 = rnorm(10),
-    var5 = rnorm(10)
-  )
-
   obj$fit(data_quant)
   obj$cut_tree(3)
-
-  # Run (with private method accessor)
-  obj$predict(data_sup)
 
   # Checks
   expect_true(!is.null(obj$centroids))
@@ -401,16 +393,9 @@ test_that("compute_centroids works with purely qualitative data", {
     C = as.factor(sample(letters[1:4], 10, TRUE))
   )
 
-  data_sup <- data.frame(
-    var4 = sample(letters[1:3], 10, TRUE),
-    var5 = sample(letters[1:2], 10, TRUE)
-  )
-
   obj$fit(df)
   obj$cut_tree(3)
 
-
-  expect_silent(obj$predict(data_sup))
   expect_true(!is.null(obj$centroids))
   expect_equal(ncol(obj$centroids), obj$n_clusters)
 })
@@ -424,16 +409,10 @@ test_that("compute_centroids works with mixed data (FAMD case)", {
     C = rnorm(10)
   )
 
-  data_sup <- data.frame(
-    var4 = sample(letters[1:3], 10, TRUE),
-    var5 = rnorm(10)
-  )
 
   obj$fit(df)
   obj$cut_tree(3)
 
-
-  expect_silent(obj$predict(data_sup))
   expect_true(!is.null(obj$centroids))
   expect_equal(ncol(obj$centroids), obj$n_clusters)
 })
@@ -447,16 +426,148 @@ test_that("compute_centroids updates attributes correctly", {
     C = rnorm(10)
   )
 
-  data_sup <- data.frame(
-    var4 = sample(letters[1:3], 10, TRUE),
-    var5 = rnorm(10)
+  obj$fit(df)
+  obj$cut_tree(3)
+
+  expect_true(!is.null(colnames(obj$centroids)))
+  expect_equal(length(obj$clusters.eigen), obj$n_clusters)
+})
+
+
+# ==============================================================================
+# Test correlation_ratio method
+# ==============================================================================
+
+# --- Create a mock instance of HClustVar ---
+test_obj <- HClustVar$new(vartype = "quant")
+
+# Access the private method
+correlation_ratio <- test_obj$.__enclos_env__$private$correlation_ratio
+
+# --- Sample data for testing ---
+quanti <- c(10, 12, 9, 8, 14, 15, 22, 24, 25, 23)
+quali <- factor(c("A","A","A","A","B","B","B","B","B","B"))
+
+# --- Unit Tests ---
+
+test_that("correlation_ratio returns a numeric value", {
+  eta2 <- correlation_ratio(quali, quanti)
+  expect_type(eta2, "double")
+})
+
+
+
+test_that("correlation_ratio returns near 0 when there is no relationship", {
+  # Random data should produce no correlation
+  set.seed(1)
+  quali_random <- factor(sample(c("A","B","C"), 100, replace = TRUE))
+  quanti_random <- rnorm(100)
+  eta2 <- correlation_ratio(quali_random, quanti_random)
+  expect_true(eta2 < 0.1)
+  expect_true(eta2 > 0)
+})
+
+test_that("correlation_ratio returns 1 when the separation is perfect", {
+  # Perfect group separation should yield eta² = 1
+  quanti_perf <- c(1, 2, 3, 4, 10, 11, 12, 13)
+  quali_perf <- factor(c("A","A","A","A","B","B","B","B"))
+  eta2 <- correlation_ratio(quali_perf, quanti_perf)
+  expect_gt(round(eta2, 5), 0.9)
+})
+
+
+# ==============================================================================
+# Test predict method
+# ==============================================================================
+
+test_that("predict() works for quantitative data", {
+  # Create simple quantitative dataset
+  df <- data.frame(
+    var1 = rnorm(50),
+    var2 = rnorm(50),
+    var3 = rnorm(50)
   )
+
+  # Fit hierarchical clustering
+  model <- HClustVar$new(vartype = "quant", dist.metric = "r")
+  model$fit(df)
+  model$cut_tree(k = 2)
+
+  # Predict using the same dataset (quantitative)
+  preds <- model$predict(df)
+
+  # --- Assertions ---
+  expect_type(preds, "integer")          # output should be integer vector
+  expect_length(preds, ncol(df))         # one prediction per variable
+  expect_true(all(preds %in% 1:model$n_clusters)) # each belongs to a cluster
+})
+
+
+test_that("predict() works for qualitative data", {
+  # Create categorical dataset
+  df <- data.frame(
+    cat1 = factor(sample(letters[1:3], 40, replace = TRUE)),
+    cat2 = factor(sample(letters[4:6], 40, replace = TRUE)),
+    cat3 = factor(sample(letters[7:9], 40, replace = TRUE))
+  )
+
+  # Fit model for qualitative data
+  model <- HClustVar$new(vartype = "qual")
+  model$fit(df)
+  model$cut_tree(k = 3)
+
+  # Predict with same categorical data
+  preds <- model$predict(df)
+
+  # --- Assertions ---
+  expect_type(preds, "integer")
+  expect_length(preds, ncol(df))
+  expect_true(all(preds %in% 1:model$n_clusters))
+})
+
+
+test_that("predict() works for mixed data.", {
+  obj <- HClustVar$new()
+  df <- data.frame(
+    A = rnorm(10),
+    B = as.factor(sample(letters[1:2], 10, TRUE)),
+    C = rnorm(10)
+  )
+
 
   obj$fit(df)
   obj$cut_tree(3)
 
-  obj$predict(data_sup)
+  # predict on the same df.
+  preds <- obj$predict(df)
 
-  expect_true(!is.null(colnames(obj$centroids)))
-  expect_equal(length(obj$clusters.eigen), obj$n_clusters)
+  expect_length(preds, ncol(df))
+  expect_true(all(preds %in% 1:obj$n_clusters))
+})
+
+
+test_that("predict() raises error if model is not fitted", {
+  model <- HClustVar$new(vartype = "quant")
+  df <- data.frame(a = rnorm(10), b = rnorm(10))
+  expect_error(model$predict(df), "Model must be fitted")
+})
+
+
+test_that("predict() raises error if tree not cut", {
+  model <- HClustVar$new(vartype = "quant")
+  df <- data.frame(a = rnorm(10), b = rnorm(10))
+  model$fit(df)
+  expect_error(model$predict(df), "Tree must be cut")
+})
+
+
+test_that("predict() raises error for incompatible new_data rows", {
+  model <- HClustVar$new(vartype = "quant")
+  df <- data.frame(a = rnorm(10), b = rnorm(10))
+  model$fit(df)
+  model$cut_tree(k = 2)
+
+  # new_data with wrong number of rows
+  new_df <- data.frame(a = rnorm(5), b = rnorm(5))
+  expect_error(model$predict(new_df), "same number of rows")
 })

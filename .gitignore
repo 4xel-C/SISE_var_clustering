@@ -5,3 +5,5 @@
 test.Rmd
 test.nb.html
 data/
+*.xlsx
+*.csv
