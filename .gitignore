@@ -1,7 +1,21 @@
-.Rproj.user
-.Rhistory
+# R temporary files
 .RData
+.Rhistory
+.Rapp.history
 .Ruserdata
+
+# MacOS
+.DS_Store
+
+# Generated outputs (plots et résultats)
+plots/
+results/
+
+# RStudio
+.Rproj.user/
+*.Rproj
+
+# Test notebooks
 test.Rmd
 test.nb.html
 data/
