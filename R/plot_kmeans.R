@@ -299,11 +299,14 @@ plot_kmeans_contributions <- function(contribution_data,
 #'
 #' @noRd
 plot_kmeans_diagnostics <- function(data, k_range = 2:10, fitted_k = NULL,
-                                    n_init = 10, random_state = NULL, ...) {
+                                    n_init = 10, random_state = NULL,
+                                    correlation_type = "squared", ...) {
 
-  # Compute metrics for range of K
-  elbow_data <- kmeans_elbow(data, k_range, n_init, random_state)
-  sil_data <- kmeans_silhouette_range(data, k_range, n_init, random_state)
+  # Compute metrics for range of K with specified correlation_type
+  elbow_data <- kmeans_elbow(data, k_range, n_init, random_state,
+                            correlation_type = correlation_type)
+  sil_data <- kmeans_silhouette_range(data, k_range, n_init, random_state,
+                                      correlation_type = correlation_type)
 
   # Setup 2x2 panel
   par(mfrow = c(2, 2), mar = c(4, 4, 3, 1))
@@ -330,7 +333,8 @@ plot_kmeans_diagnostics <- function(data, k_range = 2:10, fitted_k = NULL,
 
   # Plot 3: Cluster sizes (if fitted_k provided)
   if (!is.null(fitted_k)) {
-    km <- KmeansVariables$new(n_clusters = fitted_k, random_state = random_state)
+    km <- KmeansVariables$new(n_clusters = fitted_k, random_state = random_state,
+                              correlation_type = correlation_type)
     km$fit(data)
 
     cluster_sizes <- as.numeric(table(km$clusters))
@@ -428,16 +432,23 @@ plot_kmeans_projection <- function(data, clusters,
                                    label_threshold = 0.3,
                                    ...) {
   
-  # Transpose data: variables as observations
-  X_t <- t(scale(data))
+  # PCA on correlation matrix
+  cor_mat <- cor(data)
+  pca <- prcomp(cor_mat, center = TRUE, scale. = TRUE)
   
-  # PCA
-  pca <- prcomp(X_t, center = TRUE, scale. = TRUE)
-  coords <- pca$x[, 1:2]
+  # Loadings scaled by sqrt(eigenvalues) = correlations with PCs
+  # This gives values between -1 and +1
+  loadings <- pca$rotation[, 1:2] %*% diag(sqrt(pca$sdev[1:2]^2))
+  rownames(loadings) <- colnames(data)
+  
+  # Assign coords for easier reference
+  coords <- loadings
+  
   var_exp <- summary(pca)$importance[2, 1:2] * 100
   
   # Quality of representation (cos²)
-  quality <- rowSums(coords^2) / rowSums(pca$x^2)
+  # Distance to origin squared (on unit circle, 1 = perfect)
+  quality <- rowSums(coords^2)
   
   # Color palette with better contrast
   K <- max(clusters)
@@ -447,14 +458,14 @@ plot_kmeans_projection <- function(data, clusters,
   
   colors <- col_palette[clusters]
   
-  # Point size based on quality
-  cex_values <- 1 + 2 * quality
+  # Point size based on quality (bounded between 0.5 and 2.5)
+  cex_values <- pmax(0.5, pmin(2.5, 0.8 + 1.5 * quality))
   
-  # PLOT AVEC ASP = 1 (aspect ratio carré)
+  # PLOT WITH ASP = 1 (square aspect ratio)
   par(mar = c(5, 5, 4, 2), bg = "white")
   
-  # Calculer les limites symétriques pour avoir un vrai carré
-  max_range <- max(abs(range(coords))) * 1.15
+  # Fixed limits for correlation circle: -1 to +1
+  max_range <- 1.1
   
   plot(coords[, 1], coords[, 2],
        col = colors,
@@ -464,22 +475,22 @@ plot_kmeans_projection <- function(data, clusters,
        ylab = sprintf("PC2 (%.1f%% variance)", var_exp[2]),
        main = main,
        las = 1,
-       xlim = c(-max_range, max_range),  # Symétrique
-       ylim = c(-max_range, max_range),  # Symétrique
-       asp = 1,  # ⭐ CRITICAL: Force aspect ratio = 1:1
+       xlim = c(-max_range, max_range),
+       ylim = c(-max_range, max_range),
+       asp = 1,  # Force aspect ratio = 1:1
        ...)
   
   # Grid
   abline(h = 0, v = 0, col = "gray40", lty = 2, lwd = 1.5)
   grid(col = "gray90")
   
-  # Redessiner les points
+  # Redraw points on top of grid
   points(coords[, 1], coords[, 2],
          col = colors,
          pch = 19,
          cex = cex_values)
   
-  # Labels UNIQUEMENT pour variables très bien représentées
+  # Labels ONLY for very well-represented variables
   if (show_labels) {
     very_well_represented <- quality > label_threshold
     
@@ -495,10 +506,9 @@ plot_kmeans_projection <- function(data, clusters,
     }
   }
   
-  # Cercle de corrélation (maintenant ce sera un VRAI cercle)
-  max_coord <- max(abs(coords)) * 0.95
+  # Correlation circle (radius = 1)
   theta <- seq(0, 2 * pi, length.out = 100)
-  lines(cos(theta) * max_coord, sin(theta) * max_coord, 
+  lines(cos(theta), sin(theta), 
         col = "gray30", lty = 3, lwd = 2)
   
   # Legend
@@ -506,8 +516,8 @@ plot_kmeans_projection <- function(data, clusters,
          legend = c(paste0("Cluster ", 1:K), 
                     "",
                     sprintf("Quality threshold: %.2f", label_threshold),
-                    sprintf("Shown: %d/%d variables", 
-                            sum(quality > label_threshold), length(quality))),
+                    sprintf("Labeled: %d/%d variables", 
+                            sum(quality > label_threshold), nrow(coords))),
          fill = c(col_palette, rep(NA, 3)),
          border = c(rep("black", K), rep(NA, 3)),
          bty = "n",

@@ -617,3 +617,128 @@ test_that("Clustering recovers true structure in synthetic data", {
   # Average purity should be high (>0.7) for well-separated clusters
   expect_gt(mean(cluster_purity), 0.7)
 })
+
+
+# =============================================================================
+# AUTOMATIC K SELECTION TESTS
+# =============================================================================
+
+test_that("n_clusters = 'auto' works with default parameters", {
+
+  # Create synthetic data with clear structure
+  synthetic <- create_synthetic_data(
+    n_vars_per_cluster = 5,
+    n_clusters = 3,
+    cor_strengths = c(0.8, 0.75, 0.7)
+  )
+  data <- synthetic$data
+
+  # Fit with automatic K selection
+  km_auto <- KmeansVariables$new(n_clusters = "auto", random_state = 123)
+
+  # Should not throw error
+  expect_no_error(km_auto$fit(data))
+
+  # Should have selected a valid K
+  expect_true(km_auto$fitted)
+  expect_true(is.numeric(km_auto$n_clusters))
+  expect_gte(km_auto$n_clusters, 2)
+  expect_lte(km_auto$n_clusters, 10)
+
+  # Should have valid results
+  expect_length(km_auto$clusters, ncol(data))
+  expect_true(!is.null(km_auto$centroids))
+  expect_true(!is.null(km_auto$inertia))
+})
+
+
+test_that("n_clusters = 'auto' respects k_range parameter", {
+
+  # Create small dataset
+  data_small <- create_synthetic_data(n_vars_per_cluster = 3, n_clusters = 2)$data
+
+  # Specify custom k_range
+  km_auto <- KmeansVariables$new(
+    n_clusters = "auto",
+    k_range = 2:4,
+    random_state = 123
+  )
+  km_auto$fit(data_small)
+
+  # Selected K should be within specified range
+  expect_gte(km_auto$n_clusters, 2)
+  expect_lte(km_auto$n_clusters, 4)
+})
+
+
+test_that("n_clusters = 'auto' works with different selection methods", {
+
+  data <- create_synthetic_data(n_vars_per_cluster = 4, n_clusters = 3)$data
+
+  # Test with silhouette method
+  km_sil <- KmeansVariables$new(
+    n_clusters = "auto",
+    k_range = 2:5,
+    selection_method = "silhouette",
+    random_state = 123
+  )
+  expect_no_error(km_sil$fit(data))
+  expect_true(km_sil$fitted)
+
+  # Test with calinski method
+  km_ch <- KmeansVariables$new(
+    n_clusters = "auto",
+    k_range = 2:5,
+    selection_method = "calinski",
+    random_state = 123
+  )
+  expect_no_error(km_ch$fit(data))
+  expect_true(km_ch$fitted)
+
+  # Test with "all" method
+  km_all <- KmeansVariables$new(
+    n_clusters = "auto",
+    k_range = 2:5,
+    selection_method = "all",
+    random_state = 123
+  )
+  expect_no_error(km_all$fit(data))
+  expect_true(km_all$fitted)
+})
+
+
+test_that("n_clusters = 'auto' validates parameters correctly", {
+
+  # Invalid k_range (less than 2 values)
+  expect_error(
+    KmeansVariables$new(n_clusters = "auto", k_range = 3),
+    "k_range.*at least 2 values"
+  )
+
+  # Invalid k_range (contains values < 2)
+  expect_error(
+    KmeansVariables$new(n_clusters = "auto", k_range = c(1, 2, 3)),
+    "k_range.*>= 2"
+  )
+
+  # Invalid selection_method
+  expect_error(
+    KmeansVariables$new(n_clusters = "auto", selection_method = "invalid"),
+    "selection_method.*silhouette.*calinski.*all"
+  )
+})
+
+
+test_that("Manual K selection still works as before", {
+
+  # Ensure backward compatibility: manual K selection unchanged
+  data <- create_synthetic_data(n_vars_per_cluster = 4, n_clusters = 3)$data
+
+  km_manual <- KmeansVariables$new(n_clusters = 3, random_state = 123)
+  km_manual$fit(data)
+
+  # Should work exactly as before
+  expect_equal(km_manual$n_clusters, 3)
+  expect_true(km_manual$fitted)
+  expect_length(km_manual$clusters, ncol(data))
+})

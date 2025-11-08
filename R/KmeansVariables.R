@@ -41,15 +41,20 @@
 #'
 #' @section Public Methods:
 #' \describe{
-#'   \item{\code{initialize(n_clusters = 3, max_iter = 100, tol = 1e-4, 
-#'                          n_init = 10, random_state = NULL)}}{
+#'   \item{\code{initialize(n_clusters = 3, max_iter = 100, tol = 1e-4,
+#'                          n_init = 10, random_state = NULL,
+#'                          k_range = 2:10, selection_method = "silhouette",
+#'                          correlation_type = "squared")}}{
 #'     Creates a new instance of KmeansVariables.
 #'     \itemize{
-#'       \item \code{n_clusters}: Number of clusters (default: 3)
+#'       \item \code{n_clusters}: Number of clusters (default: 3) or "auto" for automatic selection
 #'       \item \code{max_iter}: Maximum number of iterations (default: 100)
 #'       \item \code{tol}: Convergence tolerance (default: 1e-4)
 #'       \item \code{n_init}: Number of random initializations (default: 10)
 #'       \item \code{random_state}: Seed for reproducibility (default: NULL)
+#'       \item \code{k_range}: Range of K to test if n_clusters = "auto" (default: 2:10)
+#'       \item \code{selection_method}: Method for auto K selection: "silhouette", "calinski", or "all" (default: "silhouette")
+#'       \item \code{correlation_type}: "squared" (R²) groups correlated+anticorrelated variables, "absolute" (|r|) separates them (default: "squared")
 #'     }
 #'   }
 #'   \item{\code{fit(data)}}{
@@ -89,6 +94,41 @@
 #'       \item Mean correlation within each cluster
 #'       \item Top contributing variables per cluster
 #'     }
+#'   }
+#'   \item{\code{silhouette()}}{
+#'     Calculates silhouette coefficients for all variables.
+#'     Returns a data frame with silhouette values.
+#'   }
+#'   \item{\code{calinski_harabasz()}}{
+#'     Calculates the Calinski-Harabasz index (cluster quality metric).
+#'     Returns a numeric value (higher is better).
+#'   }
+#'   \item{\code{intra_correlation()}}{
+#'     Calculates mean intra-cluster correlations.
+#'     Returns a data frame with correlation statistics per cluster.
+#'   }
+#'   \item{\code{contributions()}}{
+#'     Calculates variable contributions to their clusters (R²).
+#'     Returns a data frame with contribution values.
+#'   }
+#'   \item{\code{correlation_table(round_digits = 3)}}{
+#'     Creates a detailed table showing each variable's correlation with all clusters.
+#'     Returns a data frame with correlation strengths and cluster separation metrics.
+#'   }
+#'   \item{\code{plot_silhouette(...)}}{
+#'     Plots horizontal silhouette chart with variable names.
+#'   }
+#'   \item{\code{plot_contributions(top_n = 5, ...)}}{
+#'     Plots top contributing variables per cluster.
+#'   }
+#'   \item{\code{plot_projection(...)}}{
+#'     Plots PCA-style variable projection (correlation circle).
+#'   }
+#'   \item{\code{plot_diagnostics(k_range = 2:10, ...)}}{
+#'     Plots diagnostic panel for selecting optimal K.
+#'   }
+#'   \item{\code{plot_summary(top_n = 5, ...)}}{
+#'     Plots comprehensive summary panel with multiple visualizations.
 #'   }
 #' }
 #'
@@ -133,34 +173,62 @@
 #' # Example with synthetic data (3 clusters of correlated variables)
 #' set.seed(123)
 #' n <- 500
-#' 
+#'
 #' # Create 3 groups of 5 correlated variables each
 #' create_cluster <- function(n_vars, n_obs, cor_strength) {
 #'   cov_matrix <- matrix(cor_strength, n_vars, n_vars)
 #'   diag(cov_matrix) <- 1
 #'   MASS::mvrnorm(n_obs, rep(0, n_vars), cov_matrix)
 #' }
-#' 
+#'
 #' X1 <- create_cluster(5, n, 0.7)
 #' X2 <- create_cluster(5, n, 0.65)
 #' X3 <- create_cluster(5, n, 0.6)
-#' 
+#'
 #' data_test <- data.frame(X1, X2, X3)
 #' colnames(data_test) <- paste0("Var", 1:15)
-#' 
-#' # Fit K-means with 3 clusters
+#'
+#' # Option 1: Manual K selection (you choose K)
 #' km <- KmeansVariables$new(n_clusters = 3, random_state = 42)
 #' km$fit(data_test)
-#' 
+#'
 #' # Display results
 #' km$print()
 #' km$summary()
-#' 
+#'
 #' # Access properties
 #' km$clusters      # Cluster assignments
 #' km$inertia       # Total inertia
 #' km$n_iter        # Number of iterations
-#' 
+#'
+#' # Option 2: Automatic K selection (algorithm chooses optimal K)
+#' km_auto <- KmeansVariables$new(n_clusters = "auto",
+#'                                k_range = 2:8,
+#'                                selection_method = "silhouette",
+#'                                random_state = 42)
+#' km_auto$fit(data_test)
+#' # → Displays: "Optimal K selected: 3 (method: silhouette, avg_silhouette: 0.XXX)"
+#'
+#' # Option 3: Use absolute correlation (separates positively/negatively correlated vars)
+#' km_abs <- KmeansVariables$new(n_clusters = 3,
+#'                               correlation_type = "absolute",
+#'                               random_state = 42)
+#' km_abs$fit(data_test)
+#' # Variables with negative correlation to centroid will be in different clusters
+#'
+#' # Use wrapper methods for metrics (no need to pass data/clusters/centroids!)
+#' sil <- km$silhouette()                    # Calculate silhouette
+#' ch <- km$calinski_harabasz()              # Calculate CH index
+#' contrib <- km$contributions()             # Get variable contributions
+#' cor_table <- km$correlation_table()       # Get correlation table
+#'
+#' # Use wrapper methods for plots (much simpler!)
+#' km$plot_silhouette()                      # Plot silhouette
+#' km$plot_contributions(top_n = 3)          # Plot top 3 vars per cluster
+#' km$plot_projection(show_labels = TRUE)    # Plot PCA projection
+#' km$plot_diagnostics(k_range = 2:6)        # Plot diagnostics panel
+#' km$plot_summary(top_n = 5)                # Plot summary panel
+#'
 #' # Predict on new variables
 #' new_vars <- data.frame(
 #'   NewVar1 = rnorm(n),
@@ -227,7 +295,12 @@ KmeansVariables <- R6::R6Class(
     .tol = NULL,             # Convergence tolerance
     .n_init = NULL,          # Number of random initializations
     .random_state = NULL,    # Seed for reproducibility
-    
+    .correlation_type = NULL, # Type of correlation for distance: "squared" (R²) or "absolute" (|r|)
+
+    # Automatic K selection parameters
+    .k_range = NULL,         # Range of K values to test for automatic selection
+    .selection_method = NULL, # Method for automatic K selection ("silhouette", "calinski", "all")
+
     # Results storage
     .centroids = NULL,       # Matrix of cluster centroids (PCA components)
     .inertia = NULL,         # Total within-cluster inertia
@@ -310,10 +383,11 @@ KmeansVariables <- R6::R6Class(
     },
     
     #' Compute distances between variables and centroids
-    #' 
-    #' Calculates the distance matrix based on squared correlation.
-    #' Distance = sqrt(1 - cor(X_j, c_k)^2)
-    #' 
+    #'
+    #' Calculates the distance matrix based on correlation.
+    #' If correlation_type = "squared": Distance = sqrt(1 - cor(X_j, c_k)^2) (R²-based)
+    #' If correlation_type = "absolute": Distance = sqrt(1 - |cor(X_j, c_k)|) (|r|-based)
+    #'
     #' @param X Matrix or data.frame (n observations × p variables)
     #' @param centroids Matrix (n observations × K clusters)
     #' @return Matrix (p variables × K clusters) of distances
@@ -336,8 +410,14 @@ KmeansVariables <- R6::R6Class(
             cor_val <- 0
           }
 
-          # Distance = sqrt(1 - cor^2)
-          dist_matrix[j, k] <- sqrt(1 - cor_val^2)
+          # Calculate distance based on correlation_type
+          if (private$.correlation_type == "squared") {
+            # R²-based: groups variables with high |correlation| (positive OR negative)
+            dist_matrix[j, k] <- sqrt(1 - cor_val^2)
+          } else {
+            # |r|-based: groups only variables with high positive correlation
+            dist_matrix[j, k] <- sqrt(1 - abs(cor_val))
+          }
         }
       }
 
@@ -378,7 +458,12 @@ KmeansVariables <- R6::R6Class(
           cor_val <- 0
         }
 
-        inertia <- inertia + (1 - cor_val^2)
+        # Calculate inertia based on correlation_type (must match compute_distances)
+        if (private$.correlation_type == "squared") {
+          inertia <- inertia + (1 - cor_val^2)
+        } else {
+          inertia <- inertia + (1 - abs(cor_val))
+        }
       }
 
       return(inertia)
@@ -413,7 +498,12 @@ KmeansVariables <- R6::R6Class(
             cor_val <- 0
           }
 
-          inertia_k <- inertia_k + (1 - cor_val^2)
+          # Calculate inertia based on correlation_type (must match compute_distances)
+          if (private$.correlation_type == "squared") {
+            inertia_k <- inertia_k + (1 - cor_val^2)
+          } else {
+            inertia_k <- inertia_k + (1 - abs(cor_val))
+          }
         }
 
         cluster_inertias[k] <- inertia_k
@@ -518,29 +608,78 @@ KmeansVariables <- R6::R6Class(
     #' @description
     #' Initializes a new instance of the `KmeansVariables` class.
     #'
-    #' @param n_clusters Integer. Number of clusters. Default: 3.
+    #' @param n_clusters Integer or "auto". Number of clusters.
+    #'        If "auto", the optimal K will be selected automatically during fit(). Default: 3.
     #' @param max_iter Integer. Maximum number of iterations. Default: 100.
     #' @param tol Numeric. Convergence tolerance. Default: 1e-4.
     #' @param n_init Integer. Number of random initializations. Default: 10.
     #' @param random_state Integer or NULL. Random seed for reproducibility. Default: NULL.
+    #' @param k_range Integer vector. Range of K values to test when n_clusters = "auto".
+    #'        Default: 2:10. Ignored if n_clusters is an integer.
+    #' @param selection_method Character. Method for automatic K selection:
+    #'        "silhouette" (maximize avg silhouette),
+    #'        "calinski" (maximize Calinski-Harabasz index),
+    #'        or "all" (combine both, prefer silhouette if disagreement).
+    #'        Default: "silhouette". Ignored if n_clusters is an integer.
+    #' @param correlation_type Character. Type of correlation for distance calculation:
+    #'        "squared" uses R² (variables with high positive OR negative correlation are close),
+    #'        "absolute" uses |r| (only high positive correlation makes variables close).
+    #'        Default: "squared". This affects cluster composition: "squared" groups
+    #'        correlated and anti-correlated variables together, "absolute" separates them.
     #'
     #' @return A new instance of `KmeansVariables`.
     #' @noRd
-    initialize = function(n_clusters = 3, max_iter = 100, tol = 1e-4, 
-                          n_init = 10, random_state = NULL) {
-      
+    initialize = function(n_clusters = 3, max_iter = 100, tol = 1e-4,
+                          n_init = 10, random_state = NULL,
+                          k_range = 2:10, selection_method = "silhouette",
+                          correlation_type = "squared") {
+
       # Validate parameters
       private$validate_params(max_iter, tol, n_init)
-      
-      # Set n_clusters via parent class setter (includes validation)
-      self$n_clusters <- n_clusters
-      
+
+      # Validate correlation_type
+      if (!correlation_type %in% c("squared", "absolute")) {
+        stop("'correlation_type' must be either 'squared' or 'absolute'")
+      }
+      private$.correlation_type <- correlation_type
+
+      # Handle n_clusters = "auto"
+      if (is.character(n_clusters) && n_clusters == "auto") {
+        # Store "auto" as special value (will be resolved during fit)
+        private$.n_clusters <- "auto"
+
+        # Validate k_range
+        if (!is.numeric(k_range) || length(k_range) < 2) {
+          stop("'k_range' must be a numeric vector with at least 2 values")
+        }
+        if (any(k_range < 2)) {
+          stop("All values in 'k_range' must be >= 2")
+        }
+
+        # Validate selection_method
+        if (!selection_method %in% c("silhouette", "calinski", "all")) {
+          stop("'selection_method' must be 'silhouette', 'calinski', or 'all'")
+        }
+
+        # Store auto-selection parameters
+        private$.k_range <- as.integer(k_range)
+        private$.selection_method <- selection_method
+
+      } else {
+        # Set n_clusters via parent class setter (includes validation)
+        self$n_clusters <- n_clusters
+
+        # No need for k_range/selection_method
+        private$.k_range <- NULL
+        private$.selection_method <- NULL
+      }
+
       # Store algorithm parameters
       private$.max_iter <- as.integer(max_iter)
       private$.tol <- tol
       private$.n_init <- as.integer(n_init)
       private$.random_state <- random_state
-      
+
       # Set random seed if provided
       if (!is.null(random_state)) {
         set.seed(random_state)
@@ -602,9 +741,42 @@ KmeansVariables <- R6::R6Class(
       # Convert to matrix for algorithm
       X <- as.matrix(X_quanti)
 
+      # -------------------------------------------------------------------------
+      # AUTOMATIC K SELECTION (if n_clusters = "auto")
+      # -------------------------------------------------------------------------
+      if (is.character(private$.n_clusters) && private$.n_clusters == "auto") {
+
+        message("Automatic K selection enabled. Testing K = ",
+                min(private$.k_range), " to ", max(private$.k_range), "...")
+
+        # Call the automatic K selection function from metrics_kmeans.R
+        auto_result <- kmeans_find_optimal_k(
+          data = X_quanti,
+          k_range = private$.k_range,
+          method = private$.selection_method,
+          n_init = private$.n_init,
+          random_state = private$.random_state,
+          correlation_type = private$.correlation_type
+        )
+
+        # Extract optimal K
+        optimal_k <- auto_result$optimal_k
+
+        # Display informative message
+        message(sprintf(
+          "Optimal K selected: %d (method: %s, avg_silhouette: %.3f)",
+          optimal_k,
+          private$.selection_method,
+          auto_result$metrics$avg_silhouette[auto_result$metrics$k == optimal_k]
+        ))
+
+        # Set n_clusters to the optimal value
+        self$n_clusters <- optimal_k
+      }
+
       # Check n_clusters doesn't exceed number of variables
       if (self$n_clusters > ncol(X)) {
-        stop(paste0("n_clusters (", self$n_clusters, 
+        stop(paste0("n_clusters (", self$n_clusters,
                     ") cannot exceed number of variables (", ncol(X), ")"))
       }
       
@@ -786,8 +958,176 @@ KmeansVariables <- R6::R6Class(
         }
         cat("\n")
       }
-      
+
       invisible(self)
+    },
+
+    # -----------------------------------------------------------------------
+    # METRIC WRAPPER METHODS
+    # -----------------------------------------------------------------------
+
+    #' Calculate silhouette coefficient
+    #'
+    #' Wrapper for kmeans_silhouette() that uses the fitted model
+    #'
+    #' @return Data frame with silhouette values per variable
+    #' @noRd
+    silhouette = function() {
+      if (!self$fitted) {
+        stop("Model must be fitted before calculating silhouette. Use $fit() first.")
+      }
+
+      data <- self$get_quanti_data()
+      return(kmeans_silhouette(data, self$labels, private$.centroids, private$.correlation_type))
+    },
+
+    #' Calculate Calinski-Harabasz index
+    #'
+    #' Wrapper for kmeans_calinski_harabasz() that uses the fitted model
+    #'
+    #' @return Numeric Calinski-Harabasz index
+    #' @noRd
+    calinski_harabasz = function() {
+      if (!self$fitted) {
+        stop("Model must be fitted before calculating CH index. Use $fit() first.")
+      }
+
+      data <- self$get_quanti_data()
+      return(kmeans_calinski_harabasz(data, self$labels, private$.centroids, private$.correlation_type))
+    },
+
+    #' Calculate intra-cluster correlations
+    #'
+    #' Wrapper for kmeans_intra_correlation() that uses the fitted model
+    #'
+    #' @return Data frame with mean correlation per cluster
+    #' @noRd
+    intra_correlation = function() {
+      if (!self$fitted) {
+        stop("Model must be fitted before calculating intra-cluster correlation. Use $fit() first.")
+      }
+
+      data <- self$get_quanti_data()
+      return(kmeans_intra_correlation(data, self$labels))
+    },
+
+    #' Calculate variable contributions
+    #'
+    #' Wrapper for kmeans_contributions() that uses the fitted model
+    #'
+    #' @return Data frame with contributions per variable
+    #' @noRd
+    contributions = function() {
+      if (!self$fitted) {
+        stop("Model must be fitted before calculating contributions. Use $fit() first.")
+      }
+
+      data <- self$get_quanti_data()
+      return(kmeans_contributions(data, self$labels, private$.centroids))
+    },
+
+    #' Calculate correlation table
+    #'
+    #' Wrapper for kmeans_correlation_table() that uses the fitted model
+    #'
+    #' @param round_digits Number of decimal places to round to. Default: 3.
+    #' @return Data frame with variable-cluster correlations
+    #' @noRd
+    correlation_table = function(round_digits = 3) {
+      if (!self$fitted) {
+        stop("Model must be fitted before calculating correlation table. Use $fit() first.")
+      }
+
+      data <- self$get_quanti_data()
+      return(kmeans_correlation_table(data, self$labels, private$.centroids, round_digits))
+    },
+
+    # -----------------------------------------------------------------------
+    # PLOT WRAPPER METHODS
+    # -----------------------------------------------------------------------
+
+    #' Plot silhouette
+    #'
+    #' Wrapper for plot_kmeans_silhouette() that uses the fitted model
+    #'
+    #' @param ... Additional arguments passed to plot_kmeans_silhouette()
+    #' @return None (displays plot)
+    #' @noRd
+    plot_silhouette = function(...) {
+      if (!self$fitted) {
+        stop("Model must be fitted before plotting. Use $fit() first.")
+      }
+
+      sil_data <- self$silhouette()
+      plot_kmeans_silhouette(sil_data, ...)
+    },
+
+    #' Plot contributions
+    #'
+    #' Wrapper for plot_kmeans_contributions() that uses the fitted model
+    #'
+    #' @param top_n Number of top variables to display per cluster. Default: 5.
+    #' @param ... Additional arguments passed to plot_kmeans_contributions()
+    #' @return None (displays plot)
+    #' @noRd
+    plot_contributions = function(top_n = 5, ...) {
+      if (!self$fitted) {
+        stop("Model must be fitted before plotting. Use $fit() first.")
+      }
+
+      contrib_data <- self$contributions()
+      plot_kmeans_contributions(contrib_data, top_n = top_n, ...)
+    },
+
+    #' Plot variable projection (PCA-style)
+    #'
+    #' Wrapper for plot_kmeans_projection() that uses the fitted model
+    #'
+    #' @param ... Additional arguments passed to plot_kmeans_projection()
+    #' @return None (displays plot)
+    #' @noRd
+    plot_projection = function(...) {
+      if (!self$fitted) {
+        stop("Model must be fitted before plotting. Use $fit() first.")
+      }
+
+      data <- self$get_quanti_data()
+      plot_kmeans_projection(data, self$labels, ...)
+    },
+
+    #' Plot diagnostics
+    #'
+    #' Wrapper for plot_kmeans_diagnostics()
+    #'
+    #' @param k_range Range of K values to test. Default: 2:10.
+    #' @param ... Additional arguments passed to plot_kmeans_diagnostics()
+    #' @return None (displays plot)
+    #' @noRd
+    plot_diagnostics = function(k_range = 2:10, ...) {
+      data <- self$get_quanti_data()
+      plot_kmeans_diagnostics(data, k_range = k_range,
+                             fitted_k = self$n_clusters,
+                             n_init = private$.n_init,
+                             random_state = private$.random_state,
+                             correlation_type = private$.correlation_type,
+                             ...)
+    },
+
+    #' Plot summary panel
+    #'
+    #' Wrapper for plot_kmeans_summary() that uses the fitted model
+    #'
+    #' @param top_n Number of top variables to display. Default: 5.
+    #' @param ... Additional arguments passed to plot_kmeans_summary()
+    #' @return None (displays plot)
+    #' @noRd
+    plot_summary = function(top_n = 5, ...) {
+      if (!self$fitted) {
+        stop("Model must be fitted before plotting. Use $fit() first.")
+      }
+
+      data <- self$get_quanti_data()
+      plot_kmeans_summary(self, data, top_n = top_n, ...)
     }
   ),
   

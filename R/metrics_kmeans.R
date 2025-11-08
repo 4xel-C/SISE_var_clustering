@@ -47,36 +47,38 @@
 #' }
 #'
 #' @noRd
-kmeans_elbow <- function(data, k_range = 2:10, n_init = 10, 
-                         random_state = NULL, max_iter = 100, tol = 1e-4) {
-  
+kmeans_elbow <- function(data, k_range = 2:10, n_init = 10,
+                         random_state = NULL, max_iter = 100, tol = 1e-4,
+                         correlation_type = "squared") {
+
   if (!is.numeric(k_range) || any(k_range < 1)) {
     stop("'k_range' must be a vector of positive integers")
   }
-  
+
   # Calculate total variance (for k=1, all variables in one cluster)
   X <- as.matrix(data)
   total_var <- sum(apply(as.matrix(X), 2, function(x) var(x)))
-  
+
   results <- data.frame(
     k = integer(),
     inertia = numeric(),
     inertia_pct = numeric()
   )
-  
+
   for (k in k_range) {
-    
-    # Fit K-means with k clusters
+
+    # Fit K-means with k clusters and specified correlation_type
     km <- KmeansVariables$new(
       n_clusters = k,
       max_iter = max_iter,
       tol = tol,
       n_init = n_init,
-      random_state = random_state
+      random_state = random_state,
+      correlation_type = correlation_type
     )
-    
+
     km$fit(data)
-    
+
     # Store results
     results <- rbind(results, data.frame(
       k = k,
@@ -84,7 +86,7 @@ kmeans_elbow <- function(data, k_range = 2:10, n_init = 10,
       inertia_pct = (1 - km$inertia / ncol(X)) * 100
     ))
   }
-  
+
   return(results)
 }
 
@@ -131,19 +133,30 @@ kmeans_elbow <- function(data, k_range = 2:10, n_init = 10,
 #' }
 #'
 #' @noRd
-kmeans_silhouette <- function(data, clusters, centroids) {
-  
+kmeans_silhouette <- function(data, clusters, centroids, correlation_type = "squared") {
+
   X <- as.matrix(data)
   p <- ncol(X)
   K <- ncol(centroids)
-  
+
+  # Validate correlation_type
+  if (!correlation_type %in% c("squared", "absolute")) {
+    stop("'correlation_type' must be either 'squared' or 'absolute'")
+  }
+
   # Compute distance matrix between all variables and all centroids
   dist_matrix <- matrix(0, nrow = p, ncol = K)
-  
+
   for (j in 1:p) {
     for (k in 1:K) {
       cor_val <- cor(X[, j], centroids[, k])
-      dist_matrix[j, k] <- sqrt(1 - cor_val^2)
+
+      # Calculate distance based on correlation_type
+      if (correlation_type == "squared") {
+        dist_matrix[j, k] <- sqrt(1 - cor_val^2)
+      } else {
+        dist_matrix[j, k] <- sqrt(1 - abs(cor_val))
+      }
     }
   }
   
@@ -214,32 +227,33 @@ kmeans_silhouette <- function(data, clusters, centroids) {
 #'
 #' @noRd
 kmeans_silhouette_range <- function(data, k_range = 2:10, n_init = 10,
-                                    random_state = NULL, max_iter = 100, 
-                                    tol = 1e-4) {
-  
+                                    random_state = NULL, max_iter = 100,
+                                    tol = 1e-4, correlation_type = "squared") {
+
   results <- data.frame(
     k = integer(),
     avg_silhouette = numeric(),
     min_silhouette = numeric(),
     max_silhouette = numeric()
   )
-  
+
   for (k in k_range) {
-    
-    # Fit K-means
+
+    # Fit K-means with specified correlation_type
     km <- KmeansVariables$new(
       n_clusters = k,
       max_iter = max_iter,
       tol = tol,
       n_init = n_init,
-      random_state = random_state
+      random_state = random_state,
+      correlation_type = correlation_type
     )
-    
+
     km$fit(data)
-    
-    # Calculate silhouette
-    sil <- kmeans_silhouette(data, km$clusters, km$centroids)
-    
+
+    # Calculate silhouette with same correlation_type
+    sil <- kmeans_silhouette(data, km$clusters, km$centroids, correlation_type)
+
     results <- rbind(results, data.frame(
       k = k,
       avg_silhouette = mean(sil$silhouette),
@@ -247,7 +261,7 @@ kmeans_silhouette_range <- function(data, k_range = 2:10, n_init = 10,
       max_silhouette = max(sil$silhouette)
     ))
   }
-  
+
   return(results)
 }
 
@@ -284,33 +298,44 @@ kmeans_silhouette_range <- function(data, k_range = 2:10, n_init = 10,
 #' }
 #'
 #' @noRd
-kmeans_calinski_harabasz <- function(data, clusters, centroids) {
-  
+kmeans_calinski_harabasz <- function(data, clusters, centroids, correlation_type = "squared") {
+
   X <- as.matrix(data)
   p <- ncol(X)
   K <- ncol(centroids)
-  
+
   if (K == 1 || K == p) {
     warning("CH index undefined for K=1 or K=p")
     return(NA)
   }
-  
+
+  # Validate correlation_type
+  if (!correlation_type %in% c("squared", "absolute")) {
+    stop("'correlation_type' must be either 'squared' or 'absolute'")
+  }
+
   # Within-cluster variance (W)
   W <- 0
   for (j in 1:p) {
     k <- clusters[j]
     cor_val <- cor(X[, j], centroids[, k])
-    W <- W + (1 - cor_val^2)
+
+    # Calculate within-cluster variance based on correlation_type
+    if (correlation_type == "squared") {
+      W <- W + (1 - cor_val^2)
+    } else {
+      W <- W + (1 - abs(cor_val))
+    }
   }
-  
+
   # Between-cluster variance (B)
   # Total variance = p (since variables are scaled)
   # B = Total - W
   B <- p - W
-  
+
   # Calinski-Harabasz index
   CH <- (B / (K - 1)) / (W / (p - K))
-  
+
   return(CH)
 }
 
@@ -344,38 +369,39 @@ kmeans_calinski_harabasz <- function(data, clusters, centroids) {
 #' @noRd
 kmeans_calinski_harabasz_range <- function(data, k_range = 2:10, n_init = 10,
                                            random_state = NULL, max_iter = 100,
-                                           tol = 1e-4) {
-  
+                                           tol = 1e-4, correlation_type = "squared") {
+
   results <- data.frame(
     k = integer(),
     ch_index = numeric()
   )
-  
+
   for (k in k_range) {
-    
+
     # Skip K=1 (undefined)
     if (k == 1) next
-    
-    # Fit K-means
+
+    # Fit K-means with specified correlation_type
     km <- KmeansVariables$new(
       n_clusters = k,
       max_iter = max_iter,
       tol = tol,
       n_init = n_init,
-      random_state = random_state
+      random_state = random_state,
+      correlation_type = correlation_type
     )
-    
+
     km$fit(data)
-    
-    # Calculate CH index
-    ch <- kmeans_calinski_harabasz(data, km$clusters, km$centroids)
-    
+
+    # Calculate CH index with same correlation_type
+    ch <- kmeans_calinski_harabasz(data, km$clusters, km$centroids, correlation_type)
+
     results <- rbind(results, data.frame(
       k = k,
       ch_index = ch
     ))
   }
-  
+
   return(results)
 }
 
@@ -513,27 +539,38 @@ kmeans_contributions <- function(data, clusters, centroids) {
 #' }
 #'
 #' @noRd
-kmeans_between_within_ratio <- function(data, clusters, centroids) {
-  
+kmeans_between_within_ratio <- function(data, clusters, centroids, correlation_type = "squared") {
+
   X <- as.matrix(data)
   p <- ncol(X)
-  
+
+  # Validate correlation_type
+  if (!correlation_type %in% c("squared", "absolute")) {
+    stop("'correlation_type' must be either 'squared' or 'absolute'")
+  }
+
   # Within-cluster variance
   W <- 0
   for (j in 1:p) {
     k <- clusters[j]
     cor_val <- cor(X[, j], centroids[, k])
-    W <- W + (1 - cor_val^2)
+
+    # Calculate within-cluster variance based on correlation_type
+    if (correlation_type == "squared") {
+      W <- W + (1 - cor_val^2)
+    } else {
+      W <- W + (1 - abs(cor_val))
+    }
   }
-  
+
   # Between-cluster variance
   B <- p - W
-  
+
   # Ratio
   if (W == 0) {
     return(Inf)
   }
-  
+
   return(B / W)
 }
 
@@ -567,16 +604,20 @@ kmeans_between_within_ratio <- function(data, clusters, centroids) {
 #'
 #' @noRd
 kmeans_find_optimal_k <- function(data, k_range = 2:10, method = "all",
-                                  n_init = 10, random_state = NULL) {
+                                  n_init = 10, random_state = NULL,
+                                  correlation_type = "squared") {
 
   if (!method %in% c("silhouette", "calinski", "all")) {
     stop("'method' must be 'silhouette', 'calinski', or 'all'")
   }
 
-  # Compute metrics
-  elbow_data <- kmeans_elbow(data, k_range, n_init, random_state)
-  sil_data <- kmeans_silhouette_range(data, k_range, n_init, random_state)
-  ch_data <- kmeans_calinski_harabasz_range(data, k_range, n_init, random_state)
+  # Compute metrics with specified correlation_type
+  elbow_data <- kmeans_elbow(data, k_range, n_init, random_state,
+                            correlation_type = correlation_type)
+  sil_data <- kmeans_silhouette_range(data, k_range, n_init, random_state,
+                                      correlation_type = correlation_type)
+  ch_data <- kmeans_calinski_harabasz_range(data, k_range, n_init, random_state,
+                                            correlation_type = correlation_type)
 
   # Merge results
   metrics <- merge(elbow_data, sil_data, by = "k")
