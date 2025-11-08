@@ -430,31 +430,7 @@ ClusteringBase <- R6::R6Class(
     # data getter/setter
     # -------------------------------------------------------------------------
 
-    #' @title Access or modify the dataset
-    #'
-    #' @description
-    #' Active binding for the `data` field.
-    #'
-    #' - **Getter:** returns the internal dataset stored in the object.
-    #' - **Setter:** updates the internal dataset.
-    #'
-    #' This is mainly used internally or by subclasses before running
-    #' clustering algorithms.
-    #'
-    #' @param value Optional. A `data.frame` or `matrix` to replace the current data.
-    #'   If missing, the method returns the current dataset.
-    #'
-    #' @return When used as a getter, returns a `data.frame` containing the dataset.
-    #'   When used as a setter, invisibly returns `NULL`.
-    #'
-    #' @examples
-    #' \dontrun{
-    #' obj <- MyAlgo$new()
-    #' obj$data <- iris[, 1:4]  # setter
-    #' head(obj$data)            # getter
-    #' }
-    #'
-    #' @noRd
+    # Access or set the data attributes (original dataframe)
     data = function(value) {
 
       if (missing(value)) {
@@ -468,32 +444,7 @@ ClusteringBase <- R6::R6Class(
     # n_clusters getter/setter
     # -------------------------------------------------------------------------
 
-    #' @title Access or modify the number of clusters
-    #'
-    #' @description
-    #' Active binding for the `n_clusters` field.
-    #'
-    #' - **Getter:** returns the current number of clusters.
-    #' - **Setter:** updates the number of clusters, with validation to ensure it is
-    #'   a positive integer and does not exceed the number of variables in the dataset.
-    #'
-    #' This field is used internally or by subclasses to control the expected
-    #' number of clusters for the clustering algorithm.
-    #'
-    #' @param value Optional. A positive integer specifying the number of clusters.
-    #'   If missing, the method returns the current value.
-    #'
-    #' @return When used as a getter, returns an integer.
-    #'   When used as a setter, invisibly returns `NULL`.
-    #'
-    #' @examples
-    #' \dontrun{
-    #' obj <- MyAlgo$new()
-    #' obj$n_clusters <- 3   # setter
-    #' obj$n_clusters        # getter
-    #' }
-    #'
-    #' @noRd
+    # Access or set the number of clusters generated.
     n_clusters = function(value) {
       if (missing(value)) {
         return(private$.n_clusters)
@@ -511,33 +462,7 @@ ClusteringBase <- R6::R6Class(
     # labels getter/setter
     # -------------------------------------------------------------------------
 
-    #' @title Access or modify cluster labels
-    #'
-    #' @description
-    #' Active binding for the `labels` field.
-    #'
-    #' - **Getter:** returns the current cluster labels.
-    #' - **Setter:** updates the cluster labels, ensuring the length matches the
-    #'   number of variables in the dataset.
-    #'
-    #' This field is intended to store the cluster assignments after fitting the
-    #' clustering algorithm. It is mainly used internally or by subclasses.
-    #'
-    #' @param value Optional. A vector of cluster labels. If missing, returns the
-    #'   current labels.
-    #'
-    #' @return When used as a getter, returns a vector of cluster labels.
-    #'   When used as a setter, invisibly returns `NULL`.
-    #'
-    #' @examples
-    #' \dontrun{
-    #' obj <- MyAlgo$new()
-    #' obj$load_and_check_data(iris[, 1:4])
-    #' obj$labels <- c(1,1,2,2,...)  # setter
-    #' obj$labels                     # getter
-    #' }
-    #'
-    #' @noRd
+    # Access or modify cluster labels.
     labels = function(value) {
       if (missing(value)) {
         return(private$.labels)
@@ -556,30 +481,7 @@ ClusteringBase <- R6::R6Class(
     # fitted getter/setter
     # -------------------------------------------------------------------------
 
-    #' @title Access or modify the fitted status
-    #'
-    #' @description
-    #' Active binding for the `fitted` field.
-    #'
-    #' - **Getter:** returns whether the model has been fitted.
-    #' - **Setter:** updates the fitted status, ensuring it is a single logical value (`TRUE` or `FALSE`).
-    #'
-    #' This field is intended to track whether the clustering algorithm has been applied
-    #' to the dataset. It is mainly used internally or by subclasses.
-    #'
-    #' @param value Optional. A single logical (`TRUE` or `FALSE`). If missing, returns the current status.
-    #'
-    #' @return When used as a getter, returns a logical value.
-    #'   When used as a setter, invisibly returns `NULL`.
-    #'
-    #' @examples
-    #' \dontrun{
-    #' obj <- MyAlgo$new()
-    #' obj$fitted <- TRUE   # setter
-    #' obj$fitted           # getter
-    #' }
-    #'
-    #' @noRd
+    # Access or edit fitted attribute.
     fitted = function(value) {
       if (missing(value)) {
         return(private$.fitted)
@@ -598,43 +500,10 @@ ClusteringBase <- R6::R6Class(
     # -------------------------------------------------------------------------
 
 
-    #' @title Access quantitative variable indices
-    #'
-    #' @description
-    #' Active binding that returns the indices of **quantitative (numeric) variables**
-    #' detected in the dataset.
-    #' This is mainly used internally or by subclasses for algorithm-specific operations.
-    #'
-    #' @return An integer vector with column indices corresponding to quantitative variables.
-    #'
-    #' @examples
-    #' \dontrun{
-    #' obj <- MyAlgo$new()
-    #' obj$load_and_check_data(iris)
-    #' obj$quanti_indices
-    #' }
-    #'
-    #' @noRd
+    # access to the indices of quantitative indices.
     quanti_indices = function() private$.quanti_indices,
 
-
-    #' @title Access qualitative variable indices
-    #'
-    #' @description
-    #' Active binding that returns the indices of **qualitative (categorical/factor) variables**
-    #' detected in the dataset.
-    #' This is mainly used internally or by subclasses for algorithm-specific operations.
-    #'
-    #' @return An integer vector with column indices corresponding to qualitative variables.
-    #'
-    #' @examples
-    #' \dontrun{
-    #' obj <- MyAlgo$new()
-    #' obj$load_and_check_data(iris)
-    #' obj$quali_indices
-    #' }
-    #'
-    #' @noRd
+    # access to the indices of qualitative indices
     quali_indices  = function() private$.quali_indices
   )
 )
