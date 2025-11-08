@@ -655,7 +655,11 @@ test_that("n_clusters = 'auto' works with default parameters", {
 test_that("n_clusters = 'auto' respects k_range parameter", {
 
   # Create small dataset
-  data_small <- create_synthetic_data(n_vars_per_cluster = 3, n_clusters = 2)$data
+  data_small <- create_synthetic_data(
+    n_vars_per_cluster = 3,
+    n_clusters = 2,
+    cor_strengths = c(0.8, 0.7)
+  )$data
 
   # Specify custom k_range
   km_auto <- KmeansVariables$new(
