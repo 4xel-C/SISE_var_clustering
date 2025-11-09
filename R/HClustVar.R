@@ -194,6 +194,7 @@ HClustVar <- R6::R6Class(
     .centroids = NULL,
     # a vector of eigen value of the latent component of each cluster.
     .clusters.eigen = NULL,
+    .auto_var_selection = FALSE,
 
 
     # ==========================================================================
@@ -231,6 +232,74 @@ HClustVar <- R6::R6Class(
     },
 
     # -----------------------------------------------------------------------
+    # Type auto-detection method
+    # -----------------------------------------------------------------------
+    # TODO: documentation
+    auto_detect_vartype = function() {
+
+      n_quanti <- length(private$.quanti_indices)
+      n_quali <- length(private$.quali_indices)
+
+      if (n_quali == 0) {
+
+        # Only quantitative
+        if (is.null(private$.dist.metric)) {
+          private$.dist.metric <- "rsquare"
+
+        } else if (!private$.dist.metric %in% c('r', 'rsquare')) {
+          warning("Invalid metric for quantitative data. Using 'rsquare'.")
+          private$.dist.metric <- "rsquare"
+        }
+        return("quant")
+
+      } else if (n_quanti == 0) {
+
+        # Only qualitative
+        if (!is.null(private$.dist.metric)) {
+          warning("dist.metric ignored for qualitative data")
+        }
+        return("qual")
+
+      } else {
+        # Mixte
+        return("mixed")
+      }
+    },
+
+
+    # -----------------------------------------------------------------------
+    # distance_matrix computing method
+    # -----------------------------------------------------------------------
+    # TODO: documentation
+    compute_distance_matrix = function() {
+
+      if (private$.vartype == "quant") {
+        cor_matrix <- cor(self$get_quanti_data())
+
+        if (private$.dist.metric == "rsquare") {
+          cor_matrix <- cor_matrix^2
+        }
+
+        return(as.dist(sqrt(1 - cor_matrix)))
+
+      } else if (private$.vartype %in% c("qual", "mixed")) {
+
+        df_quali <- if (private$.vartype == "qual") {
+          self$get_quali_data()
+        } else {
+          private$quantile_discretisation(self$data, self$quanti_indices, 4)
+        }
+
+        vmatrix <- private$cramer_matrix(df_quali)
+        return(as.dist(1 - vmatrix))
+
+      } else {
+        stop("Invalid vartype in object state")
+      }
+    },
+
+
+    # -----------------------------------------------------------------------
     # Discretisation method
     # -----------------------------------------------------------------------
 
@@ -253,20 +322,16 @@ HClustVar <- R6::R6Class(
 
         # Check if the numerical value is one hot encoded.
         if (length(unique(df[[i]])) <= 2 && all(df[[i]] %in% c(0, 1))) {
-
-          # Transform into factor.
           df_copy[[i]] <- as.factor(df[[i]])
-
-          # Ignore the loop and go to the next column.
           next
+        }
 
-          # go next if the column is all quantitative
-        } else if (!is.numeric(df[[i]])) {
+        if (!is.numeric(df[[i]])) {
           next
         }
 
         # Get the quantiles.
-        # Use unique to avoid small dataset creating duplicate quantile chen number of groups too high.
+        # Use unique to avoid small dataset creating duplicate quantile number of groups too high.
         quantiles <- unique(quantile(df[[i]], probs = seq(0, 1, length.out = n_groups + 1), na.rm = TRUE))
 
         # transform the quantitative columns into qualitatives.
@@ -302,17 +367,43 @@ HClustVar <- R6::R6Class(
     #' @return A numeric value representing Cramer's V (between 0 and 1).
     cramer_v = function(x, y) {
 
+      # Check if we have enough data.
+      if (length(x) == 0 || length(y) == 0) {
+        warning("Empty vectors provided to cramer_v, returning 0")
+        return(0)
+      }
+
       # Create the contingency table.
       contingency <- table(x, y)
 
+      # Check table validity
+      if (nrow(contingency) < 2 || ncol(contingency) < 2) {
+        warning("Contingency table too small for chi-square test, returning 0")
+        return(0)
+      }
+
+      # Catch any error if computing CHISquare test fail.
+      chi2_result <- tryCatch(
+        suppressWarnings(chisq.test(contingency, correct = FALSE)),
+        error = function(e) {
+          warning(sprintf("Chi-square test failed: %s. Returning 0.", e$message))
+          return(list(statistic = 0))
+        }
+      )
+
       # Get the chi2 statistic.
-      chi2 <- suppressWarnings(chisq.test(contingency, correct = FALSE)$statistic)
+      chi2 <- chi2_result$statistic
 
       # Get the total count.
       n <- sum(contingency)
 
       # Get the min dimension for the dof.
       min_dim <- min(nrow(contingency), ncol(contingency)) - 1
+
+      # Avoid dividing by 0
+      if (min_dim == 0 || n == 0) {
+        return(0)
+      }
 
       # Calculate the cramer V.
       v <- sqrt(chi2 / (n * min_dim))
@@ -332,15 +423,24 @@ HClustVar <- R6::R6Class(
       n_vars <- ncol(df)
       var_names <- colnames(df)
 
-      cramer_mat <- matrix(1, nrow = n_vars, ncol = n_vars,
-                           dimnames = list(var_names, var_names))
+      # Initialize cramer's matrix (diag to 1)
+      cramer_mat <- diag(n_vars)
+      dimnames(cramer_mat) <- list(var_names, var_names)
 
-      for (i in 1:(n_vars - 1)) {
-        for (j in (i + 1):n_vars) {
-          v <- private$cramer_v(df[[i]], df[[j]])
-          cramer_mat[i, j] <- v
-          cramer_mat[j, i] <- v
-        }
+      # Get all the combination indices (to fill up the upper triangle)
+      indices <- combn(n_vars, 2)
+
+      # Iteration over all the indices
+      for (k in seq_len(ncol(indices))) {
+        i <- indices[1, k]
+        j <- indices[2, k]
+
+        # Compute the cramer v
+        v <- private$cramer_v(df[[i]], df[[j]])
+
+        # update both side of the symmetric matrix.
+        cramer_mat[i, j] <- v
+        cramer_mat[j, i] <- v
       }
       return(cramer_mat)
     },
@@ -354,10 +454,12 @@ HClustVar <- R6::R6Class(
     # Compute centroids when cutting tree
     compute_centroids = function() {
 
-      # Initialise centroids matrix.
-      centroids <- matrix(nrow = nrow(self$data), ncol = 0)
+      if (is.null(self$labels)) {
+        stop("Cannot compute centroids: tree has not been cut yet")
+      }
 
-      # Compute
+      # Initialise centroids matrix and eigens vector.
+      centroids <- matrix(nrow = nrow(self$data), ncol = 0)
       eigens <- c()
 
       # Iteration on all clusters.
@@ -447,6 +549,12 @@ HClustVar <- R6::R6Class(
     #' @noRd
     initialize = function(vartype = "auto", dist.metric = NULL, cah.method = "ward.D") {
 
+      # update the auto_var_selection to allow refit with auto method.
+      if (vartype == "auto") {
+        private$.auto_var_selection <- TRUE
+      }
+
+
       # Select default parameter for the metric if NULL.
       if (vartype == "quant" && is.null(dist.metric)) {
         dist.metric <- "rsquare"
@@ -483,82 +591,21 @@ HClustVar <- R6::R6Class(
     #' @noRd
     fit = function(data) {
 
-      # Validate data.
       self$load_and_check_data(data)
 
-      # if "auto" selected, choose the best vartypes.
-      if (private$.vartype == "auto") {
-
-        # Select quantitative if only quantitatives columns.
-        if (length(private$.quali_indices) == 0) {
-          private$.vartype = "quant"
-
-          if (is.null(private$.dist.metric)) {
-            private$.dist.metric <- "rsquare"
-          } else if (!private$.dist.metric %in% c('r', 'rsquare')) {
-            warning("Chosen metric does not match quantitatives data. Changing for 'rsquare'.")
-            dist.metric <- "rsquare"
-          }
-
-          # Select qualitative variable.
-        } else if (length(private$.quanti_indices) == 0) {
-          private$.vartype <-  "qual"
-
-          # Raise a warning if dist.metric specified.
-          if (!is.null(private$.dist.metric)) {
-            warning("Dataframe has only qualitative values, param. dist.metric is ignored.")
-          }
-
-
-        } else {
-          private$.vartype <-  "mixed"
-        }
+      # vartype autodetection
+      if (private$.auto_var_selection == TRUE) {
+        private$.vartype <- private$auto_detect_vartype()
       }
 
-      # Check if selected the data contains at least 2 columns of the selected vartype.
+      # Validation
       self$validate_algorithm_requirements(private$.vartype)
 
-      # Create the distances matrix
-      if (private$.vartype == "quant") {
+      # Metric distance calculation
+      private$.dist.matrix <- private$compute_distance_matrix()
 
-        # Generate the correlation matrix based on correlation.
-        cor_matrix <- cor(self$get_quanti_data())
-
-        # Use the squared correlation matrix if requested.
-        if (private$.dist.metric == "rsquare") cor_matrix <- cor_matrix^2
-
-        # Create the dissimilarity matrix used as base distances matrix.
-        private$.dist.matrix <- as.dist(sqrt(1 - cor_matrix))
-
-      } else if (private$.vartype %in% c("qual", "mixed")) {
-
-        # Prepare the data depending if we want the mixed clustering or not.
-        if (private$.vartype == "qual") {
-
-          # Get the qualtative data only.
-          df_quali <- self$get_quali_data()
-
-        } else if (private$.vartype == "mixed") {
-
-          # Preparation of the data by transforming quantitatives into qualitatives.
-          df_quali <- private$quantile_discretisation(data, self$quanti_indices, 4)
-        }
-
-        # Compute the cramer's V matrix.
-        vmatrix <- private$cramer_matrix(df_quali)
-
-        # Generetae the dissimilarity matrix.
-        private$.dist.matrix <- as.dist(1 - vmatrix)
-
-      # Raise an error if no corresponding type.
-      } else {
-        stop("Invalid class structure: an error occured or one of the attribute has been manually edited.")
-      }
-
-      # Compute CAH.
+      # CAH
       private$.tree <- hclust(private$.dist.matrix, method = private$.cah.method)
-
-      # Update the fitted variable.
       self$fitted <- TRUE
     },
 
@@ -776,7 +823,18 @@ HClustVar <- R6::R6Class(
 
             # Calculate correlation with each centroid
             correlations <- apply(self$centroids, 2, function(centroid) {
-              cor(centroid, new_data[[i]], use = "complete.obs")
+              cor_val <- cor(centroid, new_data[[i]], use = "complete.obs")
+
+              # Handle NA values
+              if (is.na(cor_val)) {
+                warning(sprintf(
+                  "Correlation is NA for variable '%s'. Using 0 as fallback.",
+                  var_name
+                ))
+                return(0)
+              }
+
+              return(cor_val)
             })
 
             # Apply metric transformation if needed
@@ -933,6 +991,74 @@ HClustVar <- R6::R6Class(
       }
 
       return(result)
+    },
+
+    # -----------------------------------------------------------------------
+    # Summary method
+    # -----------------------------------------------------------------------
+
+    # TODO: documentation
+    summary = function() {
+      # TODO: Add more element to the summary function.
+    },
+
+    # -----------------------------------------------------------------------
+    # Print method
+    # -----------------------------------------------------------------------
+
+    # TODO: documentation
+    #' Print method for HClustVar objects
+    #'
+    #' @description
+    #' Displays a concise overview of the HClustVar object with key information.
+    #'
+    #' @return Invisibly returns the object itself.
+    #'
+    #' @noRd
+    print = function() {
+
+      cat("\n")
+      cat("══════════════════════════════════════════════════════\n")
+      cat("            Hierarchical Variable Clustering          \n")
+      cat("══════════════════════════════════════════════════════\n\n")
+
+      # Model state
+      if (!self$fitted) {
+        cat("Status: NOT FITTED\n")
+        cat("Use $fit(data) to train the model.\n\n")
+        return(invisible(self))
+      }
+
+      cat("Status: ✓ FITTED\n\n")
+
+      # Base info
+      cat(sprintf("Data:          %d variables × %d observations\n",
+                  ncol(self$data), nrow(self$data)))
+      cat(sprintf("Variable type: %s\n", private$.vartype))
+      cat(sprintf("CAH method:    %s\n", private$.cah.method))
+
+      if (!is.null(private$.dist.metric)) {
+        cat(sprintf("Distance:      %s\n", private$.dist.metric))
+      }
+
+      # Cluster info
+      if (!is.null(self$n_clusters) && !is.null(self$labels)) {
+        cat(sprintf("\nClusters:      %d clusters created\n", self$n_clusters))
+
+        # Display distribution
+        cluster_sizes <- table(self$labels)
+        size_str <- paste(sprintf("%d", cluster_sizes), collapse = " | ")
+        cat(sprintf("Distribution:  %s variables\n", size_str))
+
+      } else {
+        cat("\nClusters:      Tree not cut (use $cut_tree())\n")
+      }
+
+      cat("\n══════════════════════════════════════════════════════\n")
+      cat("Use $summary() for detailed information\n")
+      cat("Use $plot_dendrogram() to visualize the tree\n\n")
+
+      invisible(self)
     }
   ),
 
@@ -953,6 +1079,9 @@ HClustVar <- R6::R6Class(
 
     # return the tree computed from the clustering.
     tree = function() {return(private$.tree)},
+
+    # Return the method used for CAH
+    cah.method = function() {return(private$.cah.method)},
 
     # centroids setter / getter.
     centroids = function(value) {

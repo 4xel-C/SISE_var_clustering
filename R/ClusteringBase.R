@@ -167,11 +167,17 @@ ClusteringBase <- R6::R6Class(
     #' @return The list containing vector of quantitative indices, and qualitative indices.
     detect_variable_types = function() {
 
-      # Get the quantitative and the qualitatives data indices.
-      quant.index <- unname(which(sapply(private$.data, is.numeric)))
-      qual.index <- setdiff(seq_along(private$.data), quant.index)
+      is_quanti <- sapply(private$.data, function(x) {
+        is.numeric(x) && !is.factor(x)
+      })
 
-      return(list(quant.index, qual.index))
+      quant_index <- which(is_quanti)
+      qual_index <- setdiff(seq_along(private$.data), quant_index)
+
+      return(list(
+        quanti = unname(quant_index),
+        quali = unname(qual_index)
+      ))
     }
   ),  # end private
 

@@ -107,7 +107,7 @@ test_that("HClustVar handles invalid metric gracefully", {
 
   expect_warning(
     hc_invalid$fit(df_quali),
-    regexp = "Dataframe has only qualitative values, param. dist.metric is ignored."
+    regexp = "dist.metric ignored for qualitative data"
   )
   expect_equal(hc_invalid$fitted, TRUE)
 })
