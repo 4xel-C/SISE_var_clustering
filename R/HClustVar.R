@@ -178,23 +178,31 @@ HClustVar <- R6::R6Class(
   # ==========================================================================
   private = list(
 
+    # ==== Parameters
+
     # Metric to calculate distances between variables.
     .dist.metric = NULL,
+
     # Type of variable to make clustering on.
     .vartype = NULL,
-    # Contains the distances matrix.
-    .dist.matrix = NULL,
-    # Contains the method to calculate the distance matrix.
-    .dist.method = NULL,
-    # Keep the HAC object.
-    .tree = NULL,
+    .auto_var_selection = FALSE,
+
     # CAH method chosen.
     .cah.method = NULL,
+
+    # ==== Distances calculations
+
+    # Contains the distances matrix.
+    .dist.matrix = NULL,
+
+    # Keep the HAC object.
+    .tree = NULL,
+
     # centroids (computed after cut_tree function, latent components of each cluster as dataframe stored as a list of vectors).
     .centroids = NULL,
+
     # a vector of eigen value of the latent component of each cluster.
     .clusters.eigen = NULL,
-    .auto_var_selection = FALSE,
 
 
     # ==========================================================================
@@ -458,38 +466,95 @@ HClustVar <- R6::R6Class(
         stop("Cannot compute centroids: tree has not been cut yet")
       }
 
-      # Initialise centroids matrix and eigens vector.
-      centroids <- matrix(nrow = nrow(self$data), ncol = 0)
-      eigens <- c()
+      # Initialization
+      n_obs <- nrow(self$data)
+      n_clust <- self$n_clusters
 
-      # Iteration on all clusters.
-      for (i in 1:self$n_clusters) {
+      centroids <- matrix(
+        nrow = n_obs,
+        ncol = n_clust,
+        dimnames = list(NULL, paste0("C", 1:n_clust))
+      )
 
+      eigens <- numeric(n_clust)
+      names(eigens) <- paste0("C", 1:n_clust)
+
+      # Process each cluster
+      for (i in 1:n_clust) {
+
+        # Identify cluster variables
         cluster_vars <- names(self$labels)[self$labels == i]
-        sub_data <- self$data[, cluster_vars, drop = FALSE]
 
-        if (all(sapply(sub_data, is.numeric))) {
-          res <- FactoMineR::PCA(sub_data, ncp = 1, graph = FALSE, scale.unit = TRUE)
-
-        } else if (all(sapply(sub_data, is.factor))) {
-          res <- FactoMineR::MCA(sub_data, ncp = 1, graph = FALSE)
-
-        } else {
-          res <- FactoMineR::FAMD(sub_data, ncp = 1, graph = FALSE)
+        if (length(cluster_vars) == 0) {
+          stop(sprintf("Cluster %d is empty", i))
         }
 
-        # Append the result to centroids list and eigens vector.
-        eigens <- c(eigens, res$eig[1, 1])
-        centroids <- cbind(centroids, res$ind$coord)
+        # Extract cluster data
+        sub_data <- self$data[, cluster_vars, drop = FALSE]
 
-        } # endfor
+        # ═══════════════════════════════════════════════════════════════
+        # Factorial analysis
+        # ═══════════════════════════════════════════════════════════════
+        res <- tryCatch({
 
-      # Update the colname for centroids for clarity
-      colnames(centroids) <- paste0("C", 1:self$n_clusters)
+          if (all(sapply(sub_data, is.numeric))) {
+            FactoMineR::PCA(
+              sub_data,
+              ncp = 1,
+              graph = FALSE,
+              scale.unit = TRUE
+            )
 
-      # Set the private attributes.
-      self$centroids <- centroids
-      self$clusters.eigen <- eigens
+          } else if (all(sapply(sub_data, is.factor))) {
+            FactoMineR::MCA(
+              sub_data,
+              ncp = 1,
+              graph = FALSE
+            )
+
+          } else {
+            FactoMineR::FAMD(
+              sub_data,
+              ncp = 1,
+              graph = FALSE
+            )
+          }
+
+        }, error = function(e) {
+          stop(sprintf(
+            "FactoMineR analysis failed for cluster %d: %s",
+            i, e$message
+          ))
+        })
+
+        # ═══════════════════════════════════════════════════════════════
+        # Extract results
+        # ═══════════════════════════════════════════════════════════════
+
+        # Eigenvalue
+        eigens[i] <- res$eig[1, 1]
+
+        # First component (centroid)
+        if (is.matrix(res$ind$coord)) {
+          first_component <- res$ind$coord[, 1]
+        } else if (is.data.frame(res$ind$coord)) {
+          first_component <- res$ind$coord[[1]]
+        } else {
+          first_component <- as.numeric(res$ind$coord)
+        }
+
+        centroids[, i] <- first_component
+      }
+
+      # ═══════════════════════════════════════════════════════════════
+      # Store results in private fields
+      # ═══════════════════════════════════════════════════════════════
+
+      private$.centroids <- centroids
+      private$.clusters.eigen <- eigens
+
+      # Do not return any value.
+      invisible(NULL)
     },
 
 
