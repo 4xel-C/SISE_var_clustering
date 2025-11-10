@@ -1181,9 +1181,8 @@ HClustVar <- R6::R6Class(
       # Cluster Members
       # ----------------
 
-      # Compute Cluster members
+      # Compute Cluster members table
       clust_members <- data.frame(
-        member = variables,
         cluster = self$labels[variables]
       )
 
@@ -1191,7 +1190,8 @@ HClustVar <- R6::R6Class(
       next_closest_R2 <- numeric(length(variables))
 
 
-      # Iteration on all variables to calculate theior properties.
+
+      # Iteration on all variables to calculate their properties.
       for (i in 1:length(variables)) {
 
         variable <- variables[i]
@@ -1212,8 +1212,6 @@ HClustVar <- R6::R6Class(
           # correlation ratio if qualitative.
           cor_clusters_temp <- apply(self$centroids, MARGIN = 2, FUN = function(centroid) {private$correlation_ratio(self$data[[variable]], centroid)})
         }
-
-        print(cor_clusters_temp)
 
         own_cluster_R2[i] <- cor_clusters_temp[own_clust]
         next_closest_R2[i] <- max(cor_clusters_temp[-own_clust])
@@ -1285,6 +1283,7 @@ HClustVar <- R6::R6Class(
       cat("\n══════════════════════════════════════════════════════\n")
       cat("Use $summary() for detailed information\n")
       cat("Use $plot_dendrogram() to visualize the tree\n\n")
+      cat("Use $plot_cohesion() to visualize the cohesion gain of clusters.\n\n")
 
       invisible(self)
     }
