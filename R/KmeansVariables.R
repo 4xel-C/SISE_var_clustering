@@ -35,9 +35,9 @@
 #' indicating that the variable is well-represented by the centroid.
 #'
 #' @section Objective Function:
-#' The algorithm minimizes the within-cluster inertia:
-#' \deqn{W = \sum_{k=1}^{K} \sum_{X_j \in C_k} [1 - \rho^2(X_j, c_k)]}
-#' where \eqn{C_k} denotes the set of variables in cluster \eqn{k}.
+#' The algorithm maximizes the within-cluster cohesion (inertia):
+#' \deqn{I_k = \sum_{X_j \in C_k} \rho^2(X_j, c_k)}
+#' where \eqn{C_k} denotes the set of variables in cluster \eqn{k} and \eqn{c_k} is the cluster centroid.
 #'
 #' @section Public Methods:
 #' \describe{
@@ -66,7 +66,7 @@
 #'     \itemize{
 #'       \item Validates and loads the data (must have ≥2 quantitative variables)
 #'       \item Runs the algorithm \code{n_init} times with different initializations
-#'       \item Keeps the solution with the lowest inertia
+#'       \item Keeps the solution with the highest inertia (cohesion)
 #'       \item Stores cluster assignments, centroids, and performance metrics
 #'     }
 #'   }
@@ -142,7 +142,7 @@
 #'     (first principal component)
 #'   }
 #'   \item{\code{inertia}}{
-#'     Returns the total within-cluster inertia (lower is better)
+#'     Returns the total within-cluster inertia/cohesion (higher is better)
 #'   }
 #'   \item{\code{n_iter}}{
 #'     Returns the number of iterations performed until convergence
@@ -164,8 +164,8 @@
 #' }
 #'
 #' @section Multiple Initializations:
-#' To avoid local minima, the algorithm runs \code{n_init} times with different
-#' random initializations. The solution with the lowest inertia is retained.
+#' To avoid local maxima, the algorithm runs \code{n_init} times with different
+#' random initializations. The solution with the highest inertia is retained.
 #' Set \code{random_state} to an integer for reproducible results.
 #'
 #' @examples
@@ -330,63 +330,105 @@ KmeansVariables <- R6::R6Class(
     },
     
     #' Calculate centroid of a cluster using PCA
-    #' 
+    #'
     #' Computes the first principal component of variables in a cluster.
     #' This component serves as the cluster centroid.
-    #' 
+    #' Also returns PCA metrics (eigenvalue, correlation loadings) for inertia calculation.
+    #'
     #' @param X Matrix or data.frame of observations × variables
     #' @param var_indices Integer vector of column indices in the cluster
-    #' @return Numeric vector (centroid) of length nrow(X)
+    #' @return List with:
+    #'   - centroid: Numeric vector (PC1 scores) of length nrow(X)
+    #'   - eigenvalue: First eigenvalue (variance explained by PC1)
+    #'   - cor_loadings: Correlation loadings (for inertia calculation)
+    #'   - n_vars: Number of variables in cluster
     calculate_centroid = function(X, var_indices) {
-      
+
+      n_vars <- length(var_indices)
+
       # Handle single variable case
-      if (length(var_indices) == 1) {
-        return(as.numeric(scale(X[, var_indices])))
+      if (n_vars == 1) {
+        return(list(
+          centroid = as.numeric(scale(X[, var_indices])),
+          eigenvalue = 1,  # Single variable explains 100% of itself
+          cor_loadings = 1,
+          n_vars = 1
+        ))
       }
-      
+
       # Extract cluster variables
       X_cluster <- X[, var_indices, drop = FALSE]
-      
+
       # Remove constant variables (zero variance)
       variances <- apply(as.matrix(X_cluster), 2, function(x) var(x))
       if (any(variances == 0)) {
         X_cluster <- X_cluster[, variances > 0, drop = FALSE]
       }
-      
+
       # If only one variable left or no variables after filtering
       if (ncol(X_cluster) <= 1) {
         if (ncol(X_cluster) == 1) {
-          return(as.numeric(scale(X_cluster[, 1])))
+          return(list(
+            centroid = as.numeric(scale(X_cluster[, 1])),
+            eigenvalue = 1,
+            cor_loadings = 1,
+            n_vars = n_vars
+          ))
         } else {
           # No variables left, return zeros
-          return(rep(0, nrow(X_cluster)))
+          return(list(
+            centroid = rep(0, nrow(X_cluster)),
+            eigenvalue = 0,
+            cor_loadings = numeric(0),
+            n_vars = n_vars
+          ))
         }
       }
-      
+
       # Perform PCA (scale variables first)
       pca_result <- tryCatch({
         prcomp(X_cluster, center = TRUE, scale. = TRUE)
       }, error = function(e) {
         # If PCA fails, return scaled mean
-        return(list(x = cbind(scale(rowMeans(X_cluster)))))
+        centroid <- scale(rowMeans(X_cluster))
+        return(list(
+          centroid = as.numeric(centroid),
+          eigenvalue = 0,
+          cor_loadings = numeric(ncol(X_cluster)),
+          n_vars = n_vars
+        ))
       })
-      
-      # Return first principal component (scores)
+
+      # Extract first principal component (scores)
       centroid <- pca_result$x[, 1]
-      
-      # Ensure positive direction for consistency
-      if (sum(centroid) < 0) {
+
+      # Extract eigenvalue (variance explained by PC1)
+      eigenvalue <- pca_result$sdev[1]^2
+
+      # Calculate correlation loadings: rotation * sqrt(eigenvalue)
+      # These represent correlations between original variables and PC1
+      cor_loadings <- pca_result$rotation[, 1] * pca_result$sdev[1]
+
+      # Align centroid so that majority of variables are positively correlated
+      # This is crucial for correlation_type = "absolute" to work correctly
+      if (sum(cor_loadings) < 0) {
         centroid <- -centroid
+        cor_loadings <- -cor_loadings
       }
-      
-      return(as.numeric(centroid))
+
+      return(list(
+        centroid = as.numeric(centroid),
+        eigenvalue = eigenvalue,
+        cor_loadings = cor_loadings,  # Store with sign for proper alignment
+        n_vars = n_vars
+      ))
     },
     
     #' Compute distances between variables and centroids
     #'
     #' Calculates the distance matrix based on correlation.
     #' If correlation_type = "squared": Distance = sqrt(1 - cor(X_j, c_k)^2) (R²-based)
-    #' If correlation_type = "absolute": Distance = sqrt(1 - |cor(X_j, c_k)|) (|r|-based)
+    #' If correlation_type = "absolute": Distance = sqrt(1 - cor(X_j, c_k)) (r-based, sign matters)
     #'
     #' @param X Matrix or data.frame (n observations × p variables)
     #' @param centroids Matrix (n observations × K clusters)
@@ -415,8 +457,9 @@ KmeansVariables <- R6::R6Class(
             # R²-based: groups variables with high |correlation| (positive OR negative)
             dist_matrix[j, k] <- sqrt(1 - cor_val^2)
           } else {
-            # |r|-based: groups only variables with high positive correlation
-            dist_matrix[j, k] <- sqrt(1 - abs(cor_val))
+            # r-based: groups only variables with high positive correlation
+            # Uses correlation sign, so negatively correlated variables are pushed away
+            dist_matrix[j, k] <- sqrt(1 - cor_val)
           }
         }
       }
@@ -436,121 +479,48 @@ KmeansVariables <- R6::R6Class(
       return(as.integer(clusters))
     },
     
-    #' Calculate total within-cluster inertia
-    #' 
-    #' Inertia = sum over all variables of (1 - cor^2 with assigned centroid)
-    #' 
-    #' @param X Matrix or data.frame (n × p)
-    #' @param clusters Integer vector of cluster assignments
-    #' @param centroids Matrix (n × K) of centroids
-    #' @return Numeric value (total inertia)
-    calculate_inertia = function(X, clusters, centroids) {
-
-      p <- ncol(X)
-      inertia <- 0
-
-      for (j in 1:p) {
-        k <- clusters[j]  # Assigned cluster
-        cor_val <- suppressWarnings(cor(X[, j], centroids[, k]))
-
-        # Handle NA from zero variance: set correlation to 0
-        if (is.na(cor_val)) {
-          cor_val <- 0
-        }
-
-        # Calculate inertia based on correlation_type (must match compute_distances)
-        if (private$.correlation_type == "squared") {
-          inertia <- inertia + (1 - cor_val^2)
-        } else {
-          inertia <- inertia + (1 - abs(cor_val))
-        }
-      }
-
-      return(inertia)
-    },
-    
-    #' Calculate within-cluster inertia for each cluster
-    #' 
-    #' @param X Matrix or data.frame (n × p)
-    #' @param clusters Integer vector of cluster assignments
-    #' @param centroids Matrix (n × K) of centroids
-    #' @return Named numeric vector (inertia per cluster)
-    calculate_cluster_inertias = function(X, clusters, centroids) {
-      
-      K <- ncol(centroids)
-      cluster_inertias <- numeric(K)
-      names(cluster_inertias) <- paste0("Cluster", 1:K)
-      
-      for (k in 1:K) {
-        var_indices <- which(clusters == k)
-        
-        if (length(var_indices) == 0) {
-          cluster_inertias[k] <- 0
-          next
-        }
-        
-        inertia_k <- 0
-        for (j in var_indices) {
-          cor_val <- suppressWarnings(cor(X[, j], centroids[, k]))
-
-          # Handle NA from zero variance: set correlation to 0
-          if (is.na(cor_val)) {
-            cor_val <- 0
-          }
-
-          # Calculate inertia based on correlation_type (must match compute_distances)
-          if (private$.correlation_type == "squared") {
-            inertia_k <- inertia_k + (1 - cor_val^2)
-          } else {
-            inertia_k <- inertia_k + (1 - abs(cor_val))
-          }
-        }
-
-        cluster_inertias[k] <- inertia_k
-      }
-      
-      return(cluster_inertias)
-    },
-    
     #' Single run of K-means algorithm
-    #' 
+    #'
     #' @param X Matrix or data.frame (n × p)
     #' @return List with clusters, centroids, inertia, n_iter
     kmeans_single_run = function(X) {
-      
+
       n <- nrow(X)
       p <- ncol(X)
       K <- private$.n_clusters
-      
+
       # Random initialization
       clusters <- sample(1:K, p, replace = TRUE)
-      
+
       # Ensure all clusters have at least one variable
       for (k in 1:K) {
         if (sum(clusters == k) == 0) {
           clusters[sample(1:p, 1)] <- k
         }
       }
-      
-      inertia_old <- Inf
-      
+
+      inertia_old <- -Inf
+
       for (iter in 1:private$.max_iter) {
-        
-        # Step 1: Calculate centroids
+
+        # Step 1: Calculate centroids and collect PCA metrics
         centroids <- matrix(0, nrow = n, ncol = K)
         colnames(centroids) <- paste0("Cluster", 1:K)
-        
+        pca_metrics <- vector("list", K)  # Store PCA results for each cluster
+
         for (k in 1:K) {
           var_indices <- which(clusters == k)
-          centroids[, k] <- private$calculate_centroid(X, var_indices)
+          pca_result <- private$calculate_centroid(X, var_indices)
+          centroids[, k] <- pca_result$centroid
+          pca_metrics[[k]] <- pca_result
         }
-        
+
         # Step 2: Compute distances
         dist_matrix <- private$compute_distances(X, centroids)
-        
+
         # Step 3: Reassign clusters
         clusters_new <- private$assign_clusters(dist_matrix)
-        
+
         # Ensure no empty clusters
         for (k in 1:K) {
           if (sum(clusters_new == k, na.rm = TRUE) == 0) {
@@ -559,37 +529,78 @@ KmeansVariables <- R6::R6Class(
             clusters_new[farthest_var] <- k
           }
         }
-        
-        # Step 4: Calculate inertia
-        inertia_new <- private$calculate_inertia(X, clusters_new, centroids)
+
+        # Step 4: Calculate inertia from PCA metrics
+        # Inertia = sum of squared correlations (cohesion to maximize)
+        inertia_new <- 0
+        for (k in 1:K) {
+          n_vars <- pca_metrics[[k]]$n_vars
+          cor_loadings <- pca_metrics[[k]]$cor_loadings
+
+          if (n_vars == 0) {
+            next
+          }
+
+          # Calculate inertia based on correlation_type
+          if (private$.correlation_type == "squared") {
+            # Inertia = sum(r²) between variables and centroid
+            inertia_new <- inertia_new + sum(cor_loadings^2)
+          } else {
+            # Inertia = sum(r) between variables and centroid
+            # After alignment, this represents sum of positive correlations
+            inertia_new <- inertia_new + sum(cor_loadings)
+          }
+        }
 
         # Check convergence
-        # Use isTRUE(all.equal()) to handle NA values
         if (isTRUE(all.equal(clusters_new, clusters))) {
           clusters <- clusters_new
           break
         }
-        
+
         if (abs(inertia_old - inertia_new) < private$.tol) {
           clusters <- clusters_new
           break
         }
-        
+
         clusters <- clusters_new
         inertia_old <- inertia_new
       }
-      
-      # Calculate final metrics
-      final_inertia <- private$calculate_inertia(X, clusters, centroids)
-      cluster_inertias <- private$calculate_cluster_inertias(X, clusters, centroids)
-      
-      return(list(
+
+      # Calculate final metrics using PCA results
+      # Recalculate centroids and PCA metrics for final clusters
+      centroids_final <- matrix(0, nrow = n, ncol = K)
+      colnames(centroids_final) <- paste0("Cluster", 1:K)
+      cluster_inertias <- numeric(K)
+      names(cluster_inertias) <- paste0("Cluster", 1:K)
+
+      final_inertia <- 0
+      for (k in 1:K) {
+        var_indices <- which(clusters == k)
+        pca_result <- private$calculate_centroid(X, var_indices)
+        centroids_final[, k] <- pca_result$centroid
+
+        n_vars <- pca_result$n_vars
+        cor_loadings <- pca_result$cor_loadings
+
+        # Calculate cluster inertia
+        if (private$.correlation_type == "squared") {
+          cluster_inertias[k] <- sum(cor_loadings^2)
+        } else {
+          # After alignment, sum(r) represents sum of positive correlations
+          cluster_inertias[k] <- sum(cor_loadings)
+        }
+
+        final_inertia <- final_inertia + cluster_inertias[k]
+      }
+
+      list(
         clusters = clusters,
-        centroids = centroids,
+        centroids = centroids_final,
         inertia = final_inertia,
         n_iter = iter,
         cluster_inertias = cluster_inertias
-      ))
+      )
     }
   ),
   
@@ -781,14 +792,14 @@ KmeansVariables <- R6::R6Class(
       }
       
       # Multiple initializations
-      best_inertia <- Inf
+      best_inertia <- -Inf
       best_result <- NULL
-      
+
       for (init in 1:private$.n_init) {
-        
+
         result <- private$kmeans_single_run(X)
-        
-        if (result$inertia < best_inertia) {
+
+        if (result$inertia > best_inertia) {
           best_inertia <- result$inertia
           best_result <- result
         }
