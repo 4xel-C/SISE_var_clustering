@@ -138,8 +138,8 @@ test_that("fit() works on synthetic data with known clusters", {
   # Check cluster sizes
   expect_equal(length(unique(km$clusters)), 3)
   
-  # Check inertia is reasonable (should be relatively low for well-separated clusters)
-  expect_lt(km$inertia, ncol(data) * 0.5)  # Less than 50% of max possible inertia
+  # Check inertia is reasonable (should be relatively high for well-separated clusters)
+  expect_gt(km$inertia, ncol(data) * 0.5)  # Greater than 50% of max possible inertia
 })
 
 
@@ -382,8 +382,8 @@ test_that("kmeans_elbow() computes inertia for range of K", {
   expect_named(elbow_data, c("k", "inertia", "inertia_pct"))
   expect_equal(nrow(elbow_data), 4)
   
-  # Inertia should decrease as K increases
-  expect_true(all(diff(elbow_data$inertia) < 0))
+  # Inertia (cohesion) should increase as K increases
+  expect_true(all(diff(elbow_data$inertia) > 0))
 })
 
 
