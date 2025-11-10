@@ -562,6 +562,10 @@ HClustVar <- R6::R6Class(
     # Compute the correlation ratio between a qualitative variable and a quantitative variable.
     correlation_ratio = function(quali, quanti) {
 
+      quali  <- as.factor(quali)
+      quanti <- as.numeric(quanti)
+
+
       # compute total sum of squares.
       sst <- sum(
         (quanti - mean(quanti))**2
@@ -714,7 +718,7 @@ HClustVar <- R6::R6Class(
 
       # Check if the model is fitted.
       if (!self$fitted) {
-        stop("Your model is not fitted with any data!")
+        stop("Your model should be fitted on data first.")
       }
 
       # Update the labels attribute.
@@ -868,9 +872,9 @@ HClustVar <- R6::R6Class(
       # 3. PREDICTION DEPENDING OF CAH METHOD
       # ==========================================================================
 
-      # -------------------------------------------------------------------------
+      # -----------
       # 3A. CENTROIDS BASED METHODS (Ward, Centroid)
-      # -------------------------------------------------------------------------
+      # -----------
       if (private$.cah.method %in% c("ward.D", "ward.D2", "centroid")) {
 
         # Validate that centroids exist
@@ -923,9 +927,9 @@ HClustVar <- R6::R6Class(
           }
         }
 
-        # -------------------------------------------------------------------------
+        # ---------------
         # 3B. OTHER METHODS (Single, Complete, Median, Average, McQuitty)
-        # -------------------------------------------------------------------------
+        # ---------------
       } else if (private$.cah.method %in% c("single", "complete", "median", "average", "mcquitty")) {
 
         # Process each new variable
@@ -935,9 +939,9 @@ HClustVar <- R6::R6Class(
           similarity <- numeric(ncol(self$data))
           names(similarity) <- colnames(self$data)
 
-          # -----------------------------------------------------------------------
+          # --------------
           # Calculate similarity between new variable and all training variables
-          # -----------------------------------------------------------------------
+          # --------------
 
           # --- Scenario 1: Training data is purely QUANTITATIVE ---
           if (self$vartype == "quant") {
@@ -1016,9 +1020,9 @@ HClustVar <- R6::R6Class(
             stop(sprintf("Unknown vartype: %s", self$vartype))
           }
 
-          # -----------------------------------------------------------------------
+          # ----------
           # Aggregate similarities by cluster according to CAH method
-          # -----------------------------------------------------------------------
+          # ------------
 
           cluster_proximity <- numeric(self$n_clusters)
 
@@ -1043,9 +1047,9 @@ HClustVar <- R6::R6Class(
           result[i] <- which.max(cluster_proximity)
         }
 
-        # -------------------------------------------------------------------------
+        # ---------
         # 3C. UNKNOWN METHOD
-        # -------------------------------------------------------------------------
+        # ----------
       } else {
         stop(sprintf(
           "Unknown or unsupported CAH method: %s. Supported methods are: %s",
@@ -1059,19 +1063,178 @@ HClustVar <- R6::R6Class(
     },
 
     # -----------------------------------------------------------------------
+    # Within inertia plot
+    # -----------------------------------------------------------------------
+
+    # TODO: Documentation
+    plot_cohesion = function() {
+
+      # Check if fitted.
+      if (!self$fitted) {
+        stop("Model should be fitted on data.")
+      }
+
+      # Save the original class configuration to reset after plotting.
+      original_label <- self$labels
+      original_n_clusters <- self$n_clusters
+
+      original_centroids <- self$centroids
+      original_clusters.eigen <- self$clusters.eigen
+
+      # initialize the within inertia vector.
+      within.inertia <- numeric()
+
+      max_clusters <- 0
+
+      # loop through each cluster.
+      if (self$vartype == "quant"){
+        max_clusters <- length(self$quanti_indices)
+      } else if (self$vartype == "qual") {
+        max_clusters <- length(self$quali_indices)
+      } else {
+        max_clusters <- ncol(self$data)
+      }
+
+      # initialize the inertia vector
+      inertia <- numeric(max_clusters)
+
+      for (k in seq_len(max_clusters)) {
+
+
+        # if we reach max cluster, just update knowing each eigens values is equal 1.
+        if (k == max_clusters) {
+          inertia[k] <- k
+        } else {
+
+          # cut the tree with k clusters.
+          self$cut_tree(k)
+
+          # save the sum of within inertia (eigens values of each cluster).
+          inertia[k] <- sum(self$clusters.eigen)
+        }
+      } # end for.
+
+      # calculate the cohesion gain.
+      cohesion <- (inertia - inertia[1]) / (max_clusters - inertia[1])
+
+      # plot graph
+      plot(cohesion, type = "b", xlab = "Number of clusters", ylab = "Gain in cohesion (%)")
+
+      # Restore original configuration.
+      self$labels <- original_label
+      self$n_clusters <- original_n_clusters
+
+      self$centroids <- original_centroids
+      self$clusters.eigen <- original_clusters.eigen
+
+    },
+
+
+    # -----------------------------------------------------------------------
     # Summary method
     # -----------------------------------------------------------------------
 
     # TODO: documentation
     summary = function() {
       # TODO: Add more element to the summary function.
+
+      # Model state
+      if (!self$fitted) {
+        cat("Status: NOT FITTED\n")
+        cat("Use $fit(data) to train the model.\n\n")
+        return(invisible(self))
+      }
+
+      if (is.null(self$n_clusters)) {
+        cat("Status: Tree not cut.\n")
+        cat("Use self$cut_tree().\n\n")
+        return(invisible(self))
+      }
+
+      if (self$vartype == "quant") {
+        variables <- colnames(self$data[self$quanti_indices])
+      } else if (self$vartype == "qual") {
+        variables <- colnames(self$data[self$quali_indices])
+      } else {
+        variables <- colnames(self$data)
+      }
+
+
+      # ----------------
+      # Cluster summary
+      # ----------------
+
+      # Compute the cluster summary.
+      clust_summary <- data.frame(
+        cluster = 1:self$n_clusters,
+        n_members = sapply(1:self$n_clusters, FUN = function(x) {sum(self$labels == x)}),
+        var_explained = round(self$clusters.eigen, 2)
+      )
+
+      clust_summary["prop_explained"] <- round(clust_summary$var_explained / clust_summary$n_members, 2)
+
+      total_var_explained <- sum(clust_summary$var_explained)
+      percentage_var_explained <- total_var_explained / length(variables)
+
+
+      # ----------------
+      # Cluster Members
+      # ----------------
+
+      # Compute Cluster members
+      clust_members <- data.frame(
+        member = variables,
+        cluster = self$labels[variables]
+      )
+
+      own_cluster_R2 <- numeric(length(variables))
+      next_closest_R2 <- numeric(length(variables))
+
+
+      # Iteration on all variables to calculate theior properties.
+      for (i in 1:length(variables)) {
+
+        variable <- variables[i]
+
+        # initialize the vector of correlation with the other clusters
+        cor_clusters_temp = numeric(self$n_clusters)
+
+        # own_cluster
+        own_clust <- self$labels[variable]
+
+        # Compute the correlation² with all the other centroids
+        # Correlation if quantitative.
+        if (is.numeric(self$data[[variable]])) {  # Double crochet [[]]
+          cor_clusters_temp <- apply(self$centroids, 2, function(centroid) {
+            cor(self$data[[variable]], centroid, use = "complete.obs")^2
+          })
+        } else {
+          # correlation ratio if qualitative.
+          cor_clusters_temp <- apply(self$centroids, MARGIN = 2, FUN = function(centroid) {private$correlation_ratio(self$data[[variable]], centroid)})
+        }
+
+        print(cor_clusters_temp)
+
+        own_cluster_R2[i] <- cor_clusters_temp[own_clust]
+        next_closest_R2[i] <- max(cor_clusters_temp[-own_clust])
+      } # end for
+
+      # Update the dataframe.
+      clust_members["own_cluster_R2"] <- round(own_cluster_R2, 2)
+      clust_members["next_closest_R2"] <- round(next_closest_R2, 2)
+      clust_members["1 - R2_ratio"] <- round((1 - clust_members["own_cluster_R2"]) / (1 - clust_members["next_closest_R2"]), 2)
+
+      # Sort the clust_members df
+      clust_members <- clust_members[order(clust_members$cluster, -clust_members$own_cluster_R2), ]
+
+      return(list(clust_summary = clust_summary, clust_members = clust_members))
     },
 
     # -----------------------------------------------------------------------
     # Print method
     # -----------------------------------------------------------------------
 
-    # TODO: documentation
+
     #' Print method for HClustVar objects
     #'
     #' @description
