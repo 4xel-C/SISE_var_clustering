@@ -61,7 +61,6 @@
 #' }
 #'
 #' @keywords internal
-#' @noRd
 ClusteringBase <- R6::R6Class(
 
   # Calling string.
@@ -88,6 +87,7 @@ ClusteringBase <- R6::R6Class(
     #' Validate input data structure
     #' @param data Data.frame or matrix
     #' @return The data as a dataframe with column named if needed.
+    #' @keywords internal
     validate_data_structure = function(data) {
 
       # Check type
@@ -120,6 +120,7 @@ ClusteringBase <- R6::R6Class(
 
     #' Validate number of clusters
     #' @param n_clusters Integer or NULL
+    #' @keywords internal
     validate_n_clusters = function(n_clusters) {
 
       # Return NULL if needed as some algorithms dosn't require a specified k.
@@ -165,6 +166,7 @@ ClusteringBase <- R6::R6Class(
 
     #' Detect variable types (quantitative vs qualitative)
     #' @return The list containing vector of quantitative indices, and qualitative indices.
+    #' @keywords internal
     detect_variable_types = function() {
 
       is_quanti <- sapply(private$.data, function(x) {
@@ -211,6 +213,7 @@ ClusteringBase <- R6::R6Class(
     #'   )
     #' )
     #' }
+    #' @keywords internal
     initialize = function() {
 
       # Prevent direct instantiation.
@@ -337,8 +340,7 @@ ClusteringBase <- R6::R6Class(
     #' head(quanti_data)
     #' }
     #'
-    #' @seealso [get_quali_data()] for qualitative variables.
-    #' @noRd
+    #' @keywords internal
     get_quanti_data = function() {
       if (length(private$.quanti_indices) == 0) {
         stop("No quantitative variables found in data.")
@@ -367,7 +369,6 @@ ClusteringBase <- R6::R6Class(
     #' head(quali_data)
     #' }
     #'
-    #' @seealso [get_quanti_data()] for quantitative variables.
     #' @noRd
     get_quali_data = function() {
       if (length(private$.quali_indices) == 0) {

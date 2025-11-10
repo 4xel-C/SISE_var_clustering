@@ -11,20 +11,20 @@ with cluster centroids (first principal component of each cluster).
 \details{
 K-means Variable Clustering
 
-
-The `KmeansVariables` class inherits from `ClusteringBase` and provides:
-- Iterative reallocation of variables to clusters
-- Distance calculation based on squared correlation with centroids
-- Centroid computation via Principal Component Analysis (PCA)
-- Multiple random initializations to avoid local minima
-- Convergence monitoring and iteration tracking
-
-
-
-- Validates that data contains at least 2 quantitative variables
-- Runs the algorithm `n_init` times with different random starts
-- Keeps the solution with the lowest inertia
-- Stores results in private fields accessible via active bindings
+The \code{KmeansVariables} class inherits from \code{ClusteringBase} and provides:
+\itemize{
+\item Iterative reallocation of variables to clusters
+\item Distance calculation based on squared correlation with centroids
+\item Centroid computation via Principal Component Analysis (PCA)
+\item Multiple random initializations to avoid local minima
+\item Convergence monitoring and iteration tracking
+\item Validates that data contains at least 2 quantitative variables
+\item If the dataset contains qualitative variables, they are automatically ignored
+(a message is displayed to inform the user)
+\item Runs the algorithm \code{n_init} times with different random starts
+\item Keeps the solution with the lowest inertia
+\item Stores results in private fields accessible via active bindings
+}
 }
 \note{
 This class is not exported; it is intended for internal use
@@ -34,14 +34,14 @@ within the package.
 
 The K-means for variables works as follows:
 \enumerate{
-  \item **Initialization**: Randomly assign variables to K clusters
-  \item **Centroid Calculation**: For each cluster, compute the first principal 
-        component (via PCA) as the cluster centroid
-  \item **Distance Calculation**: Compute distance between each variable and each 
-        centroid using: \code{d(X_j, c_k) = sqrt(1 - cor(X_j, c_k)^2)}
-  \item **Reallocation**: Reassign each variable to its nearest centroid
-  \item **Convergence Check**: Repeat steps 2-4 until no reassignment occurs or 
-        max iterations reached
+\item \strong{Initialization}: Randomly assign variables to K clusters
+\item \strong{Centroid Calculation}: For each cluster, compute the first principal
+component (via PCA) as the cluster centroid
+\item \strong{Distance Calculation}: Compute distance between each variable and each
+centroid using: \code{d(X_j, c_k) = sqrt(1 - cor(X_j, c_k)^2)}
+\item \strong{Reallocation}: Reassign each variable to its nearest centroid
+\item \strong{Convergence Check}: Repeat steps 2-4 until no reassignment occurs or
+max iterations reached
 }
 }
 
@@ -57,88 +57,128 @@ indicating that the variable is well-represented by the centroid.
 
 \section{Objective Function}{
 
-The algorithm minimizes the within-cluster inertia:
-\deqn{W = \sum_{k=1}^{K} \sum_{X_j \in C_k} [1 - \rho^2(X_j, c_k)]}
-where \eqn{C_k} denotes the set of variables in cluster \eqn{k}.
+The algorithm maximizes the within-cluster cohesion (inertia):
+\deqn{I_k = \sum_{X_j \in C_k} \rho^2(X_j, c_k)}
+where \eqn{C_k} denotes the set of variables in cluster \eqn{k} and \eqn{c_k} is the cluster centroid.
 }
 
 \section{Public Methods}{
 
 \describe{
-  \item{\code{initialize(n_clusters = 3, max_iter = 100, tol = 1e-4, 
-                         n_init = 10, random_state = NULL)}}{
-    Creates a new instance of KmeansVariables.
-    \itemize{
-      \item \code{n_clusters}: Number of clusters (default: 3)
-      \item \code{max_iter}: Maximum number of iterations (default: 100)
-      \item \code{tol}: Convergence tolerance (default: 1e-4)
-      \item \code{n_init}: Number of random initializations (default: 10)
-      \item \code{random_state}: Seed for reproducibility (default: NULL)
-    }
-  }
-  \item{\code{fit(data)}}{
-    Fits the K-means clustering model on the provided data.
-    \itemize{
-      \item \code{data}: Data frame containing quantitative variables to cluster
-    }
-    This method:
-    \itemize{
-      \item Validates and loads the data (must have ≥2 quantitative variables)
-      \item Runs the algorithm \code{n_init} times with different initializations
-      \item Keeps the solution with the lowest inertia
-      \item Stores cluster assignments, centroids, and performance metrics
-    }
-  }
-  \item{\code{predict(data)}}{
-    Assigns new variables to existing clusters.
-    \itemize{
-      \item \code{data}: Data frame with same number of observations as training data
-    }
-    Returns a list with:
-    \itemize{
-      \item \code{clusters}: Integer vector of cluster assignments
-      \item \code{distances}: Matrix of distances to each centroid
-      \item \code{correlations}: Matrix of correlations with each centroid
-    }
-  }
-  \item{\code{print()}}{
-    Displays concise information about the fitted model:
-    number of clusters, iterations, and final inertia.
-  }
-  \item{\code{summary()}}{
-    Displays detailed information including:
-    \itemize{
-      \item Cluster sizes (number of variables per cluster)
-      \item Within-cluster inertia per cluster
-      \item Mean correlation within each cluster
-      \item Top contributing variables per cluster
-    }
-  }
+\item{\code{initialize(n_clusters = 3, max_iter = 100, tol = 1e-4,
+                         n_init = 10, random_state = NULL,
+                         k_range = 2:10, selection_method = "silhouette",
+                         correlation_type = "squared")}}{
+Creates a new instance of KmeansVariables.
+\itemize{
+\item \code{n_clusters}: Number of clusters (default: 3) or "auto" for automatic selection
+\item \code{max_iter}: Maximum number of iterations (default: 100)
+\item \code{tol}: Convergence tolerance (default: 1e-4)
+\item \code{n_init}: Number of random initializations (default: 10)
+\item \code{random_state}: Seed for reproducibility (default: NULL)
+\item \code{k_range}: Range of K to test if n_clusters = "auto" (default: 2:10)
+\item \code{selection_method}: Method for auto K selection: "silhouette", "calinski", or "all" (default: "silhouette")
+\item \code{correlation_type}: "squared" (R²) groups correlated+anticorrelated variables, "absolute" (|r|) separates them (default: "squared")
+}
+}
+\item{\code{fit(data)}}{
+Fits the K-means clustering model on the provided data.
+\itemize{
+\item \code{data}: Data frame containing quantitative variables to cluster
+}
+This method:
+\itemize{
+\item Validates and loads the data (must have ≥2 quantitative variables)
+\item Runs the algorithm \code{n_init} times with different initializations
+\item Keeps the solution with the highest inertia (cohesion)
+\item Stores cluster assignments, centroids, and performance metrics
+}
+}
+\item{\code{predict(data)}}{
+Assigns new variables to existing clusters.
+\itemize{
+\item \code{data}: Data frame with same number of observations as training data
+}
+Returns a list with:
+\itemize{
+\item \code{clusters}: Integer vector of cluster assignments
+\item \code{distances}: Matrix of distances to each centroid
+\item \code{correlations}: Matrix of correlations with each centroid
+}
+}
+\item{\code{print()}}{
+Displays concise information about the fitted model:
+number of clusters, iterations, and final inertia.
+}
+\item{\code{summary()}}{
+Displays detailed information including:
+\itemize{
+\item Cluster sizes (number of variables per cluster)
+\item Within-cluster inertia per cluster
+\item Mean correlation within each cluster
+\item Top contributing variables per cluster
+}
+}
+\item{\code{silhouette()}}{
+Calculates silhouette coefficients for all variables.
+Returns a data frame with silhouette values.
+}
+\item{\code{calinski_harabasz()}}{
+Calculates the Calinski-Harabasz index (cluster quality metric).
+Returns a numeric value (higher is better).
+}
+\item{\code{intra_correlation()}}{
+Calculates mean intra-cluster correlations.
+Returns a data frame with correlation statistics per cluster.
+}
+\item{\code{contributions()}}{
+Calculates variable contributions to their clusters (R²).
+Returns a data frame with contribution values.
+}
+\item{\code{correlation_table(round_digits = 3)}}{
+Creates a detailed table showing each variable's correlation with all clusters.
+Returns a data frame with correlation strengths and cluster separation metrics.
+}
+\item{\code{plot_silhouette(...)}}{
+Plots horizontal silhouette chart with variable names.
+}
+\item{\code{plot_contributions(top_n = 5, ...)}}{
+Plots top contributing variables per cluster.
+}
+\item{\code{plot_projection(...)}}{
+Plots PCA-style variable projection (correlation circle).
+}
+\item{\code{plot_diagnostics(k_range = 2:10, ...)}}{
+Plots diagnostic panel for selecting optimal K.
+}
+\item{\code{plot_summary(top_n = 5, ...)}}{
+Plots comprehensive summary panel with multiple visualizations.
+}
 }
 }
 
 \section{Active Bindings (getters)}{
 
 \describe{
-  \item{\code{clusters}}{
-    Returns an integer vector of cluster assignments for each variable
-  }
-  \item{\code{centroids}}{
-    Returns a matrix where each column is a cluster centroid 
-    (first principal component)
-  }
-  \item{\code{inertia}}{
-    Returns the total within-cluster inertia (lower is better)
-  }
-  \item{\code{n_iter}}{
-    Returns the number of iterations performed until convergence
-  }
-  \item{\code{cluster_sizes}}{
-    Returns a named vector with the number of variables in each cluster
-  }
-  \item{\code{cluster_inertias}}{
-    Returns a named vector with the within-cluster inertia for each cluster
-  }
+\item{\code{clusters}}{
+Returns an integer vector of cluster assignments for each variable
+}
+\item{\code{centroids}}{
+Returns a matrix where each column is a cluster centroid
+(first principal component)
+}
+\item{\code{inertia}}{
+Returns the total within-cluster inertia/cohesion (higher is better)
+}
+\item{\code{n_iter}}{
+Returns the number of iterations performed until convergence
+}
+\item{\code{cluster_sizes}}{
+Returns a named vector with the number of variables in each cluster
+}
+\item{\code{cluster_inertias}}{
+Returns a named vector with the within-cluster inertia for each cluster
+}
 }
 }
 
@@ -146,16 +186,16 @@ where \eqn{C_k} denotes the set of variables in cluster \eqn{k}.
 
 The algorithm stops when one of the following conditions is met:
 \itemize{
-  \item No variable changes cluster between two consecutive iterations
-  \item The change in total inertia is less than \code{tol}
-  \item Maximum number of iterations (\code{max_iter}) is reached
+\item No variable changes cluster between two consecutive iterations
+\item The change in total inertia is less than \code{tol}
+\item Maximum number of iterations (\code{max_iter}) is reached
 }
 }
 
 \section{Multiple Initializations}{
 
-To avoid local minima, the algorithm runs \code{n_init} times with different
-random initializations. The solution with the lowest inertia is retained.
+To avoid local maxima, the algorithm runs \code{n_init} times with different
+random initializations. The solution with the highest inertia is retained.
 Set \code{random_state} to an integer for reproducible results.
 }
 
@@ -163,9 +203,9 @@ Set \code{random_state} to an integer for reproducible results.
 
 This class requires:
 \itemize{
-  \item The R6 package
-  \item The parent class ClusteringBase
-  \item Base R functions: prcomp(), cor(), sample()
+\item The R6 package
+\item The parent class ClusteringBase
+\item Base R functions: prcomp(), cor(), sample()
 }
 }
 
@@ -189,7 +229,7 @@ X3 <- create_cluster(5, n, 0.6)
 data_test <- data.frame(X1, X2, X3)
 colnames(data_test) <- paste0("Var", 1:15)
 
-# Fit K-means with 3 clusters
+# Option 1: Manual K selection (you choose K)
 km <- KmeansVariables$new(n_clusters = 3, random_state = 42)
 km$fit(data_test)
 
@@ -201,6 +241,34 @@ km$summary()
 km$clusters      # Cluster assignments
 km$inertia       # Total inertia
 km$n_iter        # Number of iterations
+
+# Option 2: Automatic K selection (algorithm chooses optimal K)
+km_auto <- KmeansVariables$new(n_clusters = "auto",
+                               k_range = 2:8,
+                               selection_method = "silhouette",
+                               random_state = 42)
+km_auto$fit(data_test)
+# → Displays: "Optimal K selected: 3 (method: silhouette, avg_silhouette: 0.XXX)"
+
+# Option 3: Use absolute correlation (separates positively/negatively correlated vars)
+km_abs <- KmeansVariables$new(n_clusters = 3,
+                              correlation_type = "absolute",
+                              random_state = 42)
+km_abs$fit(data_test)
+# Variables with negative correlation to centroid will be in different clusters
+
+# Use wrapper methods for metrics (no need to pass data/clusters/centroids!)
+sil <- km$silhouette()                    # Calculate silhouette
+ch <- km$calinski_harabasz()              # Calculate CH index
+contrib <- km$contributions()             # Get variable contributions
+cor_table <- km$correlation_table()       # Get correlation table
+
+# Use wrapper methods for plots (much simpler!)
+km$plot_silhouette()                      # Plot silhouette
+km$plot_contributions(top_n = 3)          # Plot top 3 vars per cluster
+km$plot_projection(show_labels = TRUE)    # Plot PCA projection
+km$plot_diagnostics(k_range = 2:6)        # Plot diagnostics panel
+km$plot_summary(top_n = 5)                # Plot summary panel
 
 # Predict on new variables
 new_vars <- data.frame(
@@ -226,23 +294,26 @@ km_fifa$summary()
 }
 \references{
 \itemize{
-  \item Vigneau, E., & Qannari, E. M. (2003). Clustering of variables around 
-        latent components. Communications in Statistics-Simulation and Computation, 
-        32(4), 1131-1150.
-  \item Chavent, M., Kuentz-Simonet, V., Labenne, A., & Saracco, J. (2012). 
-        ClustOfVar: An R Package for the Clustering of Variables. 
-        Journal of Statistical Software, 50(13), 1-16.
+\item Vigneau, E., & Qannari, E. M. (2003). Clustering of variables around
+latent components. Communications in Statistics-Simulation and Computation,
+32(4), 1131-1150.
+\item Chavent, M., Kuentz-Simonet, V., Labenne, A., & Saracco, J. (2012).
+ClustOfVar: An R Package for the Clustering of Variables.
+Journal of Statistical Software, 50(13), 1-16.
 }
 }
 \seealso{
 \code{\link{ClusteringBase}} for the parent class
 \code{\link[stats]{prcomp}} for Principal Component Analysis
 \code{\link[stats]{cor}} for correlation calculations
+
+Other clustering classes: 
+\code{\link{HClustVar}}
 }
 \concept{clustering classes}
 \keyword{internal}
 \section{Super class}{
-\code{YaPackage::ClusteringBase} -> \code{KmeansVariables}
+\code{sise.var.clustering::ClusteringBase} -> \code{KmeansVariables}
 }
 \section{Methods}{
 \subsection{Public methods}{
@@ -252,16 +323,26 @@ km_fifa$summary()
 \item \href{#method-KmeansVariables-predict}{\code{KmeansVariables$predict()}}
 \item \href{#method-KmeansVariables-print}{\code{KmeansVariables$print()}}
 \item \href{#method-KmeansVariables-summary}{\code{KmeansVariables$summary()}}
+\item \href{#method-KmeansVariables-silhouette}{\code{KmeansVariables$silhouette()}}
+\item \href{#method-KmeansVariables-calinski_harabasz}{\code{KmeansVariables$calinski_harabasz()}}
+\item \href{#method-KmeansVariables-intra_correlation}{\code{KmeansVariables$intra_correlation()}}
+\item \href{#method-KmeansVariables-contributions}{\code{KmeansVariables$contributions()}}
+\item \href{#method-KmeansVariables-correlation_table}{\code{KmeansVariables$correlation_table()}}
+\item \href{#method-KmeansVariables-plot_silhouette}{\code{KmeansVariables$plot_silhouette()}}
+\item \href{#method-KmeansVariables-plot_contributions}{\code{KmeansVariables$plot_contributions()}}
+\item \href{#method-KmeansVariables-plot_projection}{\code{KmeansVariables$plot_projection()}}
+\item \href{#method-KmeansVariables-plot_diagnostics}{\code{KmeansVariables$plot_diagnostics()}}
+\item \href{#method-KmeansVariables-plot_summary}{\code{KmeansVariables$plot_summary()}}
 \item \href{#method-KmeansVariables-clone}{\code{KmeansVariables$clone()}}
 }
 }
 \if{html}{\out{
 <details open><summary>Inherited methods</summary>
 <ul>
-<li><span class="pkg-link" data-pkg="YaPackage" data-topic="ClusteringBase" data-id="get_quali_data"><a href='../../YaPackage/html/ClusteringBase.html#method-ClusteringBase-get_quali_data'><code>YaPackage::ClusteringBase$get_quali_data()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="YaPackage" data-topic="ClusteringBase" data-id="get_quanti_data"><a href='../../YaPackage/html/ClusteringBase.html#method-ClusteringBase-get_quanti_data'><code>YaPackage::ClusteringBase$get_quanti_data()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="YaPackage" data-topic="ClusteringBase" data-id="load_and_check_data"><a href='../../YaPackage/html/ClusteringBase.html#method-ClusteringBase-load_and_check_data'><code>YaPackage::ClusteringBase$load_and_check_data()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="YaPackage" data-topic="ClusteringBase" data-id="validate_algorithm_requirements"><a href='../../YaPackage/html/ClusteringBase.html#method-ClusteringBase-validate_algorithm_requirements'><code>YaPackage::ClusteringBase$validate_algorithm_requirements()</code></a></span></li>
+<li><span class="pkg-link" data-pkg="sise.var.clustering" data-topic="ClusteringBase" data-id="get_quali_data"><a href='../../sise.var.clustering/html/ClusteringBase.html#method-ClusteringBase-get_quali_data'><code>sise.var.clustering::ClusteringBase$get_quali_data()</code></a></span></li>
+<li><span class="pkg-link" data-pkg="sise.var.clustering" data-topic="ClusteringBase" data-id="get_quanti_data"><a href='../../sise.var.clustering/html/ClusteringBase.html#method-ClusteringBase-get_quanti_data'><code>sise.var.clustering::ClusteringBase$get_quanti_data()</code></a></span></li>
+<li><span class="pkg-link" data-pkg="sise.var.clustering" data-topic="ClusteringBase" data-id="load_and_check_data"><a href='../../sise.var.clustering/html/ClusteringBase.html#method-ClusteringBase-load_and_check_data'><code>sise.var.clustering::ClusteringBase$load_and_check_data()</code></a></span></li>
+<li><span class="pkg-link" data-pkg="sise.var.clustering" data-topic="ClusteringBase" data-id="validate_algorithm_requirements"><a href='../../sise.var.clustering/html/ClusteringBase.html#method-ClusteringBase-validate_algorithm_requirements'><code>sise.var.clustering::ClusteringBase$validate_algorithm_requirements()</code></a></span></li>
 </ul>
 </details>
 }}
@@ -269,21 +350,25 @@ km_fifa$summary()
 \if{html}{\out{<a id="method-KmeansVariables-new"></a>}}
 \if{latex}{\out{\hypertarget{method-KmeansVariables-new}{}}}
 \subsection{Method \code{new()}}{
-Initializes a new instance of the `KmeansVariables` class.
+Initializes a new instance of the \code{KmeansVariables} class.
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{KmeansVariables$new(
   n_clusters = 3,
   max_iter = 100,
   tol = 1e-04,
   n_init = 10,
-  random_state = NULL
+  random_state = NULL,
+  k_range = 2:10,
+  selection_method = "silhouette",
+  correlation_type = "squared"
 )}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{n_clusters}}{Integer. Number of clusters. Default: 3.}
+\item{\code{n_clusters}}{Integer or "auto". Number of clusters.
+If "auto", the optimal K will be selected automatically during fit(). Default: 3.}
 
 \item{\code{max_iter}}{Integer. Maximum number of iterations. Default: 100.}
 
@@ -292,6 +377,21 @@ Initializes a new instance of the `KmeansVariables` class.
 \item{\code{n_init}}{Integer. Number of random initializations. Default: 10.}
 
 \item{\code{random_state}}{Integer or NULL. Random seed for reproducibility. Default: NULL.}
+
+\item{\code{k_range}}{Integer vector. Range of K values to test when n_clusters = "auto".
+Default: 2:10. Ignored if n_clusters is an integer.}
+
+\item{\code{selection_method}}{Character. Method for automatic K selection:
+"silhouette" (maximize avg silhouette),
+"calinski" (maximize Calinski-Harabasz index),
+or "all" (combine both, prefer silhouette if disagreement).
+Default: "silhouette". Ignored if n_clusters is an integer.}
+
+\item{\code{correlation_type}}{Character. Type of correlation for distance calculation:
+"squared" uses R² (variables with high positive OR negative correlation are close),
+"absolute" uses |r| (only high positive correlation makes variables close).
+Default: "squared". This affects cluster composition: "squared" groups
+correlated and anti-correlated variables together, "absolute" separates them.}
 
 \item{\code{X}}{Matrix or data.frame of observations × variables}
 
@@ -304,27 +404,22 @@ Initializes a new instance of the `KmeansVariables` class.
 \item{\code{dist_matrix}}{Matrix (p variables × K clusters) of distances}
 
 \item{\code{X}}{Matrix or data.frame (n × p)}
-
-\item{\code{clusters}}{Integer vector of cluster assignments}
-
-\item{\code{centroids}}{Matrix (n × K) of centroids}
-
-\item{\code{X}}{Matrix or data.frame (n × p)}
-
-\item{\code{clusters}}{Integer vector of cluster assignments}
-
-\item{\code{centroids}}{Matrix (n × K) of centroids}
-
-\item{\code{X}}{Matrix or data.frame (n × p)}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-Numeric vector (centroid) of length nrow(X)
+List with:
+\itemize{
+\item centroid: Numeric vector (PC1 scores) of length nrow(X)
+\item eigenvalue: First eigenvalue (variance explained by PC1)
+\item cor_loadings: Correlation loadings (for inertia calculation)
+\item n_vars: Number of variables in cluster
 Compute distances between variables and centroids
+}
 
-Calculates the distance matrix based on squared correlation.
-Distance = sqrt(1 - cor(X_j, c_k)^2)
+Calculates the distance matrix based on correlation.
+If correlation_type = "squared": Distance = sqrt(1 - cor(X_j, c_k)^2) (R²-based)
+If correlation_type = "absolute": Distance = sqrt(1 - cor(X_j, c_k)) (r-based, sign matters)
 }
 }
 \if{html}{\out{<hr>}}
@@ -367,9 +462,9 @@ Assigns new variables to existing clusters based on fitted centroids.
 \subsection{Returns}{
 List with:
 \itemize{
-  \item clusters: Integer vector of cluster assignments
-  \item distances: Matrix of distances to each centroid
-  \item correlations: Matrix of correlations with each centroid
+\item clusters: Integer vector of cluster assignments
+\item distances: Matrix of distances to each centroid
+\item correlations: Matrix of correlations with each centroid
 }
 }
 }
@@ -392,6 +487,174 @@ Displays detailed information about the fitted model.
 \if{html}{\out{<div class="r">}}\preformatted{KmeansVariables$summary()}\if{html}{\out{</div>}}
 }
 
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-KmeansVariables-silhouette"></a>}}
+\if{latex}{\out{\hypertarget{method-KmeansVariables-silhouette}{}}}
+\subsection{Method \code{silhouette()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{KmeansVariables$silhouette()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+Data frame with silhouette values per variable
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-KmeansVariables-calinski_harabasz"></a>}}
+\if{latex}{\out{\hypertarget{method-KmeansVariables-calinski_harabasz}{}}}
+\subsection{Method \code{calinski_harabasz()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{KmeansVariables$calinski_harabasz()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+Numeric Calinski-Harabasz index
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-KmeansVariables-intra_correlation"></a>}}
+\if{latex}{\out{\hypertarget{method-KmeansVariables-intra_correlation}{}}}
+\subsection{Method \code{intra_correlation()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{KmeansVariables$intra_correlation()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+Data frame with mean correlation per cluster
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-KmeansVariables-contributions"></a>}}
+\if{latex}{\out{\hypertarget{method-KmeansVariables-contributions}{}}}
+\subsection{Method \code{contributions()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{KmeansVariables$contributions()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+Data frame with contributions per variable
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-KmeansVariables-correlation_table"></a>}}
+\if{latex}{\out{\hypertarget{method-KmeansVariables-correlation_table}{}}}
+\subsection{Method \code{correlation_table()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{KmeansVariables$correlation_table(round_digits = 3)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{round_digits}}{Number of decimal places to round to. Default: 3.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Data frame with variable-cluster correlations
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-KmeansVariables-plot_silhouette"></a>}}
+\if{latex}{\out{\hypertarget{method-KmeansVariables-plot_silhouette}{}}}
+\subsection{Method \code{plot_silhouette()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{KmeansVariables$plot_silhouette(...)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{...}}{Additional arguments passed to plot_kmeans_silhouette()}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+None (displays plot)
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-KmeansVariables-plot_contributions"></a>}}
+\if{latex}{\out{\hypertarget{method-KmeansVariables-plot_contributions}{}}}
+\subsection{Method \code{plot_contributions()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{KmeansVariables$plot_contributions(top_n = 5, ...)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{top_n}}{Number of top variables to display per cluster. Default: 5.}
+
+\item{\code{...}}{Additional arguments passed to plot_kmeans_contributions()}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+None (displays plot)
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-KmeansVariables-plot_projection"></a>}}
+\if{latex}{\out{\hypertarget{method-KmeansVariables-plot_projection}{}}}
+\subsection{Method \code{plot_projection()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{KmeansVariables$plot_projection(...)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{...}}{Additional arguments passed to plot_kmeans_projection()}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+None (displays plot)
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-KmeansVariables-plot_diagnostics"></a>}}
+\if{latex}{\out{\hypertarget{method-KmeansVariables-plot_diagnostics}{}}}
+\subsection{Method \code{plot_diagnostics()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{KmeansVariables$plot_diagnostics(k_range = 2:10, ...)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{k_range}}{Range of K values to test. Default: 2:10.}
+
+\item{\code{...}}{Additional arguments passed to plot_kmeans_diagnostics()}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+None (displays plot)
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-KmeansVariables-plot_summary"></a>}}
+\if{latex}{\out{\hypertarget{method-KmeansVariables-plot_summary}{}}}
+\subsection{Method \code{plot_summary()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{KmeansVariables$plot_summary(top_n = 5, ...)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{top_n}}{Number of top variables to display. Default: 5.}
+
+\item{\code{...}}{Additional arguments passed to plot_kmeans_summary()}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+None (displays plot)
+}
 }
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-KmeansVariables-clone"></a>}}

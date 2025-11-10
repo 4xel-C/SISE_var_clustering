@@ -276,7 +276,6 @@
 #' }
 #'
 #' @note
-#' This class is not exported and is intended for internal use within the package.
 #' The clustering is performed on variables (columns), not observations (rows).
 #'
 #' @seealso
@@ -296,13 +295,11 @@
 #'   \item Vigneau, E. & Qannari, E.M. (2003). "Clustering of variables around
 #'         latent components". \emph{Communications in Statistics - Simulation and
 #'         Computation}, 32(4), 1131-1150.
-#'   \item Sarle, W.S. (1983). "Cubic Clustering Criterion". SAS Technical Report A-108.
 #' }
 #'
 #' @family clustering classes
-#' @keywords internal
 #'
-#' @noRd
+#' @export
 HClustVar <- R6::R6Class(
   "HClustVar",
   inherit = ClusteringBase,
@@ -350,11 +347,17 @@ HClustVar <- R6::R6Class(
     # Check input method
     # -----------------------------------------------------------------------
 
-    # Validate input parameters for class instantiation
-    # Checks that 'vartype' and 'dist.metric' are valid.
-    # - vartype: 'quant', 'qual', 'mixed', or 'auto'
-    # - dist.metric: 'r' or 'rsquare' (only if vartype = 'quant')
-    # - cah.method: 'ward.D', 'ward.D2', 'single', 'complete', 'average', 'mcquitty', 'median', 'centroid'.
+    #' @description
+    #' Checks that vartype, dist.metric, and cah.method have valid values
+    #' and are compatible with each other. Called by initialize().
+    #'
+    #' @param vartype Character. Variable type ("quant", "qual", "mixed", "auto")
+    #' @param dist.metric Character or NULL. Distance metric ("r", "rsquare", or NULL)
+    #' @param cah.method Character. Clustering method (e.g., "ward.D")
+    #'
+    #' @return None. Stops with error if validation fails, warns if parameters incompatible.
+    #'
+    #' @keywords internal
     check_input = function(vartype, dist.metric, cah.method) {
 
       # Checking metric selection
@@ -413,7 +416,6 @@ HClustVar <- R6::R6Class(
     #' }
     #'
     #' @keywords internal
-    #' @noRd
     auto_detect_vartype = function() {
 
       n_quanti <- length(private$.quanti_indices)
@@ -494,7 +496,6 @@ HClustVar <- R6::R6Class(
     #' }
     #'
     #' @keywords internal
-    #' @noRd
     compute_distance_matrix = function() {
 
       if (private$.vartype == "quant") {
@@ -527,11 +528,23 @@ HClustVar <- R6::R6Class(
     # Discretisation method
     # -----------------------------------------------------------------------
 
-    # Transform quantitative columns into discrete variables (quantile-based). Leave unchanged one hot encoded columns.
-    # - df: data.frame containing the data
-    # - quanti_index: integer vector of column indices for quantitative variables
-    # - n_groups: number of quantile groups to split each variable into
-    # Returns a data.frame with quantitative columns discretized into factor levels.
+    #' Discretize quantitative variables into quantile-based categories
+    #'
+    #' @description
+    #' Converts numeric variables into ordered factors using quantile-based binning.
+    #' One-hot encoded variables (0/1) are converted to factors without binning.
+    #'
+    #' @param df Data frame containing variables to discretize
+    #' @param quanti_index Integer vector of column indices for quantitative variables
+    #' @param n_groups Number of quantile groups (bins) to create
+    #'
+    #' @return Data frame with specified columns converted to factors (labeled Q1, Q2, ...)
+    #'
+    #' @details
+    #' Used internally for mixed variable clustering to treat all variables as categorical.
+    #' Handles edge cases: empty indices, one-hot encoding, duplicate quantiles (small datasets).
+    #'
+    #' @keywords internal
     quantile_discretisation = function(df, quanti_index, n_groups) {
 
       # If no quantitative variable specified of quanti_index are not numeric, change nothing.
@@ -730,7 +743,6 @@ HClustVar <- R6::R6Class(
     #' }
     #'
     #' @keywords internal
-    #' @noRd
     compute_centroids = function() {
 
       if (is.null(self$labels)) {
@@ -902,7 +914,6 @@ HClustVar <- R6::R6Class(
     #' }
     #'
     #' @keywords internal
-    #' @noRd
     correlation_ratio = function(quali, quanti) {
 
       quali  <- as.factor(quali)
@@ -946,7 +957,6 @@ HClustVar <- R6::R6Class(
     #'
     #' @return A numeric vector of silhouette coefficients, one per variable
     #'
-    #' @noRd
     compute_silhouette = function() {
 
       # Check prerequisites
@@ -1018,7 +1028,6 @@ HClustVar <- R6::R6Class(
     #' assigns them to private fields.
     #'
     #' @return A new instance of `HClustVar`.
-    #' @noRd
     initialize = function(vartype = "auto", dist.metric = NULL, cah.method = "ward.D") {
 
       # update the auto_var_selection to allow refit with auto method.
@@ -1061,7 +1070,6 @@ HClustVar <- R6::R6Class(
     #' - Reset the summary cache.
     #'
     #' @return None. The clustering tree is stored internally in `private$.tree`.
-    #' @noRd
     fit = function(data) {
 
       # reset the summary cache.
@@ -1122,7 +1130,6 @@ HClustVar <- R6::R6Class(
     #' obj$cut_tree(h = 150)     # cut at height 150
     #' }
     #'
-    #' @noRd
     cut_tree = function(k = NULL, h = NULL) {
 
       # Check if the model is fitted.
@@ -1171,7 +1178,6 @@ HClustVar <- R6::R6Class(
     #' # Example usage (assuming the model has been fitted):
     #' # obj$plot_dendrogram(k = 3)
     #'
-    #' @noRd
     plot_dendrogram = function(k = 0) {
       plot(private$.tree, main = "Dendrogramme - CAH", xlab = "Variables")
 
@@ -1225,12 +1231,11 @@ HClustVar <- R6::R6Class(
     #' #      1      2
     #' }
     #'
-    #' @noRd
     predict = function(new_data) {
 
-      # ==========================================================================
+      # ============
       # 1. Prerequisites validation
-      # ==========================================================================
+      # ============
 
       # Check if model is fitted
       if (!self$fitted) {
@@ -1266,9 +1271,9 @@ HClustVar <- R6::R6Class(
         stop("new_data must contain at least one variable")
       }
 
-      # ==========================================================================
+      # ========
       # 2. INITIALIZATION
-      # ==========================================================================
+      # ========
 
       result <- integer(ncol(new_data))
       names(result) <- colnames(new_data)
@@ -1280,9 +1285,9 @@ HClustVar <- R6::R6Class(
         return(result)
       }
 
-      # ==========================================================================
+      # =========
       # 3. PREDICTION DEPENDING OF CAH METHOD
-      # ==========================================================================
+      # =========
 
       # -----------
       # 3A. CENTROIDS BASED METHODS (Ward, Centroid)
@@ -1622,7 +1627,6 @@ HClustVar <- R6::R6Class(
     #'         Clustering of Variables". Journal of Statistical Software, 50(13).
     #' }
     #'
-    #' @noRd
     plot_cohesion = function() {
 
       # Check if fitted.
@@ -1710,7 +1714,6 @@ HClustVar <- R6::R6Class(
     #' hc$plot_silhouette()
     #' }
     #'
-    #' @noRd
     plot_silhouette = function(main = "Silhouette Analysis",
                                colors = NULL,
                                show_values = TRUE,
@@ -1887,11 +1890,6 @@ HClustVar <- R6::R6Class(
       invisible(sil_coef)
     },
 
-
-    # -----------------------------------------------------------------------
-    # Summary method
-    # -----------------------------------------------------------------------
-
     # -----------------------------------------------------------------------
     # Summary method
     # -----------------------------------------------------------------------
@@ -2027,7 +2025,6 @@ HClustVar <- R6::R6Class(
     #' \code{\link{plot_silhouette}} for visual assessment of cluster quality
     #' \code{\link{predict}} for assigning new variables to clusters
     #'
-    #' @noRd
     summary = function() {
 
       # Return the result if already cached.
@@ -2144,7 +2141,6 @@ HClustVar <- R6::R6Class(
     #'
     #' @return Invisibly returns the object itself.
     #'
-    #' @noRd
     print = function() {
 
       cat("\n")
@@ -2199,25 +2195,51 @@ HClustVar <- R6::R6Class(
 
   active = list(
 
-    # Returns the distance metric used for quantitative variables ('r' or 'rsquare')
+    #' @field dist.metric Distance metric for quantitative variables.
+    #'   Returns "r" (correlation), "rsquare" (squared correlation), or NULL
+    #'   (for qualitative/mixed variables). Read-only.
     dist.metric = function() {return(private$.dist.metric)},
 
-    # Returns the type of variables considered for clustering ('quant', 'qual', 'mixed', 'auto')
+    #' @field vartype Type of variables in the dataset.
+    #'   Returns "quant" (quantitative), "qual" (qualitative), "mixed", or "auto"
+    #'   (before fitting). Read-only after auto-detection.
     vartype = function() {return(private$.vartype)},
 
-    # Returns the computed dissimilarity/distance matrix
+    #' @field dist.matrix Dissimilarity matrix computed from the data.
+    #'   Returns a \code{dist} object suitable for hierarchical clustering.
+    #'   Available after \code{fit()} is called. Read-only.
     dist.matrix = function() {return(private$.dist.matrix)},
 
-    # return the tree computed from the clustering.
+    #' @field tree Hierarchical clustering tree.
+    #'   Returns an \code{hclust} object containing the dendrogram structure.
+    #'   Available after \code{fit()} is called. Read-only.
     tree = function() {return(private$.tree)},
 
-    # Return the method used for CAH
+    #' @field cah.method Hierarchical clustering method used.
+    #'   Returns one of: "ward.D", "ward.D2", "single", "complete", "average",
+    #'   "mcquitty", "median", "centroid". Read-only.
     cah.method = function() {return(private$.cah.method)},
 
-    # return the result of the summary. (list of object)
+    #' @field summary_results Cached results from the \code{summary()} method.
+    #'   Returns a list with \code{clust_summary} and \code{clust_members} data frames,
+    #'   or NULL if summary has not been computed yet. Cache is invalidated when
+    #'   \code{fit()} or \code{cut_tree()} is called. Read-only.
     summary_results = function() {return(private$.summary_results)},
 
-    # centroids setter / getter.
+
+    #' @field centroids Cluster centroids as synthetic variables.
+    #'   Returns a matrix (n_observations × n_clusters) where each column represents
+    #'   the first principal component of a cluster. Available after \code{cut_tree()}
+    #'   is called. Can be set manually (advanced use only).
+    #'
+    #'   **Getter**: Returns the centroids matrix or NULL if tree not cut.
+    #'
+    #'   **Setter**: Assigns a custom centroids matrix. Must be:
+    #'   \itemize{
+    #'     \item A data.frame or matrix
+    #'     \item Same number of rows as training data
+    #'     \item Same number of columns as number of clusters
+    #'   }
     centroids = function(value) {
       if (missing(value)) {
         return(private$.centroids)
@@ -2237,7 +2259,20 @@ HClustVar <- R6::R6Class(
 
     },
 
-    # centroids setter / getter.
+    #' @field clusters.eigen Eigenvalues (variance explained) for each cluster.
+    #'   Returns a numeric vector where each element represents the variance explained
+    #'   by the first principal component of the corresponding cluster. Values range
+    #'   from 0 (no variance explained) to the number of variables in the cluster
+    #'   (all variance explained). Available after \code{cut_tree()} is called.
+    #'   Can be set manually (advanced use only).
+    #'
+    #'   **Getter**: Returns the eigenvalues vector or NULL if tree not cut.
+    #'
+    #'   **Setter**: Assigns custom eigenvalues. Must be:
+    #'   \itemize{
+    #'     \item A numeric vector
+    #'     \item Length equal to the number of clusters
+    #'   }
     clusters.eigen = function(value) {
       if (missing(value)) {
         return(private$.clusters.eigen)
