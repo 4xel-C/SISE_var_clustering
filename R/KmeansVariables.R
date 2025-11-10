@@ -402,11 +402,6 @@ KmeansVariables <- R6::R6Class(
       # Extract first principal component (scores)
       centroid <- pca_result$x[, 1]
 
-      # Ensure positive direction for consistency
-      if (sum(centroid) < 0) {
-        centroid <- -centroid
-      }
-
       # Extract eigenvalue (variance explained by PC1)
       eigenvalue <- pca_result$sdev[1]^2
 
@@ -414,10 +409,17 @@ KmeansVariables <- R6::R6Class(
       # These represent correlations between original variables and PC1
       cor_loadings <- pca_result$rotation[, 1] * pca_result$sdev[1]
 
+      # Align centroid so that majority of variables are positively correlated
+      # This is crucial for correlation_type = "absolute" to work correctly
+      if (sum(cor_loadings) < 0) {
+        centroid <- -centroid
+        cor_loadings <- -cor_loadings
+      }
+
       return(list(
         centroid = as.numeric(centroid),
         eigenvalue = eigenvalue,
-        cor_loadings = abs(cor_loadings),  # Store absolute values
+        cor_loadings = cor_loadings,  # Store with sign for proper alignment
         n_vars = n_vars
       ))
     },
@@ -426,7 +428,7 @@ KmeansVariables <- R6::R6Class(
     #'
     #' Calculates the distance matrix based on correlation.
     #' If correlation_type = "squared": Distance = sqrt(1 - cor(X_j, c_k)^2) (R²-based)
-    #' If correlation_type = "absolute": Distance = sqrt(1 - |cor(X_j, c_k)|) (|r|-based)
+    #' If correlation_type = "absolute": Distance = sqrt(1 - cor(X_j, c_k)) (r-based, sign matters)
     #'
     #' @param X Matrix or data.frame (n observations × p variables)
     #' @param centroids Matrix (n observations × K clusters)
@@ -455,8 +457,9 @@ KmeansVariables <- R6::R6Class(
             # R²-based: groups variables with high |correlation| (positive OR negative)
             dist_matrix[j, k] <- sqrt(1 - cor_val^2)
           } else {
-            # |r|-based: groups only variables with high positive correlation
-            dist_matrix[j, k] <- sqrt(1 - abs(cor_val))
+            # r-based: groups only variables with high positive correlation
+            # Uses correlation sign, so negatively correlated variables are pushed away
+            dist_matrix[j, k] <- sqrt(1 - cor_val)
           }
         }
       }
@@ -543,7 +546,8 @@ KmeansVariables <- R6::R6Class(
             # Inertia = sum(r²) between variables and centroid
             inertia_new <- inertia_new + sum(cor_loadings^2)
           } else {
-            # Inertia = sum(|r|) between variables and centroid
+            # Inertia = sum(r) between variables and centroid
+            # After alignment, this represents sum of positive correlations
             inertia_new <- inertia_new + sum(cor_loadings)
           }
         }
@@ -583,6 +587,7 @@ KmeansVariables <- R6::R6Class(
         if (private$.correlation_type == "squared") {
           cluster_inertias[k] <- sum(cor_loadings^2)
         } else {
+          # After alignment, sum(r) represents sum of positive correlations
           cluster_inertias[k] <- sum(cor_loadings)
         }
 
