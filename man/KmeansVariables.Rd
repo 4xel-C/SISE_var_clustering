@@ -2,15 +2,13 @@
 % Please edit documentation in R/KmeansVariables.R
 \name{KmeansVariables}
 \alias{KmeansVariables}
-\title{Constructor for KmeansVariables}
+\title{K-means Variable Clustering}
 \description{
 Implements a variable clustering algorithm using K-means adapted for variables.
 This reallocation-based algorithm groups variables by maximizing their correlation
 with cluster centroids (first principal component of each cluster).
 }
 \details{
-K-means Variable Clustering
-
 The \code{KmeansVariables} class inherits from \code{ClusteringBase} and provides:
 \itemize{
 \item Iterative reallocation of variables to clusters
@@ -18,17 +16,7 @@ The \code{KmeansVariables} class inherits from \code{ClusteringBase} and provide
 \item Centroid computation via Principal Component Analysis (PCA)
 \item Multiple random initializations to avoid local minima
 \item Convergence monitoring and iteration tracking
-\item Validates that data contains at least 2 quantitative variables
-\item If the dataset contains qualitative variables, they are automatically ignored
-(a message is displayed to inform the user)
-\item Runs the algorithm \code{n_init} times with different random starts
-\item Keeps the solution with the lowest inertia
-\item Stores results in private fields accessible via active bindings
 }
-}
-\note{
-This class is not exported; it is intended for internal use
-within the package.
 }
 \section{Algorithm}{
 
@@ -209,6 +197,33 @@ This class requires:
 }
 }
 
+\section{Methods}{
+
+\describe{
+\item{\code{$new(n_clusters, max_iter, tol, n_init, random_state, k_range, selection_method, correlation_type)}}{
+Initialize a new KmeansVariables object. See constructor documentation for parameter details.
+}
+\item{\code{$fit(data)}}{
+Fit the K-means model to the data. Runs multiple random initializations and keeps best solution.
+}
+\item{\code{$predict(data)}}{
+Predict cluster assignments for new variables based on fitted centroids.
+}
+\item{\code{$print()}}{Display concise model information}
+\item{\code{$summary()}}{Display detailed model information with statistics}
+\item{\code{$silhouette()}}{Calculate silhouette coefficients for all variables}
+\item{\code{$calinski_harabasz()}}{Calculate Calinski-Harabasz index (cluster quality metric)}
+\item{\code{$intra_correlation()}}{Calculate mean intra-cluster correlations}
+\item{\code{$contributions()}}{Calculate variable contributions to each cluster}
+\item{\code{$correlation_table(round_digits = 3)}}{Get correlation matrix between variables and centroids}
+\item{\code{$plot_silhouette(...)}}{Plot silhouette coefficients}
+\item{\code{$plot_contributions(top_n = 5, ...)}}{Plot top contributing variables per cluster}
+\item{\code{$plot_projection(...)}}{Plot PCA-style projection of variables and clusters}
+\item{\code{$plot_diagnostics(k_range = 2:10, ...)}}{Plot diagnostic panel for K selection}
+\item{\code{$plot_summary(top_n = 5, ...)}}{Plot comprehensive summary panel}
+}
+}
+
 \examples{
 \dontrun{
 # Example with synthetic data (3 clusters of correlated variables)
@@ -311,9 +326,25 @@ Other clustering classes:
 \code{\link{HClustVar}}
 }
 \concept{clustering classes}
-\keyword{internal}
 \section{Super class}{
 \code{VarClustering::ClusteringBase} -> \code{KmeansVariables}
+}
+\section{Active bindings}{
+\if{html}{\out{<div class="r6-active-bindings">}}
+\describe{
+\item{\code{clusters}}{Integer vector of cluster assignments for each variable}
+
+\item{\code{centroids}}{Matrix of cluster centroids (PC1 scores for each cluster)}
+
+\item{\code{inertia}}{Total inertia (sum of squared correlations with centroids)}
+
+\item{\code{n_iter}}{Number of iterations performed in last fit}
+
+\item{\code{cluster_sizes}}{Integer vector of number of variables per cluster}
+
+\item{\code{cluster_inertias}}{Numeric vector of inertia per cluster}
+}
+\if{html}{\out{</div>}}
 }
 \section{Methods}{
 \subsection{Public methods}{
@@ -350,7 +381,6 @@ Other clustering classes:
 \if{html}{\out{<a id="method-KmeansVariables-new"></a>}}
 \if{latex}{\out{\hypertarget{method-KmeansVariables-new}{}}}
 \subsection{Method \code{new()}}{
-Initializes a new instance of the \code{KmeansVariables} class.
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{KmeansVariables$new(
   n_clusters = 3,
@@ -367,67 +397,29 @@ Initializes a new instance of the \code{KmeansVariables} class.
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{n_clusters}}{Integer or "auto". Number of clusters.
-If "auto", the optimal K will be selected automatically during fit(). Default: 3.}
+\item{\code{n_clusters}}{Integer or "auto". Number of clusters. If "auto", optimal K selected during fit()}
 
-\item{\code{max_iter}}{Integer. Maximum number of iterations. Default: 100.}
+\item{\code{max_iter}}{Integer. Maximum number of iterations. Default: 100}
 
-\item{\code{tol}}{Numeric. Convergence tolerance. Default: 1e-4.}
+\item{\code{tol}}{Numeric. Convergence tolerance. Default: 1e-4}
 
-\item{\code{n_init}}{Integer. Number of random initializations. Default: 10.}
+\item{\code{n_init}}{Integer. Number of random initializations. Default: 10}
 
-\item{\code{random_state}}{Integer or NULL. Random seed for reproducibility. Default: NULL.}
+\item{\code{random_state}}{Integer or NULL. Random seed for reproducibility. Default: NULL}
 
-\item{\code{k_range}}{Integer vector. Range of K values to test when n_clusters = "auto".
-Default: 2:10. Ignored if n_clusters is an integer.}
+\item{\code{k_range}}{Integer vector. Range of K values to test when n_clusters = "auto". Default: 2:10}
 
-\item{\code{selection_method}}{Character. Method for automatic K selection:
-"silhouette" (maximize avg silhouette),
-"calinski" (maximize Calinski-Harabasz index),
-or "all" (combine both, prefer silhouette if disagreement).
-Default: "silhouette". Ignored if n_clusters is an integer.}
+\item{\code{selection_method}}{Character. Method for automatic K selection: "silhouette", "calinski", or "all". Default: "silhouette"}
 
-\item{\code{correlation_type}}{Character. Type of correlation for distance calculation:
-"squared" uses R² (variables with high positive OR negative correlation are close),
-"absolute" uses |r| (only high positive correlation makes variables close).
-Default: "squared". This affects cluster composition: "squared" groups
-correlated and anti-correlated variables together, "absolute" separates them.}
-
-\item{\code{X}}{Matrix or data.frame of observations × variables}
-
-\item{\code{var_indices}}{Integer vector of column indices in the cluster}
-
-\item{\code{X}}{Matrix or data.frame (n observations × p variables)}
-
-\item{\code{centroids}}{Matrix (n observations × K clusters)}
-
-\item{\code{dist_matrix}}{Matrix (p variables × K clusters) of distances}
-
-\item{\code{X}}{Matrix or data.frame (n × p)}
+\item{\code{correlation_type}}{Character. Type of correlation for distance: "squared" (R²) or "absolute" (r). Default: "squared"}
 }
 \if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-List with:
-\itemize{
-\item centroid: Numeric vector (PC1 scores) of length nrow(X)
-\item eigenvalue: First eigenvalue (variance explained by PC1)
-\item cor_loadings: Correlation loadings (for inertia calculation)
-\item n_vars: Number of variables in cluster
-Compute distances between variables and centroids
-}
-
-Calculates the distance matrix based on correlation.
-If correlation_type = "squared": Distance = sqrt(1 - cor(X_j, c_k)^2) (R²-based)
-If correlation_type = "absolute": Distance = sqrt(1 - cor(X_j, c_k)) (r-based, sign matters)
 }
 }
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-KmeansVariables-fit"></a>}}
 \if{latex}{\out{\hypertarget{method-KmeansVariables-fit}{}}}
 \subsection{Method \code{fit()}}{
-Performs K-means clustering on quantitative variables.
-Runs multiple initializations and keeps the best solution.
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{KmeansVariables$fit(data)}\if{html}{\out{</div>}}
 }
@@ -435,19 +427,15 @@ Runs multiple initializations and keeps the best solution.
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{data}}{data.frame or matrix containing quantitative variables to cluster.}
+\item{\code{data}}{Data frame or matrix with variables to cluster}
 }
 \if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-None. Results are stored internally and accessible via getters.
 }
 }
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-KmeansVariables-predict"></a>}}
 \if{latex}{\out{\hypertarget{method-KmeansVariables-predict}{}}}
 \subsection{Method \code{predict()}}{
-Assigns new variables to existing clusters based on fitted centroids.
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{KmeansVariables$predict(data)}\if{html}{\out{</div>}}
 }
@@ -455,24 +443,15 @@ Assigns new variables to existing clusters based on fitted centroids.
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{data}}{data.frame or matrix with same number of observations as training data.}
+\item{\code{data}}{Data frame or matrix with variables to cluster}
 }
 \if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-List with:
-\itemize{
-\item clusters: Integer vector of cluster assignments
-\item distances: Matrix of distances to each centroid
-\item correlations: Matrix of correlations with each centroid
-}
 }
 }
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-KmeansVariables-print"></a>}}
 \if{latex}{\out{\hypertarget{method-KmeansVariables-print}{}}}
 \subsection{Method \code{print()}}{
-Displays concise information about the fitted model.
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{KmeansVariables$print()}\if{html}{\out{</div>}}
 }
@@ -482,7 +461,6 @@ Displays concise information about the fitted model.
 \if{html}{\out{<a id="method-KmeansVariables-summary"></a>}}
 \if{latex}{\out{\hypertarget{method-KmeansVariables-summary}{}}}
 \subsection{Method \code{summary()}}{
-Displays detailed information about the fitted model.
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{KmeansVariables$summary()}\if{html}{\out{</div>}}
 }
@@ -496,9 +474,6 @@ Displays detailed information about the fitted model.
 \if{html}{\out{<div class="r">}}\preformatted{KmeansVariables$silhouette()}\if{html}{\out{</div>}}
 }
 
-\subsection{Returns}{
-Data frame with silhouette values per variable
-}
 }
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-KmeansVariables-calinski_harabasz"></a>}}
@@ -508,9 +483,6 @@ Data frame with silhouette values per variable
 \if{html}{\out{<div class="r">}}\preformatted{KmeansVariables$calinski_harabasz()}\if{html}{\out{</div>}}
 }
 
-\subsection{Returns}{
-Numeric Calinski-Harabasz index
-}
 }
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-KmeansVariables-intra_correlation"></a>}}
@@ -520,9 +492,6 @@ Numeric Calinski-Harabasz index
 \if{html}{\out{<div class="r">}}\preformatted{KmeansVariables$intra_correlation()}\if{html}{\out{</div>}}
 }
 
-\subsection{Returns}{
-Data frame with mean correlation per cluster
-}
 }
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-KmeansVariables-contributions"></a>}}
@@ -532,9 +501,6 @@ Data frame with mean correlation per cluster
 \if{html}{\out{<div class="r">}}\preformatted{KmeansVariables$contributions()}\if{html}{\out{</div>}}
 }
 
-\subsection{Returns}{
-Data frame with contributions per variable
-}
 }
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-KmeansVariables-correlation_table"></a>}}
@@ -547,12 +513,9 @@ Data frame with contributions per variable
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{round_digits}}{Number of decimal places to round to. Default: 3.}
+\item{\code{round_digits}}{Integer. Number of decimal places for rounding. Default: 3}
 }
 \if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Data frame with variable-cluster correlations
 }
 }
 \if{html}{\out{<hr>}}
@@ -566,12 +529,9 @@ Data frame with variable-cluster correlations
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{...}}{Additional arguments passed to plot_kmeans_silhouette()}
+\item{\code{...}}{Additional arguments passed to plot functions}
 }
 \if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-None (displays plot)
 }
 }
 \if{html}{\out{<hr>}}
@@ -585,14 +545,11 @@ None (displays plot)
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{top_n}}{Number of top variables to display per cluster. Default: 5.}
+\item{\code{top_n}}{Integer. Number of top variables to display. Default: 5}
 
-\item{\code{...}}{Additional arguments passed to plot_kmeans_contributions()}
+\item{\code{...}}{Additional arguments passed to plot functions}
 }
 \if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-None (displays plot)
 }
 }
 \if{html}{\out{<hr>}}
@@ -606,12 +563,9 @@ None (displays plot)
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{...}}{Additional arguments passed to plot_kmeans_projection()}
+\item{\code{...}}{Additional arguments passed to plot functions}
 }
 \if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-None (displays plot)
 }
 }
 \if{html}{\out{<hr>}}
@@ -625,14 +579,11 @@ None (displays plot)
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{k_range}}{Range of K values to test. Default: 2:10.}
+\item{\code{k_range}}{Integer vector. Range of K values to test when n_clusters = "auto". Default: 2:10}
 
-\item{\code{...}}{Additional arguments passed to plot_kmeans_diagnostics()}
+\item{\code{...}}{Additional arguments passed to plot functions}
 }
 \if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-None (displays plot)
 }
 }
 \if{html}{\out{<hr>}}
@@ -646,14 +597,11 @@ None (displays plot)
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{top_n}}{Number of top variables to display. Default: 5.}
+\item{\code{top_n}}{Integer. Number of top variables to display. Default: 5}
 
-\item{\code{...}}{Additional arguments passed to plot_kmeans_summary()}
+\item{\code{...}}{Additional arguments passed to plot functions}
 }
 \if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-None (displays plot)
 }
 }
 \if{html}{\out{<hr>}}

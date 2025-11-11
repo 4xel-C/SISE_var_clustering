@@ -258,9 +258,50 @@
 #'   \item Base R functions: prcomp(), cor(), sample()
 #' }
 #'
-#' @note
-#' This class is not exported; it is intended for internal use
-#' within the package.
+#' @param n_clusters Integer or "auto". Number of clusters. If "auto", optimal K selected during fit()
+#' @param max_iter Integer. Maximum number of iterations. Default: 100
+#' @param tol Numeric. Convergence tolerance. Default: 1e-4
+#' @param n_init Integer. Number of random initializations. Default: 10
+#' @param random_state Integer or NULL. Random seed for reproducibility. Default: NULL
+#' @param k_range Integer vector. Range of K values to test when n_clusters = "auto". Default: 2:10
+#' @param selection_method Character. Method for automatic K selection: "silhouette", "calinski", or "all". Default: "silhouette"
+#' @param correlation_type Character. Type of correlation for distance: "squared" (R²) or "absolute" (r). Default: "squared"
+#' @param data Data frame or matrix with variables to cluster
+#' @param round_digits Integer. Number of decimal places for rounding. Default: 3
+#' @param top_n Integer. Number of top variables to display. Default: 5
+#' @param ... Additional arguments passed to plot functions
+#'
+#' @section Methods:
+#' \describe{
+#'   \item{\code{$new(n_clusters, max_iter, tol, n_init, random_state, k_range, selection_method, correlation_type)}}{
+#'     Initialize a new KmeansVariables object. See constructor documentation for parameter details.
+#'   }
+#'   \item{\code{$fit(data)}}{
+#'     Fit the K-means model to the data. Runs multiple random initializations and keeps best solution.
+#'   }
+#'   \item{\code{$predict(data)}}{
+#'     Predict cluster assignments for new variables based on fitted centroids.
+#'   }
+#'   \item{\code{$print()}}{Display concise model information}
+#'   \item{\code{$summary()}}{Display detailed model information with statistics}
+#'   \item{\code{$silhouette()}}{Calculate silhouette coefficients for all variables}
+#'   \item{\code{$calinski_harabasz()}}{Calculate Calinski-Harabasz index (cluster quality metric)}
+#'   \item{\code{$intra_correlation()}}{Calculate mean intra-cluster correlations}
+#'   \item{\code{$contributions()}}{Calculate variable contributions to each cluster}
+#'   \item{\code{$correlation_table(round_digits = 3)}}{Get correlation matrix between variables and centroids}
+#'   \item{\code{$plot_silhouette(...)}}{Plot silhouette coefficients}
+#'   \item{\code{$plot_contributions(top_n = 5, ...)}}{Plot top contributing variables per cluster}
+#'   \item{\code{$plot_projection(...)}}{Plot PCA-style projection of variables and clusters}
+#'   \item{\code{$plot_diagnostics(k_range = 2:10, ...)}}{Plot diagnostic panel for K selection}
+#'   \item{\code{$plot_summary(top_n = 5, ...)}}{Plot comprehensive summary panel}
+#' }
+#'
+#' @field clusters Integer vector of cluster assignments for each variable
+#' @field centroids Matrix of cluster centroids (PC1 scores for each cluster)
+#' @field inertia Total inertia (sum of squared correlations with centroids)
+#' @field n_iter Number of iterations performed in last fit
+#' @field cluster_sizes Integer vector of number of variables per cluster
+#' @field cluster_inertias Numeric vector of inertia per cluster
 #'
 #' @seealso
 #' \code{\link{ClusteringBase}} for the parent class
@@ -269,18 +310,17 @@
 #'
 #' @references
 #' \itemize{
-#'   \item Vigneau, E., & Qannari, E. M. (2003). Clustering of variables around 
-#'         latent components. Communications in Statistics-Simulation and Computation, 
+#'   \item Vigneau, E., & Qannari, E. M. (2003). Clustering of variables around
+#'         latent components. Communications in Statistics-Simulation and Computation,
 #'         32(4), 1131-1150.
-#'   \item Chavent, M., Kuentz-Simonet, V., Labenne, A., & Saracco, J. (2012). 
-#'         ClustOfVar: An R Package for the Clustering of Variables. 
+#'   \item Chavent, M., Kuentz-Simonet, V., Labenne, A., & Saracco, J. (2012).
+#'         ClustOfVar: An R Package for the Clustering of Variables.
 #'         Journal of Statistical Software, 50(13), 1-16.
 #' }
 #'
 #' @family clustering classes
-#' @keywords internal
 #'
-#' @noRd
+#' @export
 KmeansVariables <- R6::R6Class(
   "KmeansVariables",
   inherit = ClusteringBase,
@@ -311,9 +351,9 @@ KmeansVariables <- R6::R6Class(
     # PRIVATE METHODS - CORE ALGORITHM
     # ==========================================================================
     
-    #' Validate algorithm parameters
-    #' 
-    #' Checks that max_iter, tol, n_init are valid positive values
+    # Validate algorithm parameters
+    #
+    # Checks that max_iter, tol, n_init are valid positive values
     validate_params = function(max_iter, tol, n_init) {
       
       if (!is.numeric(max_iter) || max_iter < 1) {
@@ -329,19 +369,19 @@ KmeansVariables <- R6::R6Class(
       }
     },
     
-    #' Calculate centroid of a cluster using PCA
-    #'
-    #' Computes the first principal component of variables in a cluster.
-    #' This component serves as the cluster centroid.
-    #' Also returns PCA metrics (eigenvalue, correlation loadings) for inertia calculation.
-    #'
-    #' @param X Matrix or data.frame of observations × variables
-    #' @param var_indices Integer vector of column indices in the cluster
-    #' @return List with:
-    #'   - centroid: Numeric vector (PC1 scores) of length nrow(X)
-    #'   - eigenvalue: First eigenvalue (variance explained by PC1)
-    #'   - cor_loadings: Correlation loadings (for inertia calculation)
-    #'   - n_vars: Number of variables in cluster
+    # Calculate centroid of a cluster using PCA
+    #
+    # Computes the first principal component of variables in a cluster.
+    # This component serves as the cluster centroid.
+    # Also returns PCA metrics (eigenvalue, correlation loadings) for inertia calculation.
+    #
+    # @param X Matrix or data.frame of observations × variables
+    # @param var_indices Integer vector of column indices in the cluster
+    # @return List with:
+    #   - centroid: Numeric vector (PC1 scores) of length nrow(X)
+    #   - eigenvalue: First eigenvalue (variance explained by PC1)
+    #   - cor_loadings: Correlation loadings (for inertia calculation)
+    #   - n_vars: Number of variables in cluster
     calculate_centroid = function(X, var_indices) {
 
       n_vars <- length(var_indices)
@@ -424,15 +464,15 @@ KmeansVariables <- R6::R6Class(
       ))
     },
     
-    #' Compute distances between variables and centroids
-    #'
-    #' Calculates the distance matrix based on correlation.
-    #' If correlation_type = "squared": Distance = sqrt(1 - cor(X_j, c_k)^2) (R²-based)
-    #' If correlation_type = "absolute": Distance = sqrt(1 - cor(X_j, c_k)) (r-based, sign matters)
-    #'
-    #' @param X Matrix or data.frame (n observations × p variables)
-    #' @param centroids Matrix (n observations × K clusters)
-    #' @return Matrix (p variables × K clusters) of distances
+    # Compute distances between variables and centroids
+    #
+    # Calculates the distance matrix based on correlation.
+    # If correlation_type = "squared": Distance = sqrt(1 - cor(X_j, c_k)^2) (R²-based)
+    # If correlation_type = "absolute": Distance = sqrt(1 - cor(X_j, c_k)) (r-based, sign matters)
+    #
+    # @param X Matrix or data.frame (n observations × p variables)
+    # @param centroids Matrix (n observations × K clusters)
+    # @return Matrix (p variables × K clusters) of distances
     compute_distances = function(X, centroids) {
 
       p <- ncol(X)
@@ -467,10 +507,10 @@ KmeansVariables <- R6::R6Class(
       return(dist_matrix)
     },
     
-    #' Assign variables to nearest centroids
-    #' 
-    #' @param dist_matrix Matrix (p variables × K clusters) of distances
-    #' @return Integer vector of cluster assignments (1 to K)
+    # Assign variables to nearest centroids
+    # 
+    # @param dist_matrix Matrix (p variables × K clusters) of distances
+    # @return Integer vector of cluster assignments (1 to K)
     assign_clusters = function(dist_matrix) {
       
       # For each variable, find cluster with minimum distance
@@ -479,10 +519,10 @@ KmeansVariables <- R6::R6Class(
       return(as.integer(clusters))
     },
     
-    #' Single run of K-means algorithm
-    #'
-    #' @param X Matrix or data.frame (n × p)
-    #' @return List with clusters, centroids, inertia, n_iter
+    # Single run of K-means algorithm
+    #
+    # @param X Matrix or data.frame (n × p)
+    # @return List with clusters, centroids, inertia, n_iter
     kmeans_single_run = function(X) {
 
       n <- nrow(X)
@@ -614,32 +654,31 @@ KmeansVariables <- R6::R6Class(
     # Constructor
     # -----------------------------------------------------------------------
     
-    #' @title Constructor for KmeansVariables
-    #'
-    #' @description
-    #' Initializes a new instance of the `KmeansVariables` class.
-    #'
-    #' @param n_clusters Integer or "auto". Number of clusters.
-    #'        If "auto", the optimal K will be selected automatically during fit(). Default: 3.
-    #' @param max_iter Integer. Maximum number of iterations. Default: 100.
-    #' @param tol Numeric. Convergence tolerance. Default: 1e-4.
-    #' @param n_init Integer. Number of random initializations. Default: 10.
-    #' @param random_state Integer or NULL. Random seed for reproducibility. Default: NULL.
-    #' @param k_range Integer vector. Range of K values to test when n_clusters = "auto".
-    #'        Default: 2:10. Ignored if n_clusters is an integer.
-    #' @param selection_method Character. Method for automatic K selection:
-    #'        "silhouette" (maximize avg silhouette),
-    #'        "calinski" (maximize Calinski-Harabasz index),
-    #'        or "all" (combine both, prefer silhouette if disagreement).
-    #'        Default: "silhouette". Ignored if n_clusters is an integer.
-    #' @param correlation_type Character. Type of correlation for distance calculation:
-    #'        "squared" uses R² (variables with high positive OR negative correlation are close),
-    #'        "absolute" uses |r| (only high positive correlation makes variables close).
-    #'        Default: "squared". This affects cluster composition: "squared" groups
-    #'        correlated and anti-correlated variables together, "absolute" separates them.
-    #'
-    #' @return A new instance of `KmeansVariables`.
-    #' @noRd
+    # @title Constructor for KmeansVariables
+    #
+    # @description
+    # Initializes a new instance of the `KmeansVariables` class.
+    #
+    # @param n_clusters Integer or "auto". Number of clusters.
+    #        If "auto", the optimal K will be selected automatically during fit(). Default: 3.
+    # @param max_iter Integer. Maximum number of iterations. Default: 100.
+    # @param tol Numeric. Convergence tolerance. Default: 1e-4.
+    # @param n_init Integer. Number of random initializations. Default: 10.
+    # @param random_state Integer or NULL. Random seed for reproducibility. Default: NULL.
+    # @param k_range Integer vector. Range of K values to test when n_clusters = "auto".
+    #        Default: 2:10. Ignored if n_clusters is an integer.
+    # @param selection_method Character. Method for automatic K selection:
+    #        "silhouette" (maximize avg silhouette),
+    #        "calinski" (maximize Calinski-Harabasz index),
+    #        or "all" (combine both, prefer silhouette if disagreement).
+    #        Default: "silhouette". Ignored if n_clusters is an integer.
+    # @param correlation_type Character. Type of correlation for distance calculation:
+    #        "squared" uses R² (variables with high positive OR negative correlation are close),
+    #        "absolute" uses |r| (only high positive correlation makes variables close).
+    #        Default: "squared". This affects cluster composition: "squared" groups
+    #        correlated and anti-correlated variables together, "absolute" separates them.
+    #
+    # @return A new instance of `KmeansVariables`.
     initialize = function(n_clusters = 3, max_iter = 100, tol = 1e-4,
                           n_init = 10, random_state = NULL,
                           k_range = 2:10, selection_method = "silhouette",
@@ -701,24 +740,23 @@ KmeansVariables <- R6::R6Class(
     # Fit method
     # -----------------------------------------------------------------------
     
-    #' Fit K-means clustering on variables
-    #'
-    #' @description
-    #' Performs K-means clustering on quantitative variables.
-    #' Runs multiple initializations and keeps the best solution.
-    #'
-    #' @param data data.frame or matrix containing quantitative variables to cluster.
-    #'
-    #' @details
-    #' - Validates that data contains at least 2 quantitative variables
-    #' - If the dataset contains qualitative variables, they are automatically ignored
-    #'   (a message is displayed to inform the user)
-    #' - Runs the algorithm `n_init` times with different random starts
-    #' - Keeps the solution with the lowest inertia
-    #' - Stores results in private fields accessible via active bindings
-    #'
-    #' @return None. Results are stored internally and accessible via getters.
-    #' @noRd
+    # Fit K-means clustering on variables
+    #
+    # @description
+    # Performs K-means clustering on quantitative variables.
+    # Runs multiple initializations and keeps the best solution.
+    #
+    # @param data data.frame or matrix containing quantitative variables to cluster.
+    #
+    # @details
+    # - Validates that data contains at least 2 quantitative variables
+    # - If the dataset contains qualitative variables, they are automatically ignored
+    #   (a message is displayed to inform the user)
+    # - Runs the algorithm `n_init` times with different random starts
+    # - Keeps the solution with the lowest inertia
+    # - Stores results in private fields accessible via active bindings
+    #
+    # @return None. Results are stored internally and accessible via getters.
     fit = function(data) {
       
       # Validate and load data
@@ -822,20 +860,19 @@ KmeansVariables <- R6::R6Class(
     # Predict method
     # -----------------------------------------------------------------------
     
-    #' Predict cluster assignments for new variables
-    #'
-    #' @description
-    #' Assigns new variables to existing clusters based on fitted centroids.
-    #'
-    #' @param data data.frame or matrix with same number of observations as training data.
-    #'
-    #' @return List with:
-    #' \itemize{
-    #'   \item clusters: Integer vector of cluster assignments
-    #'   \item distances: Matrix of distances to each centroid
-    #'   \item correlations: Matrix of correlations with each centroid
-    #' }
-    #' @noRd
+    # Predict cluster assignments for new variables
+    #
+    # @description
+    # Assigns new variables to existing clusters based on fitted centroids.
+    #
+    # @param data data.frame or matrix with same number of observations as training data.
+    #
+    # @return List with:
+    # \itemize{
+    #   \item clusters: Integer vector of cluster assignments
+    #   \item distances: Matrix of distances to each centroid
+    #   \item correlations: Matrix of correlations with each centroid
+    # }
     predict = function(data) {
       
       if (!self$fitted) {
@@ -885,12 +922,11 @@ KmeansVariables <- R6::R6Class(
     # Print method
     # -----------------------------------------------------------------------
     
-    #' Print method for KmeansVariables
-    #'
-    #' @description
-    #' Displays concise information about the fitted model.
-    #'
-    #' @noRd
+    # Print method for KmeansVariables
+    #
+    # @description
+    # Displays concise information about the fitted model.
+    #
     print = function() {
       
       cat("K-means Variable Clustering\n")
@@ -916,12 +952,11 @@ KmeansVariables <- R6::R6Class(
     # Summary method
     # -----------------------------------------------------------------------
     
-    #' Summary method for KmeansVariables
-    #'
-    #' @description
-    #' Displays detailed information about the fitted model.
-    #'
-    #' @noRd
+    # Summary method for KmeansVariables
+    #
+    # @description
+    # Displays detailed information about the fitted model.
+    #
     summary = function() {
       
       if (!self$fitted) {
@@ -977,12 +1012,11 @@ KmeansVariables <- R6::R6Class(
     # METRIC WRAPPER METHODS
     # -----------------------------------------------------------------------
 
-    #' Calculate silhouette coefficient
-    #'
-    #' Wrapper for kmeans_silhouette() that uses the fitted model
-    #'
-    #' @return Data frame with silhouette values per variable
-    #' @noRd
+    # Calculate silhouette coefficient
+    #
+    # Wrapper for kmeans_silhouette() that uses the fitted model
+    #
+    # @return Data frame with silhouette values per variable
     silhouette = function() {
       if (!self$fitted) {
         stop("Model must be fitted before calculating silhouette. Use $fit() first.")
@@ -992,12 +1026,11 @@ KmeansVariables <- R6::R6Class(
       return(kmeans_silhouette(data, self$labels, private$.centroids, private$.correlation_type))
     },
 
-    #' Calculate Calinski-Harabasz index
-    #'
-    #' Wrapper for kmeans_calinski_harabasz() that uses the fitted model
-    #'
-    #' @return Numeric Calinski-Harabasz index
-    #' @noRd
+    # Calculate Calinski-Harabasz index
+    #
+    # Wrapper for kmeans_calinski_harabasz() that uses the fitted model
+    #
+    # @return Numeric Calinski-Harabasz index
     calinski_harabasz = function() {
       if (!self$fitted) {
         stop("Model must be fitted before calculating CH index. Use $fit() first.")
@@ -1007,12 +1040,11 @@ KmeansVariables <- R6::R6Class(
       return(kmeans_calinski_harabasz(data, self$labels, private$.centroids, private$.correlation_type))
     },
 
-    #' Calculate intra-cluster correlations
-    #'
-    #' Wrapper for kmeans_intra_correlation() that uses the fitted model
-    #'
-    #' @return Data frame with mean correlation per cluster
-    #' @noRd
+    # Calculate intra-cluster correlations
+    #
+    # Wrapper for kmeans_intra_correlation() that uses the fitted model
+    #
+    # @return Data frame with mean correlation per cluster
     intra_correlation = function() {
       if (!self$fitted) {
         stop("Model must be fitted before calculating intra-cluster correlation. Use $fit() first.")
@@ -1022,12 +1054,11 @@ KmeansVariables <- R6::R6Class(
       return(kmeans_intra_correlation(data, self$labels))
     },
 
-    #' Calculate variable contributions
-    #'
-    #' Wrapper for kmeans_contributions() that uses the fitted model
-    #'
-    #' @return Data frame with contributions per variable
-    #' @noRd
+    # Calculate variable contributions
+    #
+    # Wrapper for kmeans_contributions() that uses the fitted model
+    #
+    # @return Data frame with contributions per variable
     contributions = function() {
       if (!self$fitted) {
         stop("Model must be fitted before calculating contributions. Use $fit() first.")
@@ -1037,13 +1068,12 @@ KmeansVariables <- R6::R6Class(
       return(kmeans_contributions(data, self$labels, private$.centroids))
     },
 
-    #' Calculate correlation table
-    #'
-    #' Wrapper for kmeans_correlation_table() that uses the fitted model
-    #'
-    #' @param round_digits Number of decimal places to round to. Default: 3.
-    #' @return Data frame with variable-cluster correlations
-    #' @noRd
+    # Calculate correlation table
+    #
+    # Wrapper for kmeans_correlation_table() that uses the fitted model
+    #
+    # @param round_digits Number of decimal places to round to. Default: 3.
+    # @return Data frame with variable-cluster correlations
     correlation_table = function(round_digits = 3) {
       if (!self$fitted) {
         stop("Model must be fitted before calculating correlation table. Use $fit() first.")
@@ -1057,13 +1087,12 @@ KmeansVariables <- R6::R6Class(
     # PLOT WRAPPER METHODS
     # -----------------------------------------------------------------------
 
-    #' Plot silhouette
-    #'
-    #' Wrapper for plot_kmeans_silhouette() that uses the fitted model
-    #'
-    #' @param ... Additional arguments passed to plot_kmeans_silhouette()
-    #' @return None (displays plot)
-    #' @noRd
+    # Plot silhouette
+    #
+    # Wrapper for plot_kmeans_silhouette() that uses the fitted model
+    #
+    # @param ... Additional arguments passed to plot_kmeans_silhouette()
+    # @return None (displays plot)
     plot_silhouette = function(...) {
       if (!self$fitted) {
         stop("Model must be fitted before plotting. Use $fit() first.")
@@ -1073,14 +1102,13 @@ KmeansVariables <- R6::R6Class(
       plot_kmeans_silhouette(sil_data, ...)
     },
 
-    #' Plot contributions
-    #'
-    #' Wrapper for plot_kmeans_contributions() that uses the fitted model
-    #'
-    #' @param top_n Number of top variables to display per cluster. Default: 5.
-    #' @param ... Additional arguments passed to plot_kmeans_contributions()
-    #' @return None (displays plot)
-    #' @noRd
+    # Plot contributions
+    #
+    # Wrapper for plot_kmeans_contributions() that uses the fitted model
+    #
+    # @param top_n Number of top variables to display per cluster. Default: 5.
+    # @param ... Additional arguments passed to plot_kmeans_contributions()
+    # @return None (displays plot)
     plot_contributions = function(top_n = 5, ...) {
       if (!self$fitted) {
         stop("Model must be fitted before plotting. Use $fit() first.")
@@ -1090,13 +1118,12 @@ KmeansVariables <- R6::R6Class(
       plot_kmeans_contributions(contrib_data, top_n = top_n, ...)
     },
 
-    #' Plot variable projection (PCA-style)
-    #'
-    #' Wrapper for plot_kmeans_projection() that uses the fitted model
-    #'
-    #' @param ... Additional arguments passed to plot_kmeans_projection()
-    #' @return None (displays plot)
-    #' @noRd
+    # Plot variable projection (PCA-style)
+    #
+    # Wrapper for plot_kmeans_projection() that uses the fitted model
+    #
+    # @param ... Additional arguments passed to plot_kmeans_projection()
+    # @return None (displays plot)
     plot_projection = function(...) {
       if (!self$fitted) {
         stop("Model must be fitted before plotting. Use $fit() first.")
@@ -1106,14 +1133,13 @@ KmeansVariables <- R6::R6Class(
       plot_kmeans_projection(data, self$labels, ...)
     },
 
-    #' Plot diagnostics
-    #'
-    #' Wrapper for plot_kmeans_diagnostics()
-    #'
-    #' @param k_range Range of K values to test. Default: 2:10.
-    #' @param ... Additional arguments passed to plot_kmeans_diagnostics()
-    #' @return None (displays plot)
-    #' @noRd
+    # Plot diagnostics
+    #
+    # Wrapper for plot_kmeans_diagnostics()
+    #
+    # @param k_range Range of K values to test. Default: 2:10.
+    # @param ... Additional arguments passed to plot_kmeans_diagnostics()
+    # @return None (displays plot)
     plot_diagnostics = function(k_range = 2:10, ...) {
       data <- self$get_quanti_data()
       plot_kmeans_diagnostics(data, k_range = k_range,
@@ -1124,14 +1150,13 @@ KmeansVariables <- R6::R6Class(
                              ...)
     },
 
-    #' Plot summary panel
-    #'
-    #' Wrapper for plot_kmeans_summary() that uses the fitted model
-    #'
-    #' @param top_n Number of top variables to display. Default: 5.
-    #' @param ... Additional arguments passed to plot_kmeans_summary()
-    #' @return None (displays plot)
-    #' @noRd
+    # Plot summary panel
+    #
+    # Wrapper for plot_kmeans_summary() that uses the fitted model
+    #
+    # @param top_n Number of top variables to display. Default: 5.
+    # @param ... Additional arguments passed to plot_kmeans_summary()
+    # @return None (displays plot)
     plot_summary = function(top_n = 5, ...) {
       if (!self$fitted) {
         stop("Model must be fitted before plotting. Use $fit() first.")
@@ -1148,7 +1173,7 @@ KmeansVariables <- R6::R6Class(
   
   active = list(
     
-    #' Returns cluster assignments for each variable
+    # Returns cluster assignments for each variable
     clusters = function() {
       if (!self$fitted) {
         warning("Model not fitted. Returning NULL.")
@@ -1157,7 +1182,7 @@ KmeansVariables <- R6::R6Class(
       return(self$labels)
     },
     
-    #' Returns matrix of cluster centroids (first PCs)
+    # Returns matrix of cluster centroids (first PCs)
     centroids = function() {
       if (!self$fitted) {
         warning("Model not fitted. Returning NULL.")
@@ -1166,7 +1191,7 @@ KmeansVariables <- R6::R6Class(
       return(private$.centroids)
     },
     
-    #' Returns total within-cluster inertia
+    # Returns total within-cluster inertia
     inertia = function() {
       if (!self$fitted) {
         warning("Model not fitted. Returning NULL.")
@@ -1175,7 +1200,7 @@ KmeansVariables <- R6::R6Class(
       return(private$.inertia)
     },
     
-    #' Returns number of iterations until convergence
+    # Returns number of iterations until convergence
     n_iter = function() {
       if (!self$fitted) {
         warning("Model not fitted. Returning NULL.")
@@ -1184,7 +1209,7 @@ KmeansVariables <- R6::R6Class(
       return(private$.n_iter)
     },
     
-    #' Returns number of variables per cluster
+    # Returns number of variables per cluster
     cluster_sizes = function() {
       if (!self$fitted) {
         warning("Model not fitted. Returning NULL.")
@@ -1195,7 +1220,7 @@ KmeansVariables <- R6::R6Class(
       return(sizes)
     },
     
-    #' Returns within-cluster inertia for each cluster
+    # Returns within-cluster inertia for each cluster
     cluster_inertias = function() {
       if (!self$fitted) {
         warning("Model not fitted. Returning NULL.")
