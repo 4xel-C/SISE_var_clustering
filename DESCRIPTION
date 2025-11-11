@@ -1,11 +1,12 @@
-Package: sise.var.clustering
-Title: What the Package Does (One Line, Title Case)
+Package: VarClustering
+Title: Variable and modalities clustering package. 
 Version: 0.0.0.9000
 Authors@R: 
-    person("First", "Last", , "first.last@example.com", role = c("aut", "cre"))
-Description: What the package does (one paragraph).
-License: `use_mit_license()`, `use_gpl3_license()` or friends to pick a
-    license
+    person("Axel", "Cano", , "axel-cano@live.fr", role = c("aut", "cre"))
+    person("Eugénie", "Barlet", , "eugenie.barlet@univ-lyon2.fr", role = c("aut", "cre"))
+    person("Modou", "Mboup", , "m.mboup@univ-lyon2.fr", role = c("aut", "cre"))
+Description: The package implement HAC and Kmeans method applied to variables and modalities clustering. Each 3 classes of this package provides summary and plotting methods to better analyze the clustering.  
+License: `use_mit_license()`
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
@@ -13,5 +14,10 @@ Imports:
     FactoMineR,
     R6
 Suggests: 
+    knitr,
+    rmarkdown,
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
+URL: https://github.com/4xel-C/SISE_var_clustering
+BugReports: https://github.com/4xel-C/SISE_var_clustering/issues
+VignetteBuilder: knitr

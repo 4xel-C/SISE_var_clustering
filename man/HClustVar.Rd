@@ -15,14 +15,14 @@ Hierarchical Variable Clustering
 
 \strong{Core Functionality:}
 
-The \code{HClustVar} class inherits from \code{ClusteringBase} and provides:
+The \code{HClustVar} class inherits from private \code{ClusteringBase} and provides:
 \itemize{
-\item Automatic detection of variable types (quantitative, qualitative, mixed)
+\item Manual selection or Automatic detection of variable types (quantitative, qualitative, mixed)
 \item Flexible distance metrics adapted to data type
 \item Multiple hierarchical clustering methods (Ward, single, complete, etc.)
 \item Computation of cluster centroids as synthetic variables
-\item Prediction of cluster membership for new variables
-\item Comprehensive diagnostic tools (dendrogram, silhouette, cohesion plots)
+\item Prediction of cluster membership for new variables baased on various aggregating method (simple linkage, mean, centroids...)
+\item Comprehensive diagnostic tools (dendrogram, silhouette, cohesion plots, summary tables)
 }
 
 \strong{Typical Workflow:}
@@ -30,6 +30,7 @@ The \code{HClustVar} class inherits from \code{ClusteringBase} and provides:
 \item Initialize with \code{HClustVar$new(vartype, dist.metric, cah.method)}
 \item Fit the model with \code{fit(data)}
 \item Select optimal number of clusters using \code{plot_cohesion()} or \code{plot_dendrogram()}
+\item \code{plot_cohesion()} may take some times as it will test each number of possible clusters
 \item Cut the tree with \code{cut_tree(k)}
 \item Analyze results with \code{summary()} and \code{plot_silhouette()}
 \item Predict cluster membership for new variables with \code{predict(new_data)}
@@ -209,13 +210,6 @@ adding more clusters)
 \item Look for the point where the slope changes most dramatically
 }
 
-\strong{Guidelines:}
-\itemize{
-\item Sharp elbow: Clear optimal number of clusters
-\item Smooth curve: No clear clustering structure; consider domain knowledge
-\item Multiple elbows: May indicate hierarchical structure at different scales
-}
-
 \strong{State Management:}
 
 This method temporarily modifies the object's state during computation
@@ -281,17 +275,14 @@ The cache is invalidated when:
 \item \code{cut_tree()} is called (different number of clusters)
 }
 }
-\note{
-The clustering is performed on variables (columns), not observations (rows).
-}
 \section{Public Methods}{
 
 \describe{
 \item{\code{initialize(vartype = "auto", dist.metric = NULL, cah.method = "ward.D")}}{
 Creates a new instance of HClustVar.
 \itemize{
-\item \code{vartype}: Type of variables ("auto", "quant", "qual", "mixed")
-\item \code{dist.metric}: Distance metric ("rsquare", "r") for quantitative variables
+\item \code{vartype}: Type of variables ("auto", "quant", "qual", "mixed"). 'auto' detection will be based on all the variables of the inputed dataframe while 'quant' and 'qual' will specificly select the correct type variables.
+\item \code{dist.metric}: Distance metric ("rsquare", "r") for quantitative variables. Will impact the computation of the distance matrix, where 'r' will generate high distance between anti-correlated variables, and 'rsquare' will keep in the same groups higly correlated and anti-correlated variables.
 \item \code{cah.method}: Hierarchical clustering method (default: "ward.D")
 }
 }
@@ -305,7 +296,8 @@ cluster centroids automatically.
 }
 \item{\code{predict(new_data)}}{
 Assigns new variables to existing clusters based on similarity with
-cluster centroids or member variables.
+cluster centroids or member variables. The cluster attribution will be
+be consistent with the cah.method selected when instanciating the class.
 }
 \item{\code{summary()}}{
 Returns detailed statistics about clusters and variable membership.
@@ -361,7 +353,7 @@ Cached summary results (list with clust_summary and clust_members)
 \strong{Quantitative variables (vartype = "quant"):}
 \itemize{
 \item Computes Pearson correlation matrix between variables
-\item \code{dist.metric = "r"}: Uses correlation \eqn{dist = \sqrt{1 - |r|}}
+\item \code{dist.metric = "r"}: Uses correlation \eqn{dist = \sqrt{1 - r}}
 \item \code{dist.metric = "rsquare"}: Uses squared correlation \eqn{dist = \sqrt{1 - r^2}}
 \item Variables are standardized in PCA
 }
@@ -431,18 +423,6 @@ Centroids represent each cluster as a single latent variable and are used for:
 \item Cache is invalidated when \code{fit()} or \code{cut_tree()} is called
 \item \code{plot_cohesion()} preserves object state (restores after plotting)
 \item For large datasets (>50 variables), \code{plot_cohesion()} may take time
-}
-}
-
-\section{Common Use Cases}{
-
-\itemize{
-\item \strong{Feature selection}: Identify redundant variables within clusters
-\item \strong{Dimensionality reduction}: Replace variable groups with centroids
-\item \strong{Variable interpretation}: Understand relationships between features
-\item \strong{Survey analysis}: Group correlated questionnaire items
-\item \strong{Genomics}: Cluster correlated gene expressions
-\item \strong{Marketing}: Group customer attributes or product features
 }
 }
 
@@ -658,6 +638,7 @@ print(hc$centroids)  # Synthetic variables
 }
 
 
+
 ## ------------------------------------------------
 ## Method `HClustVar$new`
 ## ------------------------------------------------
@@ -827,15 +808,6 @@ Clustering of Variables". Journal of Statistical Software, 50(13).
 Plot silhouette diagram for variable clustering
 }
 \seealso{
-\itemize{
-\item \code{\link{ClusteringBase}} for the parent class
-\item \code{\link[stats]{hclust}} for hierarchical clustering algorithm
-\item \code{\link[stats]{cor}} for correlation computation
-\item \code{\link[FactoMineR]{PCA}} for principal component analysis
-\item \code{\link[FactoMineR]{MCA}} for multiple correspondence analysis
-\item \code{\link[FactoMineR]{FAMD}} for factor analysis of mixed data
-}
-
 \code{\link{cut_tree}} for cutting the tree at the optimal k
 \code{\link{plot_dendrogram}} for visualizing the hierarchical structure
 \code{\link{plot_silhouette}} for assessing cluster quality
@@ -896,7 +868,7 @@ Other clustering classes:
 \keyword{variables}
 \keyword{variables.}
 \section{Super class}{
-\code{sise.var.clustering::ClusteringBase} -> \code{HClustVar}
+\code{VarClustering::ClusteringBase} -> \code{HClustVar}
 }
 \section{Active bindings}{
 \if{html}{\out{<div class="r6-active-bindings">}}
@@ -975,10 +947,10 @@ Can be set manually (advanced use only).
 \if{html}{\out{
 <details open><summary>Inherited methods</summary>
 <ul>
-<li><span class="pkg-link" data-pkg="sise.var.clustering" data-topic="ClusteringBase" data-id="get_quali_data"><a href='../../sise.var.clustering/html/ClusteringBase.html#method-ClusteringBase-get_quali_data'><code>sise.var.clustering::ClusteringBase$get_quali_data()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="sise.var.clustering" data-topic="ClusteringBase" data-id="get_quanti_data"><a href='../../sise.var.clustering/html/ClusteringBase.html#method-ClusteringBase-get_quanti_data'><code>sise.var.clustering::ClusteringBase$get_quanti_data()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="sise.var.clustering" data-topic="ClusteringBase" data-id="load_and_check_data"><a href='../../sise.var.clustering/html/ClusteringBase.html#method-ClusteringBase-load_and_check_data'><code>sise.var.clustering::ClusteringBase$load_and_check_data()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="sise.var.clustering" data-topic="ClusteringBase" data-id="validate_algorithm_requirements"><a href='../../sise.var.clustering/html/ClusteringBase.html#method-ClusteringBase-validate_algorithm_requirements'><code>sise.var.clustering::ClusteringBase$validate_algorithm_requirements()</code></a></span></li>
+<li><span class="pkg-link" data-pkg="VarClustering" data-topic="ClusteringBase" data-id="get_quali_data"><a href='../../VarClustering/html/ClusteringBase.html#method-ClusteringBase-get_quali_data'><code>VarClustering::ClusteringBase$get_quali_data()</code></a></span></li>
+<li><span class="pkg-link" data-pkg="VarClustering" data-topic="ClusteringBase" data-id="get_quanti_data"><a href='../../VarClustering/html/ClusteringBase.html#method-ClusteringBase-get_quanti_data'><code>VarClustering::ClusteringBase$get_quanti_data()</code></a></span></li>
+<li><span class="pkg-link" data-pkg="VarClustering" data-topic="ClusteringBase" data-id="load_and_check_data"><a href='../../VarClustering/html/ClusteringBase.html#method-ClusteringBase-load_and_check_data'><code>VarClustering::ClusteringBase$load_and_check_data()</code></a></span></li>
+<li><span class="pkg-link" data-pkg="VarClustering" data-topic="ClusteringBase" data-id="validate_algorithm_requirements"><a href='../../VarClustering/html/ClusteringBase.html#method-ClusteringBase-validate_algorithm_requirements'><code>VarClustering::ClusteringBase$validate_algorithm_requirements()</code></a></span></li>
 </ul>
 </details>
 }}

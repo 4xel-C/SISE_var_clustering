@@ -10,14 +10,14 @@
 #' @details
 #' **Core Functionality:**
 #'
-#' The `HClustVar` class inherits from `ClusteringBase` and provides:
+#' The `HClustVar` class inherits from private `ClusteringBase` and provides:
 #' \itemize{
-#'   \item Automatic detection of variable types (quantitative, qualitative, mixed)
+#'   \item Manual selection or Automatic detection of variable types (quantitative, qualitative, mixed)
 #'   \item Flexible distance metrics adapted to data type
 #'   \item Multiple hierarchical clustering methods (Ward, single, complete, etc.)
 #'   \item Computation of cluster centroids as synthetic variables
-#'   \item Prediction of cluster membership for new variables
-#'   \item Comprehensive diagnostic tools (dendrogram, silhouette, cohesion plots)
+#'   \item Prediction of cluster membership for new variables baased on various aggregating method (simple linkage, mean, centroids...)
+#'   \item Comprehensive diagnostic tools (dendrogram, silhouette, cohesion plots, summary tables)
 #' }
 #'
 #' **Typical Workflow:**
@@ -25,6 +25,7 @@
 #'   \item Initialize with \code{HClustVar$new(vartype, dist.metric, cah.method)}
 #'   \item Fit the model with \code{fit(data)}
 #'   \item Select optimal number of clusters using \code{plot_cohesion()} or \code{plot_dendrogram()}
+#'   \item \code{plot_cohesion()} may take some times as it will test each number of possible clusters
 #'   \item Cut the tree with \code{cut_tree(k)}
 #'   \item Analyze results with \code{summary()} and \code{plot_silhouette()}
 #'   \item Predict cluster membership for new variables with \code{predict(new_data)}
@@ -35,8 +36,8 @@
 #'   \item{\code{initialize(vartype = "auto", dist.metric = NULL, cah.method = "ward.D")}}{
 #'     Creates a new instance of HClustVar.
 #'     \itemize{
-#'       \item \code{vartype}: Type of variables ("auto", "quant", "qual", "mixed")
-#'       \item \code{dist.metric}: Distance metric ("rsquare", "r") for quantitative variables
+#'       \item \code{vartype}: Type of variables ("auto", "quant", "qual", "mixed"). 'auto' detection will be based on all the variables of the inputed dataframe while 'quant' and 'qual' will specificly select the correct type variables.
+#'       \item \code{dist.metric}: Distance metric ("rsquare", "r") for quantitative variables. Will impact the computation of the distance matrix, where 'r' will generate high distance between anti-correlated variables, and 'rsquare' will keep in the same groups higly correlated and anti-correlated variables.
 #'       \item \code{cah.method}: Hierarchical clustering method (default: "ward.D")
 #'     }
 #'   }
@@ -50,7 +51,8 @@
 #'   }
 #'   \item{\code{predict(new_data)}}{
 #'     Assigns new variables to existing clusters based on similarity with
-#'     cluster centroids or member variables.
+#'     cluster centroids or member variables. The cluster attribution will be
+#'     be consistent with the cah.method selected when instanciating the class.
 #'   }
 #'   \item{\code{summary()}}{
 #'     Returns detailed statistics about clusters and variable membership.
@@ -102,7 +104,7 @@
 #' **Quantitative variables (vartype = "quant"):**
 #' \itemize{
 #'   \item Computes Pearson correlation matrix between variables
-#'   \item \code{dist.metric = "r"}: Uses correlation \eqn{dist = \sqrt{1 - |r|}}
+#'   \item \code{dist.metric = "r"}: Uses correlation \eqn{dist = \sqrt{1 - r}}
 #'   \item \code{dist.metric = "rsquare"}: Uses squared correlation \eqn{dist = \sqrt{1 - r^2}}
 #'   \item Variables are standardized in PCA
 #' }
@@ -239,15 +241,6 @@
 #' print(hc$centroids)  # Synthetic variables
 #' }
 #'
-#' @section Common Use Cases:
-#' \itemize{
-#'   \item **Feature selection**: Identify redundant variables within clusters
-#'   \item **Dimensionality reduction**: Replace variable groups with centroids
-#'   \item **Variable interpretation**: Understand relationships between features
-#'   \item **Survey analysis**: Group correlated questionnaire items
-#'   \item **Genomics**: Cluster correlated gene expressions
-#'   \item **Marketing**: Group customer attributes or product features
-#' }
 #'
 #' @section Dependencies:
 #' This class requires:
@@ -275,18 +268,7 @@
 #'     }
 #' }
 #'
-#' @note
-#' The clustering is performed on variables (columns), not observations (rows).
 #'
-#' @seealso
-#' \itemize{
-#'   \item \code{\link{ClusteringBase}} for the parent class
-#'   \item \code{\link[stats]{hclust}} for hierarchical clustering algorithm
-#'   \item \code{\link[stats]{cor}} for correlation computation
-#'   \item \code{\link[FactoMineR]{PCA}} for principal component analysis
-#'   \item \code{\link[FactoMineR]{MCA}} for multiple correspondence analysis
-#'   \item \code{\link[FactoMineR]{FAMD}} for factor analysis of mixed data
-#' }
 #'
 #' @references
 #' \itemize{
@@ -1535,13 +1517,6 @@ HClustVar <- R6::R6Class(
     #'   \item Look for the point where the slope changes most dramatically
     #' }
     #'
-    #' **Guidelines:**
-    #' \itemize{
-    #'   \item Sharp elbow: Clear optimal number of clusters
-    #'   \item Smooth curve: No clear clustering structure; consider domain knowledge
-    #'   \item Multiple elbows: May indicate hierarchical structure at different scales
-    #' }
-    #'
     #' **State Management:**
     #'
     #' This method temporarily modifies the object's state during computation
@@ -2293,3 +2268,4 @@ HClustVar <- R6::R6Class(
 
   )
 )
+

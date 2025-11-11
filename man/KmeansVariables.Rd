@@ -313,7 +313,7 @@ Other clustering classes:
 \concept{clustering classes}
 \keyword{internal}
 \section{Super class}{
-\code{sise.var.clustering::ClusteringBase} -> \code{KmeansVariables}
+\code{VarClustering::ClusteringBase} -> \code{KmeansVariables}
 }
 \section{Methods}{
 \subsection{Public methods}{
@@ -339,10 +339,10 @@ Other clustering classes:
 \if{html}{\out{
 <details open><summary>Inherited methods</summary>
 <ul>
-<li><span class="pkg-link" data-pkg="sise.var.clustering" data-topic="ClusteringBase" data-id="get_quali_data"><a href='../../sise.var.clustering/html/ClusteringBase.html#method-ClusteringBase-get_quali_data'><code>sise.var.clustering::ClusteringBase$get_quali_data()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="sise.var.clustering" data-topic="ClusteringBase" data-id="get_quanti_data"><a href='../../sise.var.clustering/html/ClusteringBase.html#method-ClusteringBase-get_quanti_data'><code>sise.var.clustering::ClusteringBase$get_quanti_data()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="sise.var.clustering" data-topic="ClusteringBase" data-id="load_and_check_data"><a href='../../sise.var.clustering/html/ClusteringBase.html#method-ClusteringBase-load_and_check_data'><code>sise.var.clustering::ClusteringBase$load_and_check_data()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="sise.var.clustering" data-topic="ClusteringBase" data-id="validate_algorithm_requirements"><a href='../../sise.var.clustering/html/ClusteringBase.html#method-ClusteringBase-validate_algorithm_requirements'><code>sise.var.clustering::ClusteringBase$validate_algorithm_requirements()</code></a></span></li>
+<li><span class="pkg-link" data-pkg="VarClustering" data-topic="ClusteringBase" data-id="get_quali_data"><a href='../../VarClustering/html/ClusteringBase.html#method-ClusteringBase-get_quali_data'><code>VarClustering::ClusteringBase$get_quali_data()</code></a></span></li>
+<li><span class="pkg-link" data-pkg="VarClustering" data-topic="ClusteringBase" data-id="get_quanti_data"><a href='../../VarClustering/html/ClusteringBase.html#method-ClusteringBase-get_quanti_data'><code>VarClustering::ClusteringBase$get_quanti_data()</code></a></span></li>
+<li><span class="pkg-link" data-pkg="VarClustering" data-topic="ClusteringBase" data-id="load_and_check_data"><a href='../../VarClustering/html/ClusteringBase.html#method-ClusteringBase-load_and_check_data'><code>VarClustering::ClusteringBase$load_and_check_data()</code></a></span></li>
+<li><span class="pkg-link" data-pkg="VarClustering" data-topic="ClusteringBase" data-id="validate_algorithm_requirements"><a href='../../VarClustering/html/ClusteringBase.html#method-ClusteringBase-validate_algorithm_requirements'><code>VarClustering::ClusteringBase$validate_algorithm_requirements()</code></a></span></li>
 </ul>
 </details>
 }}
