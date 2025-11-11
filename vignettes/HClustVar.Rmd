@@ -1,0 +1,853 @@
+---
+title: "Hierarchical Variable Clustering with HClustVar"
+author: "Axel Cano"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Hierarchical Variable Clustering with HClustVar}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 5,
+  warning = FALSE,
+  message = FALSE
+)
+```
+
+## Introduction
+
+### What is Variable Clustering?
+
+Unlike traditional clustering that groups **observations** (rows), variable clustering groups **variables** (columns) based on their similarity. This technique is particularly useful for:
+
+- **Feature selection**: Identify redundant variables within clusters
+- **Data understanding**: Discover the underlying structure of your dataset
+- **Multicollinearity reduction**: Group highly correlated predictors in regression models
+
+### The HClustVar Class
+
+The `HClustVar` class implements hierarchical clustering of variables using:
+
+- **Quantitative variables**: Based on correlation (Pearson's r or r²)
+- **Qualitative variables**: Based on Cramér's V (association measure)
+- **Mixed variables**: Automatic discretization and Cramér's V
+- **Multiple linkage methods**: Ward, single, complete, average, etc.
+
+### Key Features
+
+✓ Automatic variable type detection  
+✓ Flexible distance metrics  
+✓ Cluster quality diagnostics (dendrogram, cohesion, silhouette)  
+✓ Prediction for new variables  
+✓ Computation of cluster centroids (synthetic variables)  
+
+---
+
+## Installation
+
+```{r eval = FALSE}
+# Install from GitHub (or your package repository)
+devtools::install_github("username/sise.var.clustering")
+```
+
+```{r}
+# Load the package
+library(sise.var.clustering)
+```
+
+---
+
+## Quick Start: Complete Workflow
+
+Here's a minimal example to get you started:
+
+```{r eval = FALSE}
+# 1. Create the model
+hc <- HClustVar$new(vartype = "quant", dist.metric = "rsquare")
+
+# 2. Fit on your data
+hc$fit(my_data)
+
+# 3. Find optimal number of clusters
+hc$plot_cohesion()
+
+# 4. Cut the tree
+hc$cut_tree(k = 3)
+
+# 5. Visualize results
+hc$plot_silhouette()
+
+# 6. Get detailed statistics
+results <- hc$summary()
+print(results$clust_summary)
+```
+
+---
+
+## Example 1: Quantitative Variables
+
+### Dataset Creation
+
+Let's create a dataset with 3 groups of correlated variables:
+
+```{r}
+set.seed(123)
+n <- 100
+
+# Group 1: Economic indicators (correlated)
+gdp <- rnorm(n, mean = 50000, sd = 10000)
+income <- gdp * 0.7 + rnorm(n, sd = 2000)
+consumption <- income * 0.6 + rnorm(n, sd = 1000)
+
+# Group 2: Health indicators (correlated)
+life_expectancy <- rnorm(n, mean = 75, sd = 5)
+infant_mortality <- 100 - life_expectancy + rnorm(n, sd = 2)
+healthcare_spending <- life_expectancy * 50 + rnorm(n, sd = 200)
+
+# Group 3: Education indicators (correlated)
+literacy_rate <- rnorm(n, mean = 85, sd = 10)
+school_enrollment <- literacy_rate * 0.9 + rnorm(n, sd = 5)
+university_rate <- literacy_rate * 0.5 + rnorm(n, sd = 8)
+
+# Combine into dataframe
+data_quant <- data.frame(
+  gdp, income, consumption,
+  life_expectancy, infant_mortality, healthcare_spending,
+  literacy_rate, school_enrollment, university_rate
+)
+
+head(data_quant)
+```
+
+### Model Creation and Fitting
+
+```{r}
+# Initialize the model
+hc_quant <- HClustVar$new(
+  vartype = "quant",
+  dist.metric = "rsquare",  # Use squared correlation
+  cah.method = "ward.D"      # Ward's method for homogeneous clusters
+)
+
+# Fit the model
+hc_quant$fit(data_quant)
+
+# Display model information
+print(hc_quant)
+```
+
+### Selecting the Number of Clusters
+
+#### Method 1: Dendrogram Visualization
+
+```{r}
+hc_quant$plot_dendrogram()
+```
+
+**Interpretation**: The dendrogram shows the hierarchical structure. Variables that merge at lower heights are more similar.
+
+#### Method 2: Cohesion Gain Curve (Elbow Method)
+
+```{r}
+hc_quant$plot_cohesion()
+```
+
+**Interpretation**: Look for the "elbow" where the curve flattens. Here, **k = 3** appears optimal as the gain diminishes significantly after this point.
+
+### Cutting the Tree
+
+Based on the diagnostics, we choose **k = 3 clusters**:
+
+```{r}
+hc_quant$cut_tree(k = 3)
+```
+
+### Assessing Cluster Quality
+
+#### Silhouette Plot
+
+```{r}
+hc_quant$plot_silhouette()
+```
+
+**Interpretation**:
+- **Positive values** (most bars): Variables are well assigned
+- **Negative values**: Potential misclassification
+- **Average silhouette width > 0.5**: Good clustering quality
+
+#### Summary Statistics
+
+```{r}
+results <- hc_quant$summary()
+
+# Cluster-level summary
+print(results$clust_summary)
+```
+
+**Key Metrics**:
+- `n_members`: Number of variables in each cluster
+- `var_explained`: Variance explained by the cluster centroid
+- `prop_explained`: Average variance explained per variable (higher = more homogeneous)
+
+```{r}
+# Variable-level details
+print(results$clust_members)
+```
+
+**Key Metrics**:
+- `own_cluster_R2`: How well the variable fits its cluster (> 0.7 is good)
+- `next_closest_R2`: Similarity with the nearest other cluster
+- `1 - R2_ratio`: Quality indicator (< 0.3 is well classified)
+
+### Interpreting Clusters
+
+```{r}
+# Which variables are in each cluster?
+for (i in 1:3) {
+  cat(sprintf("\nCluster %d:\n", i))
+  cluster_vars <- names(hc_quant$labels)[hc_quant$labels == i]
+  cat(paste("  -", cluster_vars, collapse = "\n"))
+}
+```
+
+**Expected grouping**:
+- Cluster 1: Economic variables (GDP, income, consumption)
+- Cluster 2: Health variables (life expectancy, mortality, healthcare)
+- Cluster 3: Education variables (literacy, enrollment, university)
+
+### Using Cluster Centroids
+
+The centroids are synthetic variables (first principal components) that summarize each cluster:
+
+```{r}
+# Access centroids
+centroids <- hc_quant$centroids
+head(centroids)
+
+# Use centroids instead of original variables (dimensionality reduction)
+# For example, in a regression model:
+# model <- lm(y ~ centroids[, 1] + centroids[, 2] + centroids[, 3])
+```
+
+---
+
+## Example 2: Qualitative Variables
+
+### Dataset Creation
+
+```{r}
+set.seed(456)
+n <- 150
+
+# Group 1: Demographics
+gender <- factor(sample(c("Male", "Female"), n, replace = TRUE))
+age_group <- factor(sample(c("18-30", "31-50", "51+"), n, replace = TRUE))
+
+# Group 2: Location (correlated with demographics)
+region <- factor(sample(c("North", "South", "East", "West"), n, replace = TRUE))
+urban_rural <- factor(sample(c("Urban", "Rural"), n, replace = TRUE, 
+                             prob = c(0.7, 0.3)))
+
+# Group 3: Preferences (associated with demographics)
+product_preference <- factor(sample(c("A", "B", "C"), n, replace = TRUE))
+brand_loyalty <- factor(sample(c("Low", "Medium", "High"), n, replace = TRUE))
+
+data_qual <- data.frame(
+  gender, age_group, region, urban_rural, 
+  product_preference, brand_loyalty
+)
+
+head(data_qual)
+```
+
+### Model Fitting
+
+```{r}
+# Initialize for qualitative variables
+hc_qual <- HClustVar$new(
+  vartype = "qual",     # Qualitative variables
+  cah.method = "ward.D"
+)
+
+# Fit the model
+hc_qual$fit(data_qual)
+
+# Diagnostic plots
+hc_qual$plot_dendrogram()
+```
+
+```{r}
+hc_qual$plot_cohesion()
+```
+
+### Cutting and Analysis
+
+```{r}
+# Cut into 2 clusters
+hc_qual$cut_tree(k = 2)
+
+# Silhouette analysis
+hc_qual$plot_silhouette()
+
+# Summary
+results_qual <- hc_qual$summary()
+print(results_qual$clust_summary)
+print(results_qual$clust_members)
+```
+
+**Note**: For qualitative variables, the similarity metric is **Cramér's V** (ranges from 0 to 1), which measures association between categorical variables.
+
+---
+
+## Example 3: Mixed Variables (Auto-Detection)
+
+### Dataset Creation
+
+```{r}
+set.seed(789)
+n <- 120
+
+# Quantitative variables
+age <- rnorm(n, mean = 40, sd = 12)
+income <- rnorm(n, mean = 50000, sd = 15000)
+satisfaction_score <- rnorm(n, mean = 7, sd = 2)
+
+# Qualitative variables
+education <- factor(sample(c("High School", "Bachelor", "Master", "PhD"), 
+                           n, replace = TRUE))
+employment <- factor(sample(c("Full-time", "Part-time", "Unemployed"), 
+                            n, replace = TRUE))
+marital_status <- factor(sample(c("Single", "Married", "Divorced"), 
+                                n, replace = TRUE))
+
+data_mixed <- data.frame(
+  age, income, satisfaction_score,
+  education, employment, marital_status
+)
+
+head(data_mixed)
+```
+
+### Auto-Detection and Fitting
+
+```{r}
+# Use 'auto' to automatically detect variable types
+hc_auto <- HClustVar$new(
+  vartype = "auto",      # Automatic detection
+  cah.method = "ward.D"
+)
+
+# Fit the model (detection happens here)
+hc_auto$fit(data_mixed)
+
+# Check detected type
+cat("Detected variable type:", hc_auto$vartype, "\n")
+```
+
+**Note**: With mixed data, quantitative variables are automatically discretized into quantiles, and all variables are treated as qualitative using Cramér's V.
+
+### Analysis
+
+```{r}
+# Diagnostics
+hc_auto$plot_cohesion()
+```
+
+```{r}
+# Cut tree
+hc_auto$cut_tree(k = 2)
+
+# Silhouette
+hc_auto$plot_silhouette()
+
+# Summary
+results_mixed <- hc_auto$summary()
+print(results_mixed$clust_summary)
+```
+
+---
+
+## Example 4: Predicting New Variables
+
+### Scenario
+
+You've built a clustering model and want to assign **new variables** to existing clusters without refitting the entire model.
+
+```{r}
+# Use the quantitative model from Example 1
+# (already fitted and cut)
+
+# Create new variables
+new_variables <- data.frame(
+  poverty_rate = 100 - data_quant$income / 1000 + rnorm(n, sd = 5),
+  doctor_density = data_quant$healthcare_spending / 100 + rnorm(n, sd = 10),
+  research_investment = data_quant$university_rate * 1000 + rnorm(n, sd = 500)
+)
+
+head(new_variables)
+```
+
+### Prediction
+
+```{r}
+# Predict cluster membership
+predictions <- hc_quant$predict(new_variables)
+print(predictions)
+```
+
+**Interpretation**: 
+- `poverty_rate` → Likely assigned to economic cluster (Cluster 1)
+- `doctor_density` → Likely assigned to health cluster (Cluster 2)
+- `research_investment` → Likely assigned to education cluster (Cluster 3)
+
+### Validation
+
+```{r}
+# Check correlations with cluster centroids
+for (i in 1:ncol(new_variables)) {
+  var_name <- colnames(new_variables)[i]
+  assigned_cluster <- predictions[i]
+  
+  # Correlation with assigned cluster centroid
+  cor_assigned <- cor(new_variables[[i]], hc_quant$centroids[, assigned_cluster])
+  
+  cat(sprintf("%s → Cluster %d (R = %.2f)\n", 
+              var_name, assigned_cluster, cor_assigned))
+}
+```
+
+---
+
+## Advanced Topics
+
+### Choosing the Distance Metric
+
+For **quantitative variables**, two metrics are available:
+
+#### 1. Correlation (`dist.metric = "r"`)
+
+```{r}
+hc_r <- HClustVar$new(vartype = "quant", dist.metric = "r")
+```
+
+**Use when**: You want to distinguish between positively and negatively correlated variables.
+
+- Distance = $\sqrt{1 - r}$
+- Variables with $r = -1$ (perfect negative correlation) are **far apart**
+
+#### 2. Squared Correlation (`dist.metric = "rsquare"`)
+
+```{r}
+hc_r2 <- HClustVar$new(vartype = "quant", dist.metric = "rsquare")
+```
+
+**Use when**: You care about the strength of association, regardless of direction.
+
+- Distance = $\sqrt{1 - r^2}$
+- Variables with $r = -1$ or $r = +1$ are **equally close**
+
+**Example comparison**:
+
+```{r}
+# Create two variables: one positively, one negatively correlated with X
+X <- rnorm(100)
+Y_pos <- X + rnorm(100, sd = 0.5)      # Positive correlation
+Y_neg <- -X + rnorm(100, sd = 0.5)     # Negative correlation
+
+test_data <- data.frame(X, Y_pos, Y_neg)
+
+# With 'r' metric
+hc_r <- HClustVar$new(vartype = "quant", dist.metric = "r")
+hc_r$fit(test_data)
+hc_r$plot_dendrogram()
+title(main = "Metric = 'r' (separates positive/negative)")
+
+# With 'rsquare' metric
+hc_r2 <- HClustVar$new(vartype = "quant", dist.metric = "rsquare")
+hc_r2$fit(test_data)
+hc_r2$plot_dendrogram()
+title(main = "Metric = 'rsquare' (groups by strength)")
+```
+
+### Choosing the Linkage Method
+
+Different `cah.method` options produce different clustering behaviors:
+
+```{r eval = FALSE}
+# Ward's method (default) - minimizes within-cluster variance
+hc_ward <- HClustVar$new(cah.method = "ward.D")
+
+# Single linkage - clusters based on closest members (can create chains)
+hc_single <- HClustVar$new(cah.method = "single")
+
+# Complete linkage - clusters based on farthest members (compact clusters)
+hc_complete <- HClustVar$new(cah.method = "complete")
+
+# Average linkage - balanced approach
+hc_average <- HClustVar$new(cah.method = "average")
+```
+
+**Recommendation**: Start with `"ward.D"` (default) as it generally produces the most homogeneous clusters.
+
+### Dealing with Large Datasets
+
+For datasets with many variables (> 50), `plot_cohesion()` can be slow as it tests all possible numbers of clusters:
+
+```{r eval = FALSE}
+# Strategy 1: Inspect dendrogram first to estimate k
+hc$plot_dendrogram()
+
+# Strategy 2: Cut at a specific height instead of testing all k values
+hc$cut_tree(h = 1.5)  # Cut at height 1.5
+
+# Strategy 3: Use a subset for initial exploration
+hc_subset <- HClustVar$new(vartype = "quant")
+hc_subset$fit(data[, 1:20])  # Test on first 20 variables
+hc_subset$plot_cohesion()
+```
+
+---
+
+## Practical Tips and Best Practices
+
+### 1. Data Preparation
+
+```{r eval = FALSE}
+# For quantitative variables: check for outliers
+# Extreme outliers can distort correlations
+summary(data_quant)
+boxplot(data_quant)
+
+# For qualitative variables: ensure all are factors
+data_qual[] <- lapply(data_qual, as.factor)
+
+# For mixed data: be explicit about types
+data_mixed$age <- as.numeric(data_mixed$age)
+data_mixed$education <- as.factor(data_mixed$education)
+```
+
+### 2. Interpreting Results
+
+**Good cluster quality indicators**:
+- Silhouette width > 0.5
+- `own_cluster_R2` > 0.7 for most variables
+- `prop_explained` > 0.7 for most clusters
+- Clear "elbow" in cohesion plot
+
+**Warning signs**:
+- Negative silhouette values
+- `1 - R2_ratio` > 0.7 (potential misclassification)
+- Very unbalanced cluster sizes
+- No clear elbow in cohesion plot
+
+### 3. Dimensionality Reduction Workflow
+
+```{r eval = FALSE}
+# 1. Cluster variables
+hc <- HClustVar$new(vartype = "quant", dist.metric = "rsquare")
+hc$fit(original_data)
+hc$cut_tree(k = 5)
+
+# 2. Extract centroids (5 synthetic variables instead of, say, 50 originals)
+reduced_data <- as.data.frame(hc$centroids)
+colnames(reduced_data) <- paste0("Cluster_", 1:5)
+
+# 3. Use in downstream analysis
+model <- lm(target ~ ., data = cbind(target = y, reduced_data))
+```
+
+### 4. Variable Selection Within Clusters
+
+```{r eval = FALSE}
+# Select the most representative variable from each cluster
+results <- hc$summary()
+
+for (k in 1:hc$n_clusters) {
+  cluster_vars <- results$clust_members[results$clust_members$cluster == k, ]
+  best_var <- rownames(cluster_vars)[which.max(cluster_vars$own_cluster_R2)]
+  
+  cat(sprintf("Cluster %d best representative: %s (R² = %.2f)\n",
+              k, best_var, max(cluster_vars$own_cluster_R2)))
+}
+```
+
+---
+
+## Comparison with Other Methods
+
+### HClustVar vs. K-means (for observations)
+
+| Feature | HClustVar | K-means |
+|---------|-----------|---------|
+| **Clusters** | Variables (columns) | Observations (rows) |
+| **Goal** | Group related features | Group similar individuals |
+| **Output** | Variable clusters + centroids | Observation clusters + centers |
+| **Use case** | Reduce dimensionality, understand variables | Segment population, find groups |
+
+### HClustVar vs. PCA
+
+| Feature | HClustVar | PCA |
+|---------|-----------|-----|
+| **Interpretability** | High (clusters of original variables) | Medium (abstract components) |
+| **Variable selection** | Possible (choose one per cluster) | Automatic (all contribute to PCs) |
+| **Qualitative data** | Supported | Requires dummy coding |
+| **Flexibility** | Multiple distance metrics | Fixed (variance-based) |
+
+**When to use HClustVar**: When you need interpretable groups of variables and want to select/reduce features while maintaining their original meaning.
+
+**When to use PCA**: When you need maximum variance explained and don't mind abstract components.
+
+---
+
+## Troubleshooting
+
+### Error: "Model must be fitted before cutting"
+
+```{r eval = FALSE}
+hc <- HClustVar$new()
+hc$cut_tree(k = 3)  # ❌ Error!
+
+# Solution: Fit first
+hc$fit(data)
+hc$cut_tree(k = 3)  # ✓ OK
+```
+
+### Error: "new_data must have same number of rows"
+
+```{r eval = FALSE}
+hc$fit(data)  # 100 rows
+new_data <- data.frame(x = rnorm(50))  # 50 rows
+hc$predict(new_data)  # ❌ Error!
+
+# Solution: Ensure same number of observations
+new_data <- data.frame(x = rnorm(100))  # 100 rows
+hc$predict(new_data)  # ✓ OK
+```
+
+### Warning: "Contingency table too small for chi-square test"
+
+This occurs with qualitative variables that have very few categories or observations.
+
+```{r eval = FALSE}
+# Problematic data
+tiny_data <- data.frame(
+  var1 = factor(c("A", "A", "B")),  # Only 3 observations
+  var2 = factor(c("X", "Y", "X"))
+)
+
+# Solution: Use more observations or combine rare categories
+```
+
+### No clear elbow in cohesion plot
+
+```{r eval = FALSE}
+# Try different linkage methods
+hc_ward <- HClustVar$new(cah.method = "ward.D")
+hc_complete <- HClustVar$new(cah.method = "complete")
+hc_average <- HClustVar$new(cah.method = "average")
+
+# Compare dendrograms
+hc_ward$fit(data)
+hc_ward$plot_dendrogram()
+
+hc_complete$fit(data)
+hc_complete$plot_dendrogram()
+```
+
+---
+
+## Real-World Example: Marketing Survey Data
+
+Let's analyze a realistic marketing dataset with customer survey responses:
+
+```{r}
+set.seed(2024)
+n <- 200
+
+# Customer demographics
+age <- rnorm(n, 35, 10)
+income <- rnorm(n, 60000, 20000)
+
+# Product satisfaction scores (1-10)
+product_quality <- sample(1:10, n, replace = TRUE)
+price_satisfaction <- 11 - product_quality + sample(-2:2, n, replace = TRUE)
+delivery_speed <- sample(1:10, n, replace = TRUE)
+
+# Service ratings (1-10)
+customer_service <- sample(1:10, n, replace = TRUE)
+technical_support <- customer_service + sample(-2:2, n, replace = TRUE)
+response_time <- customer_service + sample(-2:2, n, replace = TRUE)
+
+# Loyalty indicators (1-10)
+recommendation_score <- (product_quality + customer_service) / 2 + 
+  sample(-2:2, n, replace = TRUE)
+repurchase_intent <- recommendation_score + sample(-2:2, n, replace = TRUE)
+brand_trust <- (product_quality + customer_service + delivery_speed) / 3 + 
+  sample(-2:2, n, replace = TRUE)
+
+# Combine
+survey_data <- data.frame(
+  age, income,
+  product_quality, price_satisfaction, delivery_speed,
+  customer_service, technical_support, response_time,
+  recommendation_score, repurchase_intent, brand_trust
+)
+
+# Clip values to 1-10 range for ratings
+survey_data[, 3:11] <- apply(survey_data[, 3:11], 2, function(x) {
+  pmax(1, pmin(10, x))
+})
+
+head(survey_data)
+```
+
+### Analysis
+
+```{r}
+# Cluster the survey variables
+hc_survey <- HClustVar$new(vartype = "quant", dist.metric = "rsquare")
+hc_survey$fit(survey_data)
+
+# Find optimal clustering
+hc_survey$plot_cohesion()
+```
+
+```{r}
+# Cut into 4 clusters (based on elbow)
+hc_survey$cut_tree(k = 4)
+
+# Assess quality
+hc_survey$plot_silhouette()
+```
+
+```{r}
+# Examine results
+results <- hc_survey$summary()
+print(results$clust_summary)
+print(results$clust_members)
+```
+
+### Interpretation
+
+```{r}
+# Identify what each cluster represents
+for (i in 1:4) {
+  cat(sprintf("\n=== Cluster %d ===\n", i))
+  cluster_vars <- names(hc_survey$labels)[hc_survey$labels == i]
+  cat(paste("  -", cluster_vars, collapse = "\n"), "\n")
+}
+```
+
+**Expected grouping**:
+1. **Demographic cluster**: age, income
+2. **Product experience cluster**: product_quality, price_satisfaction, delivery_speed
+3. **Service cluster**: customer_service, technical_support, response_time
+4. **Loyalty cluster**: recommendation_score, repurchase_intent, brand_trust
+
+### Creating Composite Scores
+
+```{r}
+# Use centroids as composite scores
+composite_scores <- as.data.frame(hc_survey$centroids)
+colnames(composite_scores) <- c("Demo_Score", "Product_Score", 
+                                 "Service_Score", "Loyalty_Score")
+
+# Add to original data
+survey_with_scores <- cbind(survey_data, composite_scores)
+
+# Analyze relationships
+cor(composite_scores)
+```
+
+```{r}
+# Example: Predict loyalty from other factors
+loyalty_model <- lm(Loyalty_Score ~ Product_Score + Service_Score, 
+                    data = composite_scores)
+summary(loyalty_model)
+```
+
+---
+
+## Conclusion
+
+### Key Takeaways
+
+1. **HClustVar clusters variables, not observations** - useful for feature reduction and understanding variable relationships
+
+2. **Three variable types supported**: quantitative (correlation-based), qualitative (Cramér's V), and mixed (automatic discretization)
+
+3. **Complete diagnostic toolkit**: cohesion plots, dendrograms, and silhouette analysis help select optimal clusters
+
+4. **Centroids are synthetic variables**: first principal components that summarize each cluster
+
+5. **Prediction capability**: assign new variables to existing clusters without refitting
+
+### When to Use HClustVar
+
+✓ You have many correlated variables  
+✓ You need interpretable variable groups  
+✓ You want to reduce dimensionality while maintaining variable meanings  
+✓ You're dealing with multicollinearity in regression  
+✓ You want to select representative variables from groups  
+
+### Further Reading
+
+- **Original paper**: Chavent et al. (2012), "ClustOfVar: An R Package for the Clustering of Variables"
+- **Related methods**: PCA, Factor Analysis, Variable selection techniques
+- **Package documentation**: `?HClustVar` for detailed method documentation
+
+---
+
+## Appendix: Quick Reference
+
+### Constructor
+
+```{r eval = FALSE}
+hc <- HClustVar$new(
+  vartype = "auto",          # "quant", "qual", "mixed", "auto"
+  dist.metric = "rsquare",   # "r", "rsquare" (for quant only)
+  cah.method = "ward.D"      # "ward.D", "single", "complete", etc.
+)
+```
+
+### Main Methods
+
+```{r eval = FALSE}
+hc$fit(data)                      # Fit the model
+hc$cut_tree(k = 3)                # Cut into k clusters
+hc$cut_tree(h = 1.5)              # Cut at height h
+hc$predict(new_data)              # Predict new variables
+hc$summary()                      # Detailed statistics
+hc$plot_dendrogram(k = 3)         # Dendrogram with clusters
+hc$plot_cohesion()                # Cohesion gain curve
+hc$plot_silhouette()              # Silhouette plot
+print(hc)                         # Model summary
+```
+
+### Accessing Results
+
+```{r eval = FALSE}
+hc$labels                 # Cluster assignments
+hc$n_clusters             # Number of clusters
+hc$centroids              # Cluster centroids (matrix)
+hc$clusters.eigen         # Eigenvalues per cluster
+hc$tree                   # hclust object
+hc$dist.matrix            # Distance matrix
+hc$vartype                # Detected/specified variable type
+hc$dist.metric            # Distance metric used
+hc$cah.method             # Clustering method used
+```
+
+---
+
+## Session Information
+
+```{r}
+sessionInfo()
+```

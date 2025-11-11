@@ -107,7 +107,7 @@ test_that("HClustVar handles invalid metric gracefully", {
 
   expect_warning(
     hc_invalid$fit(df_quali),
-    regexp = "Dataframe has only qualitative values, param. dist.metric is ignored."
+    regexp = "dist.metric ignored for qualitative data"
   )
   expect_equal(hc_invalid$fitted, TRUE)
 })
@@ -358,7 +358,7 @@ test_that("cut_tree prioritizes k over h if both provided", {
 
 test_that("cut_tree throws error if model not fitted", {
   obj <- HClustVar$new(vartype = "quant", dist.metric = "rsquare")
-  expect_error(obj$cut_tree(k = 2), "Your model is not fitted with any data!")
+  expect_error(obj$cut_tree(k = 2), "Your model should be fitted on data first.")
 })
 
 test_that("cut_tree throw and error is no parameter specified", {
