@@ -16,8 +16,8 @@
 #'   \item Flexible distance metrics adapted to data type
 #'   \item Multiple hierarchical clustering methods (Ward, single, complete, etc.)
 #'   \item Computation of cluster centroids as synthetic variables
-#'   \item Prediction of cluster membership for new variables baased on various aggregating method (simple linkage, mean, centroids...)
-#'   \item Comprehensive diagnostic tools (dendrogram, silhouette, cohesion plots, summary tables)
+#'   \item Prediction of cluster membership for new variables based on various aggregating method (simple linkage, mean, centroids...)
+#'   \item Comprehensive diagnostic tools (dendrogram, silhouette, cohesion plots, MDS projection, summary tables)
 #' }
 #'
 #' **Typical Workflow:**
@@ -25,9 +25,9 @@
 #'   \item Initialize with \code{HClustVar$new(vartype, dist.metric, cah.method)}
 #'   \item Fit the model with \code{fit(data)}
 #'   \item Select optimal number of clusters using \code{plot_cohesion()} or \code{plot_dendrogram()}
-#'   \item \code{plot_cohesion()} may take some times as it will test each number of possible clusters
+#'   \item \code{plot_cohesion()} may take some time as it will test each number of possible clusters
 #'   \item Cut the tree with \code{cut_tree(k)}
-#'   \item Analyze results with \code{summary()} and \code{plot_silhouette()}
+#'   \item Analyze results with \code{summary()}, \code{plot_silhouette()}, and \code{mds_projection()}
 #'   \item Predict cluster membership for new variables with \code{predict(new_data)}
 #' }
 #'
@@ -36,8 +36,8 @@
 #'   \item{\code{initialize(vartype = "auto", dist.metric = NULL, cah.method = "ward.D")}}{
 #'     Creates a new instance of HClustVar.
 #'     \itemize{
-#'       \item \code{vartype}: Type of variables ("auto", "quant", "qual", "mixed"). 'auto' detection will be based on all the variables of the inputed dataframe while 'quant' and 'qual' will specificly select the correct type variables.
-#'       \item \code{dist.metric}: Distance metric ("rsquare", "r") for quantitative variables. Will impact the computation of the distance matrix, where 'r' will generate high distance between anti-correlated variables, and 'rsquare' will keep in the same groups higly correlated and anti-correlated variables.
+#'       \item \code{vartype}: Type of variables ("auto", "quant", "qual", "mixed"). 'auto' detection will be based on all the variables of the inputted dataframe while 'quant' and 'qual' will specifically select the correct type variables.
+#'       \item \code{dist.metric}: Distance metric ("rsquare", "r") for quantitative variables. Will impact the computation of the distance matrix, where 'r' will generate high distance between anti-correlated variables, and 'rsquare' will keep in the same groups highly correlated and anti-correlated variables.
 #'       \item \code{cah.method}: Hierarchical clustering method (default: "ward.D")
 #'     }
 #'   }
@@ -52,7 +52,7 @@
 #'   \item{\code{predict(new_data)}}{
 #'     Assigns new variables to existing clusters based on similarity with
 #'     cluster centroids or member variables. The cluster attribution will be
-#'     be consistent with the cah.method selected when instanciating the class.
+#'     consistent with the cah.method selected when instantiating the class.
 #'   }
 #'   \item{\code{summary()}}{
 #'     Returns detailed statistics about clusters and variable membership.
@@ -68,6 +68,12 @@
 #'   \item{\code{plot_silhouette(main, colors, show_values, cex.names, sort_desc)}}{
 #'     Creates a silhouette plot to assess cluster quality and variable
 #'     assignment confidence.
+#'   }
+#'   \item{\code{mds_projection()}}{
+#'     Creates a 2D multidimensional scaling projection of variables based on
+#'     the distance matrix. Variables are colored by cluster if the tree has
+#'     been cut. Useful for visualizing variable relationships and validating
+#'     cluster structure.
 #'   }
 #' }
 #'
@@ -162,6 +168,23 @@
 #'   \item Dimensionality reduction (one variable per cluster)
 #' }
 #'
+#' @section Diagnostic and Visualization Tools:
+#' The class provides multiple visualization methods for cluster analysis:
+#' \itemize{
+#'   \item \code{plot_dendrogram()}: Hierarchical tree structure with optional cluster highlighting
+#'   \item \code{plot_cohesion()}: Elbow curve for optimal cluster selection (tests all possible k)
+#'   \item \code{plot_silhouette()}: Quality assessment of variable assignments to clusters
+#'   \item \code{mds_projection()}: 2D spatial representation of variable relationships
+#'   \item \code{summary()}: Detailed statistics tables for clusters and variables
+#' }
+#'
+#' These tools complement each other:
+#' \itemize{
+#'   \item Use \code{plot_dendrogram()} and \code{plot_cohesion()} to select k
+#'   \item Use \code{mds_projection()} to validate spatial cluster separation
+#'   \item Use \code{plot_silhouette()} and \code{summary()} to assess quality
+#' }
+#'
 #' @section Performance and Caching:
 #' \itemize{
 #'   \item \code{summary()} results are cached after first call
@@ -185,6 +208,7 @@
 #' hc_quant$plot_cohesion()         # Select optimal k
 #' hc_quant$cut_tree(k = 2)
 #' hc_quant$plot_silhouette()       # Assess quality
+#' hc_quant$mds_projection()        # Visualize in 2D
 #' results <- hc_quant$summary()
 #' print(results$clust_summary)
 #'
@@ -199,6 +223,7 @@
 #' hc_qual$fit(data_qual)
 #' hc_qual$plot_dendrogram()
 #' hc_qual$cut_tree(k = 2)
+#' hc_qual$mds_projection()         # Check spatial separation
 #'
 #' # === Example 3: Mixed variables with automatic detection ===
 #' data_mixed <- data.frame(
@@ -222,20 +247,23 @@
 #' predictions <- hc_auto$predict(new_vars)
 #' print(predictions)  # Shows cluster assignment for each new variable
 #'
-#' # === Example 5: Complete workflow ===
+#' # === Example 5: Complete workflow with all diagnostics ===
 #' hc <- HClustVar$new(vartype = "quant", dist.metric = "rsquare", cah.method = "ward.D")
 #' hc$fit(data_quant)
 #'
-#' # Diagnostic plots
-#' hc$plot_cohesion()      # Find elbow
-#' hc$plot_dendrogram(k = 3)
+#' # Diagnostic plots for cluster selection
+#' par(mfrow = c(2, 2))
+#' hc$plot_cohesion()           # Find elbow
+#' hc$plot_dendrogram(k = 3)    # Visualize hierarchy
 #'
 #' # Cut and analyze
 #' hc$cut_tree(k = 3)
-#' hc$plot_silhouette()
-#' summary_results <- hc$summary()
+#' hc$plot_silhouette()         # Assess assignment quality
+#' hc$mds_projection()          # Check spatial structure
+#' par(mfrow = c(1, 1))
 #'
-#' # Access results
+#' # Get detailed statistics
+#' summary_results <- hc$summary()
 #' print(summary_results$clust_summary)
 #' print(summary_results$clust_members)
 #' print(hc$centroids)  # Synthetic variables
@@ -248,7 +276,7 @@
 #'   \item \strong{R6}: For R6 class system
 #'   \item \strong{FactoMineR}: For PCA, MCA, and FAMD analyses
 #'   \item \strong{ClusteringBase}: Parent class (internal)
-#'   \item \strong{stats}: For cor(), hclust(), chisq.test(), cutree()
+#'   \item \strong{stats}: For cor(), hclust(), chisq.test(), cutree(), cmdscale()
 #' }
 #'
 #' @section Error and Warning Handling:
@@ -259,12 +287,14 @@
 #'       \item Attempting to cut tree before fitting
 #'       \item Empty clusters after tree cutting
 #'       \item Incompatible dimensions in \code{predict()}
+#'       \item Negative eigenvalues in \code{mds_projection()} (first two dimensions)
 #'     }
 #'   \item **Warnings**:
 #'     \itemize{
 #'       \item \code{dist.metric} specified for "qual" or "mixed" (will be ignored)
 #'       \item Invalid metric for quantitative data (auto-corrected to "rsquare")
 #'       \item Cramer's V computation issues (contingency table too small)
+#'       \item Some negative eigenvalues in \code{mds_projection()} (quality may be altered)
 #'     }
 #' }
 #'
@@ -1866,6 +1896,153 @@ HClustVar <- R6::R6Class(
     },
 
     # -----------------------------------------------------------------------
+    # Multidimensional scaling
+    # -----------------------------------------------------------------------
+    #' Plot multidimensional scaling projection of variables
+    #'
+    #' @description
+    #' Creates a 2D visualization of variable relationships using classical
+    #' multidimensional scaling (MDS) on the distance matrix. Variables are
+    #' projected onto the first two principal coordinates, with automatic
+    #' cluster coloring.
+    #'
+    #' @details
+    #' **Algorithm:**
+    #'
+    #' Uses classical multidimensional scaling (\code{cmdscale}) to project
+    #' the dissimilarity matrix into a 2D space while preserving pairwise
+    #' distances as much as possible.
+    #'
+    #' **Interpretation:**
+    #' \itemize{
+    #'   \item Variables close together have high similarity
+    #'   \item Variables far apart have low similarity
+    #'   \item Axes represent principal coordinates (not directly interpretable)
+    #'   \item Percentage on each axis shows variance explained by that dimension
+    #' }
+    #'
+    #' **Quality Assessment:**
+    #' \itemize{
+    #'   \item Cumulative variance explained (title): Total information retained in 2D
+    #'   \item High percentage (>70%): Good 2D representation of distances
+    #'   \item Low percentage (<50%): Distances may be distorted in 2D projection
+    #' }
+    #'
+    #' **Visualization:**
+    #' \itemize{
+    #'   \item If tree has been cut: Variables colored by cluster assignment
+    #'   \item If tree not cut: All variables in black
+    #'   \item Variable names displayed at their coordinates
+    #'   \item Aspect ratio = 1 (equal scaling on both axes)
+    #' }
+    #'
+    #' @return None. Produces a plot as a side effect.
+    #'
+    #' @section Prerequisites:
+    #' \itemize{
+    #'   \item Model must be fitted: \code{self$fitted == TRUE}
+    #'   \item Distance matrix must be computed
+    #' }
+    #'
+    #' @section Errors and Warnings:
+    #' \itemize{
+    #'   \item **Error**: Model not fitted
+    #'   \item **Error**: Negative eigenvalues for first two dimensions (projection impossible)
+    #'   \item **Warning**: Some eigenvalues negative (quality metric may be altered)
+    #' }
+    #'
+    #' @section Mathematical Background:
+    #' Classical MDS finds coordinates in low-dimensional space such that
+    #' Euclidean distances between points approximate original dissimilarities.
+    #' The eigenvalue decomposition provides:
+    #' \itemize{
+    #'   \item Coordinates on principal axes
+    #'   \item Variance explained by each dimension
+    #'   \item Quality of fit assessment
+    #' }
+    #'
+    #' @examples
+    #' \dontrun{
+    #' # Fit model
+    #' hc <- HClustVar$new(vartype = "quant", dist.metric = "rsquare")
+    #' hc$fit(data)
+    #'
+    #' # MDS projection before cutting (no colors)
+    #' hc$mds_projection()
+    #'
+    #' # Cut tree then visualize with cluster colors
+    #' hc$cut_tree(k = 3)
+    #' hc$mds_projection()  # Variables colored by cluster
+    #'
+    #' # Compare with dendrogram
+    #' par(mfrow = c(1, 2))
+    #' hc$plot_dendrogram(k = 3)
+    #' hc$mds_projection()
+    #' par(mfrow = c(1, 1))
+    #' }
+    #'
+    #' @section Use Cases:
+    #' \itemize{
+    #'   \item **Cluster validation**: Check if clusters are spatially separated
+    #'   \item **Outlier detection**: Identify isolated variables
+    #'   \item **Dimension reduction**: Verify if 2D captures most information
+    #'   \item **Complementary view**: Alternative to dendrogram for structure visualization
+    #' }
+    #'
+    #' @seealso
+    #' \code{\link[stats]{cmdscale}} for classical multidimensional scaling
+    #' \code{\link{plot_dendrogram}} for hierarchical structure visualization
+    #' \code{\link{plot_cohesion}} for selecting optimal number of clusters
+    #'
+    #' @keywords internal
+    mds_projection = function() {
+
+      if (!self$fitted) {
+        stop("Model has to be fitted to compute mds projection")
+      }
+
+      mds <- cmdscale(d = self$dist.matrix, k = 2, eig = TRUE)
+
+      # Detect eigens values negativity.
+      if (any(mds$eig < 0)) {
+        warning("One of the eigen value may be negative, the % of information restitued may be altered.")
+      }
+
+      # If one of the 2 first eigens values are negative, stop the method.
+      if (any(mds$eig[1:2] < 0)) {
+        stop("The eigen value are negative, and the variables could not be projected on the component.")
+      }
+
+      # Check the % of information restitued.
+      eigens <- mds$eig[mds$eig > 0]
+
+      # Cumulative quality
+      ceigens <- cumsum(eigens) / sum(eigens)
+      quality <- eigens / sum(eigens)
+
+      # Plot the representation
+      plot(mds$points[,1],mds$points[,2],type="n",cex=0.3,asp=1, xlab = paste("1st component", round(quality[1] * 100, 2), "%"), ylab=paste("2nd component", round(quality[2] * 100, 2), "%"))
+
+      if (!is.null(self$labels)) {
+
+        # Create a color palette.
+        cluster_levels <- unique(self$labels)
+        colors <- setNames(rainbow(length(cluster_levels)), cluster_levels)
+
+        # Get the color for each label.
+        point_colors <- colors[self$labels]
+
+        text(mds$points[,1], mds$points[,2], labels = labels(self$dist.matrix), col = point_colors)
+      } else {
+        text(mds$points[,1], mds$points[,2], labels = labels(self$dist.matrix))
+      }
+
+      title(main = paste("Multidimensional scaling - Projection", round(ceigens[2]*100,1), "%"))
+    },
+
+
+
+    # -----------------------------------------------------------------------
     # Summary method
     # -----------------------------------------------------------------------
 
@@ -2096,7 +2273,24 @@ HClustVar <- R6::R6Class(
       # Sort the clust_members df
       clust_members <- clust_members[order(clust_members$cluster, -clust_members$own_cluster_R2), ]
 
-      result <- list(clust_summary = clust_summary, clust_members = clust_members)
+      # ----------------
+      # Crrelation between latent component
+      # ----------------
+
+      # Initialise the dataframe with all cluster pairs
+      component_correlations <- as.data.frame(t(combn(colnames(self$centroids), 2)))
+      colnames(component_correlations) <- c("cluster A", "cluster B")
+
+      # iterate over all pairs to compute correlation on a "correlation column"
+      component_correlations$correlation <- apply(component_correlations, 1, function(row) {
+        round(cor(self$centroids[,row[1]], self$centroids[,row[2]], use = "complete.obs"), 3)
+      })
+
+      # Add a squared correlation column
+      component_correlations$squared_correlations <- round(component_correlations$correlation**2, 3)
+
+
+      result <- list(clust_summary = clust_summary, clust_members = clust_members, centroids_correlations = component_correlations)
 
       # update the private attribute to cache the data.
       private$.summary_results <- result
@@ -2156,9 +2350,9 @@ HClustVar <- R6::R6Class(
       }
 
       cat("\n══════════════════════════════════════════════════════\n")
-      cat("Use $summary() for detailed information\n")
-      cat("Use $plot_dendrogram() to visualize the tree\n\n")
-      cat("Use $plot_cohesion() to visualize the cohesion gain of clusters.\n\n")
+      cat("Use $summary() for detailed information and cluster analysis\n")
+      cat("Use $plot_dendrogram() to visualize the tree\n")
+      cat("Use $plot_cohesion() to visualize the cohesion gain of clusters\n\n")
 
       invisible(self)
     }
