@@ -1,315 +1,227 @@
-#' Hierarchical Variable Clustering
+#' @title Hierarchical Variable Clustering
 #'
 #' @description
 #' Implements hierarchical clustering of variables using Agglomerative Hierarchical
-#' Clustering (AHC). The algorithm groups variables based on their similarity,
-#' supporting quantitative, qualitative, and mixed data types. Unlike traditional
-#' clustering that groups observations, this approach clusters variables to identify
-#' groups of related features.
+#' Clustering (AHC). Groups variables based on their similarity from correlation
+#' or cramer v, supporting quantitative, qualitative, and mixed data types.
 #'
 #' @details
-#' **Core Functionality:**
+#' The HClustVar class provides comprehensive tools for variable clustering with
+#' automatic type detection, multiple distance metrics, and extensive diagnostics.
 #'
-#' The `HClustVar` class inherits from private `ClusteringBase` and provides:
-#' \itemize{
-#'   \item Manual selection or Automatic detection of variable types (quantitative, qualitative, mixed)
-#'   \item Flexible distance metrics adapted to data type
-#'   \item Multiple hierarchical clustering methods (Ward, single, complete, etc.)
-#'   \item Computation of cluster centroids as synthetic variables
-#'   \item Prediction of cluster membership for new variables based on various aggregating method (simple linkage, mean, centroids...)
-#'   \item Comprehensive diagnostic tools (dendrogram, silhouette, cohesion plots, MDS projection, summary tables)
-#' }
-#'
-#' **Typical Workflow:**
+#' Typical workflow:
 #' \enumerate{
-#'   \item Initialize with \code{HClustVar$new(vartype, dist.metric, cah.method)}
-#'   \item Fit the model with \code{fit(data)}
-#'   \item Select optimal number of clusters using \code{plot_cohesion()} or \code{plot_dendrogram()}
-#'   \item \code{plot_cohesion()} may take some time as it will test each number of possible clusters
-#'   \item Cut the tree with \code{cut_tree(k)}
-#'   \item Analyze results with \code{summary()}, \code{plot_silhouette()}, and \code{mds_projection()}
-#'   \item Predict cluster membership for new variables with \code{predict(new_data)}
+#'   \item Initialize with `new()`
+#'   \item Fit with `fit(data)`
+#'   \item Select k using `plot_cohesion()`
+#'   \item Cut with `cut_tree(k)`
+#'   \item Analyze with `summary()` and `plot_silhouette()`
 #' }
 #'
-#' @section Public Methods:
+#' For quantitative variables, distance metrics "r" or "rsquare" are available.
+#' For qualitative variables, Cramer's V is used. For mixed data, quantitative
+#' variables are discretized into quartiles before applying Cramer's V.
+#'
+#' Available clustering methods: ward.D (default, recommended), ward.D2, single,
+#' complete, average, mcquitty, median, centroid.
+#'
+#' @section Workflow and Usage:
+#' **Basic Workflow:**
+#' \preformatted{
+#' # 1. Initialize
+#' hc <- HClustVar$new(vartype = "auto", dist.metric = "rsquare")
+#'
+#' # 2. Fit on data
+#' hc$fit(my_data)
+#'
+#' # 3. Visualize dendrogram
+#' hc$plot_dendrogram()
+#'
+#' # 4. Choose optimal number of clusters
+#' hc$plot_cohesion()
+#'
+#' # 5. Cut tree
+#' hc$cut_tree(k = 3)
+#'
+#' # 6. Analyze results
+#' results <- hc$summary()
+#' hc$plot_silhouette()
+#' hc$mds_projection()
+#' }
+#'
+#' @section Variable Types:
+#' The class supports four variable type configurations:
 #' \describe{
-#'   \item{\code{initialize(vartype = "auto", dist.metric = NULL, cah.method = "ward.D")}}{
-#'     Creates a new instance of HClustVar.
-#'     \itemize{
-#'       \item \code{vartype}: Type of variables ("auto", "quant", "qual", "mixed"). 'auto' detection will be based on all the variables of the inputted dataframe while 'quant' and 'qual' will specifically select the correct type variables.
-#'       \item \code{dist.metric}: Distance metric ("rsquare", "r") for quantitative variables. Will impact the computation of the distance matrix, where 'r' will generate high distance between anti-correlated variables, and 'rsquare' will keep in the same groups highly correlated and anti-correlated variables.
-#'       \item \code{cah.method}: Hierarchical clustering method (default: "ward.D")
-#'     }
-#'   }
-#'   \item{\code{fit(data)}}{
-#'     Fits the clustering model on the provided data. Validates data, computes
-#'     distance matrix, and performs hierarchical clustering.
-#'   }
-#'   \item{\code{cut_tree(k = NULL, h = NULL)}}{
-#'     Cuts the hierarchical tree into k clusters or at height h. Computes
-#'     cluster centroids automatically.
-#'   }
-#'   \item{\code{predict(new_data)}}{
-#'     Assigns new variables to existing clusters based on similarity with
-#'     cluster centroids or member variables. The cluster attribution will be
-#'     consistent with the cah.method selected when instantiating the class.
-#'   }
-#'   \item{\code{summary()}}{
-#'     Returns detailed statistics about clusters and variable membership.
-#'     Results are cached for performance.
-#'   }
-#'   \item{\code{plot_dendrogram(k = 0)}}{
-#'     Displays the dendrogram with optional cluster highlighting.
-#'   }
-#'   \item{\code{plot_cohesion()}}{
-#'     Shows cohesion gain curve for selecting optimal number of clusters
-#'     using the elbow method.
-#'   }
-#'   \item{\code{plot_silhouette(main, colors, show_values, cex.names, sort_desc)}}{
-#'     Creates a silhouette plot to assess cluster quality and variable
-#'     assignment confidence.
-#'   }
-#'   \item{\code{mds_projection()}}{
-#'     Creates a 2D multidimensional scaling projection of variables based on
-#'     the distance matrix. Variables are colored by cluster if the tree has
-#'     been cut. Useful for visualizing variable relationships and validating
-#'     cluster structure.
-#'   }
+#'   \item{`"auto"`}{Automatically detects variable types in the data. Chooses "quant"
+#'     if all variables are numeric, "qual" if all are factors, or "mixed" if both
+#'     types are present.}
+#'   \item{`"quant"`}{For purely quantitative (numeric) variables. Uses correlation-based
+#'     distances (Pearson correlation or squared correlation).}
+#'   \item{`"qual"`}{For purely qualitative (categorical) variables. Uses Cramer's V
+#'     as association measure.}
+#'   \item{`"mixed"`}{For datasets containing both quantitative and qualitative variables.
+#'     Discretizes numeric variables into quartiles and applies Cramer's V to all variables.}
 #' }
 #'
-#' @section Active Bindings (Read-only Properties):
+#' @section Distance Metrics:
+#' Distance metrics determine how similarity between variables is measured:
 #' \describe{
-#'   \item{\code{dist.metric}}{
-#'     Distance metric used ("rsquare" or "r" for quantitative variables, NULL otherwise)
-#'   }
-#'   \item{\code{vartype}}{
-#'     Detected or specified variable type ("quant", "qual", or "mixed")
-#'   }
-#'   \item{\code{dist.matrix}}{
-#'     Computed dissimilarity matrix (object of class "dist")
-#'   }
-#'   \item{\code{tree}}{
-#'     Hierarchical clustering tree (object of class "hclust")
-#'   }
-#'   \item{\code{cah.method}}{
-#'     Hierarchical clustering method used
-#'   }
-#'   \item{\code{centroids}}{
-#'     Matrix of cluster centroids (n_observations × n_clusters)
-#'   }
-#'   \item{\code{clusters.eigen}}{
-#'     Vector of eigenvalues (variance explained) for each cluster
-#'   }
-#'   \item{\code{summary_results}}{
-#'     Cached summary results (list with clust_summary and clust_members)
-#'   }
-#' }
-#'
-#' @section Distance Metrics by Variable Type:
-#'
-#' **Quantitative variables (vartype = "quant"):**
-#' \itemize{
-#'   \item Computes Pearson correlation matrix between variables
-#'   \item \code{dist.metric = "r"}: Uses correlation \eqn{dist = \sqrt{1 - r}}
-#'   \item \code{dist.metric = "rsquare"}: Uses squared correlation \eqn{dist = \sqrt{1 - r^2}}
-#'   \item Variables are standardized in PCA
-#' }
-#'
-#' **Qualitative variables (vartype = "qual"):**
-#' \itemize{
-#'   \item Computes Cramer's V between all pairs of variables
-#'   \item Dissimilarity: \eqn{dist = 1 - V}
-#'   \item Cramer's V measures association between categorical variables
-#' }
-#'
-#' **Mixed variables (vartype = "mixed"):**
-#' \itemize{
-#'   \item Discretizes quantitative variables into 4 quantiles
-#'   \item Treats all variables as qualitative
-#'   \item Computes Cramer's V on the entire dataset
-#'   \item Dissimilarity: \eqn{dist = 1 - V}
-#' }
-#'
-#' **Automatic detection (vartype = "auto"):**
-#' \itemize{
-#'   \item Selects "quant" if all variables are numeric
-#'   \item Selects "qual" if all variables are factors
-#'   \item Selects "mixed" if both types are present
-#'   \item Sets default metric ("rsquare" for quantitative)
+#'   \item{`"r"`}{Absolute Pearson correlation coefficient. Distance = sqrt(1 - r).
+#'     Suitable when you want to group variables with strong linear relationships
+#'     regardless of direction.}
+#'   \item{`"rsquare"`}{Squared Pearson correlation (R²). Distance = sqrt(1 - r²).
+#'     Default for quantitative variables. Treats positive and negative correlations
+#'     equally, focusing on strength of linear relationship.}
 #' }
 #'
 #' @section Clustering Methods:
-#' Available hierarchical clustering methods (via \code{cah.method}):
-#' \itemize{
-#'   \item \code{ward.D}, \code{ward.D2}: Minimizes within-cluster variance (default: ward.D)
-#'   \item \code{single}: Nearest neighbor (minimum distance)
-#'   \item \code{complete}: Farthest neighbor (maximum distance)
-#'   \item \code{average}: UPGMA (unweighted average)
-#'   \item \code{mcquitty}: WPGMA (weighted average)
-#'   \item \code{median}: WPGMC (weighted median)
-#'   \item \code{centroid}: UPGMC (unweighted median)
+#' The class supports all standard hierarchical clustering linkage methods:
+#' \describe{
+#'   \item{`"ward.D"`}{**Recommended default.** Minimizes within-cluster variance using
+#'     Ward's minimum variance method (original algorithm). Tends to create compact,
+#'     spherical clusters of similar size.}
+#'   \item{`"ward.D2"`}{Ward's method with squared dissimilarities. Equivalent to ward.D
+#'     when using Euclidean distances. May produce slightly different results with
+#'     correlation-based distances.}
+#'   \item{`"single"`}{Single linkage (nearest neighbor). Distance between clusters is
+#'     the minimum distance between any two points. Can produce elongated "chain-like"
+#'     clusters.}
+#'   \item{`"complete"`}{Complete linkage (farthest neighbor). Distance between clusters
+#'     is the maximum distance between any two points. Tends to produce compact clusters
+#'     with small diameters.}
+#'   \item{`"average"`}{Average linkage (UPGMA). Distance between clusters is the average
+#'     of all pairwise distances. Compromise between single and complete linkage.}
+#'   \item{`"mcquitty"`}{McQuitty's method (WPGMA). Similar to average linkage but uses
+#'     weighted averages.}
+#'   \item{`"median"`}{Median linkage (WPGMC). Uses median of pairwise distances.}
+#'   \item{`"centroid"`}{Centroid linkage (UPGMC). Distance between cluster centroids.
+#'     Can produce inversions in the dendrogram.}
 #' }
 #'
-#' Ward's method generally produces the most homogeneous clusters and is
-#' recommended for most applications.
-#'
-#' @section Cluster Centroids:
-#' After cutting the tree, centroids are computed as synthetic variables:
+#' @section Performance and Optimization:
+#' **Computational Complexity:**
 #' \itemize{
-#'   \item **Quantitative clusters**: First principal component from PCA
-#'   \item **Qualitative clusters**: First dimension from MCA
-#'   \item **Mixed clusters**: First dimension from FAMD
+#'   \item Distance matrix computation: O(p²n) where p = variables, n = observations
+#'   \item Hierarchical clustering: O(p²log p)
+#'   \item Total time complexity: O(p²n + p²log p)
 #' }
 #'
-#' Centroids represent each cluster as a single latent variable and are used for:
+#'
+#' **Caching:**
 #' \itemize{
-#'   \item Predicting cluster membership for new variables
-#'   \item Computing cluster quality metrics (R², correlation ratio)
-#'   \item Dimensionality reduction (one variable per cluster)
+#'   \item `summary()` results are cached after first call
+#'   \item Cache is invalidated when `fit()` or `cut_tree()` is called
+#'   \item Repeated calls to `summary()` are instantaneous
 #' }
 #'
-#' @section Diagnostic and Visualization Tools:
-#' The class provides multiple visualization methods for cluster analysis:
+#' @section Data Requirements:
+#' **Input Data Format:**
 #' \itemize{
-#'   \item \code{plot_dendrogram()}: Hierarchical tree structure with optional cluster highlighting
-#'   \item \code{plot_cohesion()}: Elbow curve for optimal cluster selection (tests all possible k)
-#'   \item \code{plot_silhouette()}: Quality assessment of variable assignments to clusters
-#'   \item \code{mds_projection()}: 2D spatial representation of variable relationships
-#'   \item \code{summary()}: Detailed statistics tables for clusters and variables
+#'   \item Must be a `data.frame` or `matrix`
+#'   \item Rows represent observations (samples)
+#'   \item Columns represent variables to cluster
+#'   \item Qualitative variables must be encoded as `factor`
+#'   \item Quantitative variables must be `numeric`
+#'   \item Missing values (NA) are handled with pairwise complete observations
 #' }
 #'
-#' These tools complement each other:
+#' **Data Preprocessing:**
 #' \itemize{
-#'   \item Use \code{plot_dendrogram()} and \code{plot_cohesion()} to select k
-#'   \item Use \code{mds_projection()} to validate spatial cluster separation
-#'   \item Use \code{plot_silhouette()} and \code{summary()} to assess quality
+#'   \item Standardization is handled automatically for PCA
+#'   \item No need to manually scale quantitative variables
+#'   \item Ensure factors have meaningful levels
+#'   \item Consider removing variables with >50% missing values
+#'   \item One-hot encoded variables (0/1) are automatically detected
 #' }
 #'
-#' @section Performance and Caching:
-#' \itemize{
-#'   \item \code{summary()} results are cached after first call
-#'   \item Cache is invalidated when \code{fit()} or \code{cut_tree()} is called
-#'   \item \code{plot_cohesion()} preserves object state (restores after plotting)
-#'   \item For large datasets (>50 variables), \code{plot_cohesion()} may take time
+#' @section Mathematical Details:
+#' **Distance Computation:**
+#'
+#' For quantitative variables with metric "rsquare":
+#' \deqn{d(X_i, X_j) = \sqrt{1 - cor(X_i, X_j)^2}}
+#'
+#' For quantitative variables with metric "r":
+#' \deqn{d(X_i, X_j) = \sqrt{1 - cor(X_i, X_j)}}
+#'
+#' For qualitative variables:
+#' \deqn{d(X_i, X_j) = 1 - V(X_i, X_j)}
+#' where V is Cramer's V statistic.
+#'
+#' **Cramer's V:**
+#' \deqn{V = \sqrt{\frac{\chi^2}{n \cdot min(r-1, c-1)}}}
+#' where n = sample size, r = number of rows, c = number of columns in contingency table.
+#'
+#' **Correlation Ratio (η²):**
+#' \deqn{\eta^2 = \frac{SSB}{SST} = \frac{\sum_{k} n_k(\bar{y}_k - \bar{y})^2}{\sum_{i} (y_i - \bar{y})^2}}
+#' Used to measure association between categorical and continuous variables.
+#'
+#' @section Output Components:
+#' **Summary Output:**
+#'
+#' `clust_summary` data frame contains:
+#' \describe{
+#'   \item{`cluster`}{Cluster identifier (integer)}
+#'   \item{`n_members`}{Number of variables in the cluster}
+#'   \item{`var_explained`}{Eigenvalue of first principal component (variance explained)}
+#'   \item{`prop_explained`}{Proportion of variance explained per variable}
 #' }
+#'
+#' `clust_members` data frame contains:
+#' \describe{
+#'   \item{`cluster`}{Assigned cluster number}
+#'   \item{`own_cluster_R2`}{Squared correlation/association with own cluster centroid}
+#'   \item{`next_closest_R2`}{Squared correlation/association with nearest alternative cluster}
+#'   \item{`1 - R2_ratio`}{Quality metric: (1 - own_R2) / (1 - next_R2). Lower is better.}
+#' }
+#'
+#' `centroids_correlations` data frame contains:
+#' \describe{
+#'   \item{`cluster A`}{First cluster in comparison}
+#'   \item{`cluster B`}{Second cluster in comparison}
+#'   \item{`correlation`}{Pearson correlation between cluster centroids}
+#'   \item{`squared_correlations`}{R² between cluster centroids}
+#' }
+#'
 #'
 #' @examples
 #' \dontrun{
-#' # === Example 1: Quantitative variables ===
-#' data_quant <- data.frame(
-#'   var1 = rnorm(100),
-#'   var2 = rnorm(100) + rnorm(100),  # Correlated with var1
-#'   var3 = rnorm(100),
-#'   var4 = rnorm(100) + rnorm(100)   # Correlated with var3
-#' )
+#' library(datasets)
+#' data(mtcars)
 #'
-#' hc_quant <- HClustVar$new(vartype = "quant", dist.metric = "rsquare")
-#' hc_quant$fit(data_quant)
-#' hc_quant$plot_cohesion()         # Select optimal k
-#' hc_quant$cut_tree(k = 2)
-#' hc_quant$plot_silhouette()       # Assess quality
-#' hc_quant$mds_projection()        # Visualize in 2D
-#' results <- hc_quant$summary()
-#' print(results$clust_summary)
+#' hc <- HClustVar$new(vartype = "quant", dist.metric = "rsquare")
+#' hc$fit(mtcars)
 #'
-#' # === Example 2: Qualitative variables ===
-#' data_qual <- data.frame(
-#'   gender = factor(sample(c("M", "F"), 100, replace = TRUE)),
-#'   education = factor(sample(c("HS", "BA", "MS"), 100, replace = TRUE)),
-#'   region = factor(sample(c("North", "South", "East", "West"), 100, replace = TRUE))
-#' )
+#' # Visualize dendrogram
+#' hc$plot_dendrogram()
 #'
-#' hc_qual <- HClustVar$new(vartype = "qual")
-#' hc_qual$fit(data_qual)
-#' hc_qual$plot_dendrogram()
-#' hc_qual$cut_tree(k = 2)
-#' hc_qual$mds_projection()         # Check spatial separation
+#' # Find optimal number of clusters
+#' hc$plot_cohesion()
 #'
-#' # === Example 3: Mixed variables with automatic detection ===
-#' data_mixed <- data.frame(
-#'   age = rnorm(100, 40, 10),
-#'   income = rnorm(100, 50000, 15000),
-#'   gender = factor(sample(c("M", "F"), 100, replace = TRUE)),
-#'   education = factor(sample(c("HS", "BA", "MS"), 100, replace = TRUE))
-#' )
-#'
-#' hc_auto <- HClustVar$new(vartype = "auto")  # Auto-detects "mixed"
-#' hc_auto$fit(data_mixed)
-#' hc_auto$plot_cohesion()
-#' hc_auto$cut_tree(k = 3)
-#' print(hc_auto)
-#'
-#' # === Example 4: Predicting new variables ===
-#' new_vars <- data.frame(
-#'   new_age = rnorm(100, 35, 8),
-#'   new_score = rnorm(100, 70, 10)
-#' )
-#' predictions <- hc_auto$predict(new_vars)
-#' print(predictions)  # Shows cluster assignment for each new variable
-#'
-#' # === Example 5: Complete workflow with all diagnostics ===
-#' hc <- HClustVar$new(vartype = "quant", dist.metric = "rsquare", cah.method = "ward.D")
-#' hc$fit(data_quant)
-#'
-#' # Diagnostic plots for cluster selection
-#' par(mfrow = c(2, 2))
-#' hc$plot_cohesion()           # Find elbow
-#' hc$plot_dendrogram(k = 3)    # Visualize hierarchy
-#'
-#' # Cut and analyze
+#' # Cut tree into 3 clusters
 #' hc$cut_tree(k = 3)
-#' hc$plot_silhouette()         # Assess assignment quality
-#' hc$mds_projection()          # Check spatial structure
-#' par(mfrow = c(1, 1))
 #'
-#' # Get detailed statistics
-#' summary_results <- hc$summary()
-#' print(summary_results$clust_summary)
-#' print(summary_results$clust_members)
-#' print(hc$centroids)  # Synthetic variables
-#' }
+#' # Analyze results
+#' results <- hc$summary()
+#' print(results$clust_summary)
+#' print(results$clust_members)
 #'
-#'
-#' @section Dependencies:
-#' This class requires:
-#' \itemize{
-#'   \item \strong{R6}: For R6 class system
-#'   \item \strong{FactoMineR}: For PCA, MCA, and FAMD analyses
-#'   \item \strong{ClusteringBase}: Parent class (internal)
-#'   \item \strong{stats}: For cor(), hclust(), chisq.test(), cutree(), cmdscale()
-#' }
-#'
-#' @section Error and Warning Handling:
-#' \itemize{
-#'   \item **Errors**:
-#'     \itemize{
-#'       \item Invalid \code{vartype} or \code{dist.metric}
-#'       \item Attempting to cut tree before fitting
-#'       \item Empty clusters after tree cutting
-#'       \item Incompatible dimensions in \code{predict()}
-#'       \item Negative eigenvalues in \code{mds_projection()} (first two dimensions)
-#'     }
-#'   \item **Warnings**:
-#'     \itemize{
-#'       \item \code{dist.metric} specified for "qual" or "mixed" (will be ignored)
-#'       \item Invalid metric for quantitative data (auto-corrected to "rsquare")
-#'       \item Cramer's V computation issues (contingency table too small)
-#'       \item Some negative eigenvalues in \code{mds_projection()} (quality may be altered)
-#'     }
+#' # Quality assessment
+#' hc$plot_silhouette()
+#' hc$mds_projection()
 #' }
 #'
 #'
 #'
 #' @references
-#' \itemize{
-#'   \item Chavent, M., et al. (2012). "ClustOfVar: An R Package for the
-#'         Clustering of Variables". \emph{Journal of Statistical Software}, 50(13), 1-16.
-#'   \item Vigneau, E. & Qannari, E.M. (2003). "Clustering of variables around
-#'         latent components". \emph{Communications in Statistics - Simulation and
-#'         Computation}, 32(4), 1131-1150.
-#' }
+#' Vigneau, E., & Qannari, E. M. (2003).
+#' Clustering of variables around latent components.
+#' Communications in Statistics - Simulation and Computation, 32(4), 1131-1150.
+#' \doi{10.1081/SAC-120023882}
 #'
-#' @family clustering classes
+#' Ward, J. H. (1963).
+#' Hierarchical grouping to optimize an objective function.
+#' Journal of the American Statistical Association, 58(301), 236-244.
+#' \doi{10.1080/01621459.1963.10500845}
 #'
 #' @export
 HClustVar <- R6::R6Class(
@@ -323,7 +235,7 @@ HClustVar <- R6::R6Class(
 
     # ==== Parameters
 
-    # Metric to calculate distances between variables.
+    # Metric used to compute distances between variables. (correlation or square correlation).
     .dist.metric = NULL,
 
     # Type of variable to make clustering on.
@@ -359,6 +271,7 @@ HClustVar <- R6::R6Class(
     # Check input method
     # -----------------------------------------------------------------------
 
+
     #' @description
     #' Checks that vartype, dist.metric, and cah.method have valid values
     #' and are compatible with each other. Called by initialize().
@@ -368,8 +281,6 @@ HClustVar <- R6::R6Class(
     #' @param cah.method Character. Clustering method (e.g., "ward.D")
     #'
     #' @return None. Stops with error if validation fails, warns if parameters incompatible.
-    #'
-    #' @keywords internal
     check_input = function(vartype, dist.metric, cah.method) {
 
       # Checking metric selection
@@ -394,18 +305,21 @@ HClustVar <- R6::R6Class(
     # -----------------------------------------------------------------------
     # Type auto-detection method
     # -----------------------------------------------------------------------
+
+    #' @description
     #' Automatically detect variable type from data
     #'
-    #' @description
     #' Determines whether the dataset contains quantitative, qualitative, or
     #' mixed variables, and adjusts the distance metric accordingly.
     #'
-    #' @details
+    #' Called by \code{fit()} when \code{vartype = "auto"} to automatically
+    #' determine the appropriate clustering method.
+    #'
     #' **Detection logic:**
     #' \itemize{
-    #'   \item No qualitative variables → "quant"
-    #'   \item No quantitative variables → "qual"
-    #'   \item Both types present → "mixed"
+    #'   \item No qualitative variables: "quant"
+    #'   \item No quantitative variables: "qual"
+    #'   \item Both types present: "mixed"
     #' }
     #'
     #' **Side effects:**
@@ -416,18 +330,6 @@ HClustVar <- R6::R6Class(
     #' }
     #'
     #' @return Character string: "quant", "qual", or "mixed"
-    #'
-    #' @section Usage Context:
-    #' Called by \code{fit()} when \code{vartype = "auto"} to automatically
-    #' determine the appropriate clustering method.
-    #'
-    #' @examples
-    #' \dontrun{
-    #' # Internal use - called by fit() when vartype = "auto"
-    #' private$.vartype <- private$auto_detect_vartype()
-    #' }
-    #'
-    #' @keywords internal
     auto_detect_vartype = function() {
 
       n_quanti <- length(private$.quanti_indices)
@@ -463,13 +365,12 @@ HClustVar <- R6::R6Class(
     # -----------------------------------------------------------------------
     # distance_matrix computing method
     # -----------------------------------------------------------------------
-    #' Compute dissimilarity matrix for hierarchical clustering
-    #'
+
     #' @description
+    #' Compute dissimilarity matrix for hierarchical clustering
     #' Calculates a distance matrix appropriate for the variable type
     #' (quantitative, qualitative, or mixed) to be used in hierarchical clustering.
     #'
-    #' @details
     #' **For quantitative variables (vartype = "quant"):**
     #' \itemize{
     #'   \item Computes correlation matrix between variables
@@ -493,21 +394,6 @@ HClustVar <- R6::R6Class(
     #'
     #' @return A \code{dist} object containing pairwise dissimilarities between
     #'   variables, suitable for use with \code{hclust()}.
-    #'
-    #' @section Usage Context:
-    #' Called internally by \code{fit()} to prepare data for hierarchical clustering.
-    #'
-    #' @section Errors:
-    #' Stops if \code{private$.vartype} contains an invalid value (should never
-    #' occur if object state is consistent).
-    #'
-    #' @examples
-    #' \dontrun{
-    #' # Internal use - called by fit()
-    #' private$.dist.matrix <- private$compute_distance_matrix()
-    #' }
-    #'
-    #' @keywords internal
     compute_distance_matrix = function() {
 
       if (private$.vartype == "quant") {
@@ -540,6 +426,7 @@ HClustVar <- R6::R6Class(
     # Discretisation method
     # -----------------------------------------------------------------------
 
+    #' @description
     #' Discretize quantitative variables into quantile-based categories
     #'
     #' @description
@@ -552,11 +439,8 @@ HClustVar <- R6::R6Class(
     #'
     #' @return Data frame with specified columns converted to factors (labeled Q1, Q2, ...)
     #'
-    #' @details
     #' Used internally for mixed variable clustering to treat all variables as categorical.
     #' Handles edge cases: empty indices, one-hot encoding, duplicate quantiles (small datasets).
-    #'
-    #' @keywords internal
     quantile_discretisation = function(df, quanti_index, n_groups) {
 
       # If no quantitative variable specified of quanti_index are not numeric, change nothing.
@@ -605,6 +489,7 @@ HClustVar <- R6::R6Class(
     # Cramer's V matrix calculation.
     # -----------------------------------------------------------------------
 
+    #' @description
     #' Calculate Cramer's V between two variables
     #'
     #' Internal helper function to compute Cramer's V,
@@ -659,6 +544,7 @@ HClustVar <- R6::R6Class(
       return(as.numeric(v))
     },
 
+    #' @description
     #' Calculate Cramer's V matrix
     #'
     #' Internal helper method that computes a matrix of pairwise Cramer's V
@@ -699,14 +585,13 @@ HClustVar <- R6::R6Class(
     # -----------------------------------------------------------------------
 
 
+    #' @description
     #' Compute cluster centroids using factorial analysis
     #'
-    #' @description
     #' Computes the centroid (synthetic variable) for each cluster by performing
     #' factorial analysis (PCA, MCA, or FAMD) and extracting the first principal
     #' component. Also stores the eigenvalues representing variance explained.
     #'
-    #' @details
     #' **Process for each cluster:**
     #' \enumerate{
     #'   \item Extracts variables belonging to the cluster
@@ -726,35 +611,7 @@ HClustVar <- R6::R6Class(
     #' is positively correlated with cluster variables on average by inverting
     #' the sign if mean correlation is negative.
     #'
-    #' @section Side Effects:
-    #' Updates private fields:
-    #' \itemize{
-    #'   \item \code{.centroids}: Matrix (n_obs × n_clusters) of centroid coordinates
-    #'   \item \code{.clusters.eigen}: Vector of eigenvalues for each cluster
-    #' }
-    #'
     #' @return None (invisible NULL). Results stored in private fields.
-    #'
-    #' @section Prerequisites:
-    #' \itemize{
-    #'   \item Tree must be cut: \code{self$labels} must not be NULL
-    #'   \item All clusters must contain at least one variable
-    #' }
-    #'
-    #' @section Errors:
-    #' \itemize{
-    #'   \item Stops if tree not cut
-    #'   \item Stops if empty cluster detected
-    #'   \item Stops if FactoMineR analysis fails
-    #' }
-    #'
-    #' @examples
-    #' \dontrun{
-    #' # Internal use - called automatically by cut_tree()
-    #' self$cut_tree(k = 3)  # Triggers private$compute_centroids()
-    #' }
-    #'
-    #' @keywords internal
     compute_centroids = function() {
 
       if (is.null(self$labels)) {
@@ -876,15 +733,17 @@ HClustVar <- R6::R6Class(
       invisible(NULL)
     },
 
+    # -----------------------------------------------------------------------
+    # Correlation ratio
+    # -----------------------------------------------------------------------
 
+    #' @description
     #' Compute the correlation ratio (eta-squared) between categorical and numeric variables
     #'
-    #' @description
     #' Calculates the correlation ratio (η²), a measure of association between
     #' a qualitative variable and a quantitative variable. This is the categorical
     #' equivalent of R² for continuous variables.
     #'
-    #' @details
     #' The correlation ratio measures the proportion of variance in the quantitative
     #' variable that is explained by the categorical variable:
     #'
@@ -894,6 +753,14 @@ HClustVar <- R6::R6Class(
     #' \itemize{
     #'   \item SSB: Between-group sum of squares
     #'   \item SST: Total sum of squares
+    #' }
+    #'
+    #' **Usage Context:**
+    #' Used internally for:
+    #' \itemize{
+    #'   \item Computing similarity between qualitative and quantitative variables
+    #'   \item Variable assignment in mixed-type clustering
+    #'   \item Summary statistics calculation for mixed clusters
     #' }
     #'
     #' **Interpretation:**
@@ -907,25 +774,6 @@ HClustVar <- R6::R6Class(
     #' @param quanti A vector (will be coerced to numeric) representing the quantitative variable
     #'
     #' @return Numeric value between 0 and 1 representing the correlation ratio (η²)
-    #'
-    #' @section Usage Context:
-    #' Used internally for:
-    #' \itemize{
-    #'   \item Computing similarity between qualitative and quantitative variables
-    #'   \item Variable assignment in mixed-type clustering
-    #'   \item Summary statistics calculation for mixed clusters
-    #' }
-    #'
-    #' @examples
-    #' \dontrun{
-    #' # Internal use only
-    #' gender <- factor(c("M", "F", "M", "F", "M", "F"))
-    #' salary <- c(50, 45, 52, 44, 51, 46)
-    #' eta2 <- private$correlation_ratio(gender, salary)
-    #' # eta2 ≈ 0.85 would indicate gender explains 85% of salary variance
-    #' }
-    #'
-    #' @keywords internal
     correlation_ratio = function(quali, quanti) {
 
       quali  <- as.factor(quali)
@@ -952,13 +800,12 @@ HClustVar <- R6::R6Class(
     # Silhouette computation method
     # -----------------------------------------------------------------------
 
+    #' @description
     #' Compute silhouette coefficients for variable clustering
     #'
-    #' @description
     #' Calculates silhouette coefficients for each variable based on their
     #' R² with own cluster and nearest cluster (from summary data).
     #'
-    #' @details
     #' The silhouette coefficient is calculated as:
     #' s(i) = (own_cluster_R2 - next_closest_R2) / max(own_cluster_R2, next_closest_R2)
     #'
@@ -968,7 +815,6 @@ HClustVar <- R6::R6Class(
     #' - Negative values: variable might be assigned to the wrong cluster
     #'
     #' @return A numeric vector of silhouette coefficients, one per variable
-    #'
     compute_silhouette = function() {
 
       # Check prerequisites
@@ -992,7 +838,6 @@ HClustVar <- R6::R6Class(
       # Calculate silhouette coefficient
       # s(i) = (a(i) - b(i)) / max(a(i), b(i))
       # where a(i) = own_cluster_R2 and b(i) = next_closest_R2
-
       silhouette_coef <- with(clust_members, {
         (own_cluster_R2 - next_closest_R2) / pmax(own_cluster_R2, next_closest_R2)
       })
@@ -1020,26 +865,35 @@ HClustVar <- R6::R6Class(
     # Constructor
     # -----------------------------------------------------------------------
 
-    #' @title Constructor for HClustVar
-    #'
     #' @description
-    #' Initializes a new instance of the `HClustVar` class.
-    #' Sets up the variable type, distance metric, and hierarchical clustering method.
+    #' Initialize a new class instance
     #'
-    #' @param vartype Character, optional. Type of variables to cluster.
-    #'   Accepted values: 'quant', 'qual', 'mixed', 'auto'. Default: 'auto'.
-    #' @param dist.metric Character, optional. Distance metric for quantitative variables.
-    #'   Accepted values: 'r', 'rsquare'. Ignored if vartype is not 'quant'.
-    #' @param cah.method Character, optional. Method for hierarchical clustering.
-    #'   Passed to `hclust()`.
-    #'   Accepted values: 'ward.D', 'ward.D2', 'single', 'complete', 'average', 'mcquitty', 'median', 'centroid'
-    #'   Default: 'ward.D'.
+    #' This method initializes the main parameters of the object, including the variable type
+    #' (`vartype`), distance metric (`dist.metric`), and hierarchical clustering method
+    #' (`cah.method`).
+    #'
+    #' If `vartype = "auto"`, automatic variable selection is activated based
+    #' on the data frame properties that will be used for fit.
+    #' If `vartype = "quant"` and `dist.metric` is `NULL`, the default metric `"rsquare"` is used.
+    #'
+    #' @param vartype Character string specifying the type of variables. Options: "auto" (enables automatic variable selection), "quant" (quantitative variables), "qual" (qualitative variables), or "mixed" (both types). Default is "auto".
+    #' @param dist.metric Character string or NULL specifying the distance metric. If NULL and vartype = "quant", default is "rsquare". Options: "r" (correlation) or "rsquare" (squared correlation). Default is NULL.
+    #' @param cah.method Character string specifying the hierarchical clustering method passed to \code{hclust}. Default is "ward.D".
+    #'
     #'
     #' @details
-    #' The constructor validates input parameters using `private$check_input` and
-    #' assigns them to private fields.
+    #' This method updates the following private fields:
+    #' \itemize{
+    #'   \item `private$.auto_var_selection`: flag indicating automatic variable selection.
+    #'   \item `private$.dist.metric`: selected distance metric.
+    #'   \item `private$.vartype`: type of variables.
+    #'   \item `private$.cah.method`: hierarchical clustering method.
+    #' }
     #'
-    #' @return A new instance of `HClustVar`.
+    #' It also performs parameter validation through the private method
+    #' `private$check_input()`.
+    #'
+    #' @return None
     initialize = function(vartype = "auto", dist.metric = NULL, cah.method = "ward.D") {
 
       # update the auto_var_selection to allow refit with auto method.
@@ -1064,15 +918,14 @@ HClustVar <- R6::R6Class(
     # Fit method
     # -----------------------------------------------------------------------
 
+    #' @description
     #' Fit hierarchical clustering on variables
     #'
-    #' @description
     #' Computes the hierarchical clustering based on the variable type (quantitative,
     #' qualitative, or mixed) and the specified distance metric.
     #'
     #' @param data data.frame or matrix containing the variables to cluster. Be careful to set your qualitatives or dummified data as factors.
     #'
-    #' @details
     #' - If `vartype = "auto"`, the method automatically selects 'quant', 'qual', or 'mixed'
     #'   based on the input data.
     #' - For quantitative variables, computes correlation or squared correlation as dissimilarity.
@@ -1110,13 +963,12 @@ HClustVar <- R6::R6Class(
     # cut_tree method
     # -----------------------------------------------------------------------
 
+    #' @description
     #' Cut the hierarchical clustering tree into clusters
     #'
-    #' @description
     #' Cuts the hierarchical clustering tree of a fitted model into clusters and compute their centroids.
     #' This method updates the `labels` and `n_clusters`attributes of the object with cluster assignments.
     #'
-    #' @details
     #' The method uses `cutree()` internally to generate cluster labels for each observation.
     #' You can specify either the number of clusters (`k`) or a cut height (`h`):
     #' - If `k` is provided, the tree is cut to produce exactly `k` clusters.
@@ -1135,12 +987,6 @@ HClustVar <- R6::R6Class(
     #' @return A vector of cluster labels corresponding to each observation. The labels are also
     #'         stored in the object's `labels` attribute.
     #'
-    #' @examples
-    #' \dontrun{
-    #' # Using an instance of the class:
-    #' obj$cut_tree(k = 3)       # cut into 3 clusters
-    #' obj$cut_tree(h = 150)     # cut at height 150
-    #' }
     #'
     cut_tree = function(k = NULL, h = NULL) {
 
@@ -1161,6 +1007,9 @@ HClustVar <- R6::R6Class(
       # Compute the centroids of the clusters.
       private$compute_centroids()
 
+      # reinitialise the summary cache.
+      private$.summary_results <- NULL
+
       return(self$labels)
 
     },
@@ -1169,13 +1018,12 @@ HClustVar <- R6::R6Class(
     # plot dendrogram method
     # -----------------------------------------------------------------------
 
+    #' @description
     #' Plot dendrogram of the hierarchical clustering
     #'
-    #' @description
     #' Displays the dendrogram of the computed hierarchical clustering tree,
     #' with optional colored rectangles highlighting the cluster groups.
     #'
-    #' @details
     #' The dendrogram visualizes the hierarchical relationships between variables
     #' obtained from the hierarchical clustering algorithm.
     #' If a number of clusters `k` is provided, the function colors and outlines
@@ -1185,11 +1033,6 @@ HClustVar <- R6::R6Class(
     #'        If `k = 0` (default), the dendrogram is drawn without colored groups.
     #'
     #' @return None. Generates a plot.
-    #'
-    #' @examples
-    #' # Example usage (assuming the model has been fitted):
-    #' # obj$plot_dendrogram(k = 3)
-    #'
     plot_dendrogram = function(k = 0) {
       plot(private$.tree, main = "Dendrogramme - CAH", xlab = "Variables")
 
@@ -1203,13 +1046,12 @@ HClustVar <- R6::R6Class(
     # Predict method
     # -----------------------------------------------------------------------
 
+    #' @description
     #' Predict cluster membership for new variables
     #'
-    #' @description
     #' Assigns new variables to existing clusters based on their similarity
     #' with the variables used to build the clustering model.
     #'
-    #' @details
     #' The prediction method varies depending on the clustering method used:
     #' - For Ward methods ('ward.D', 'ward.D2', 'centroid'): Uses correlation
     #'   with cluster centroids (principal components)
@@ -1227,22 +1069,6 @@ HClustVar <- R6::R6Class(
     #' @return A named numeric vector where:
     #'   - Names correspond to column names in new_data
     #'   - Values are cluster assignments (integers from 1 to n_clusters)
-    #'
-    #' @examples
-    #' \dontrun{
-    #' # Fit model
-    #' hc <- HClustVar$new(vartype = "quant")
-    #' hc$fit(training_data)
-    #' hc$cut_tree(k = 3)
-    #'
-    #' # Predict new variables
-    #' new_vars <- data.frame(new_v1 = rnorm(100), new_v2 = rnorm(100))
-    #' predictions <- hc$predict(new_vars)
-    #' print(predictions)
-    #' # new_v1 new_v2
-    #' #      1      2
-    #' }
-    #'
     predict = function(new_data) {
 
       # ============
@@ -1467,6 +1293,7 @@ HClustVar <- R6::R6Class(
               "complete" = min(cluster_similarities),      # Farthest element
               "median"   = median(cluster_similarities),   # Median similarity
               "average"  = mean(cluster_similarities),     # Mean similarity
+              #TODO: Check mcquitty
               "mcquitty" = mean(cluster_similarities),     # Same as average (no ponderation for illustrative var).
               stop(sprintf("Unhandled CAH method: %s", private$.cah.method))
             )
@@ -1495,20 +1322,20 @@ HClustVar <- R6::R6Class(
     # Cohesion plot
     # -----------------------------------------------------------------------
 
+    #' @description
     #' Plot cohesion gain curve for selecting optimal number of clusters
     #'
-    #' @description
     #' Creates a diagnostic plot showing the gain in within-cluster cohesion
     #' (measured by explained variance) as a function of the number of clusters.
     #' This plot helps determine the optimal number of clusters using the
-    #' "elbow method".
+    #' "elbow method". Also plot the mean silhouette observable for each
+    #' cluster nubmer.
     #'
-    #' @details
     #' **Algorithm:**
     #'
     #' The method iteratively cuts the hierarchical tree at different levels
     #' (from 1 to the maximum number of variables) and computes the total
-    #' within-cluster variance explained at each level.
+    #' within-cluster variance explained and silhouette at each level.
     #'
     #' For each number of clusters \code{k}:
     #' \itemize{
@@ -1538,7 +1365,7 @@ HClustVar <- R6::R6Class(
     #' **Interpreting the Plot:**
     #'
     #' The ideal number of clusters is typically found at the "elbow" of the curve,
-    #' where:
+    #' where or at the maximum of the silhouette curve.
     #' \itemize{
     #'   \item The curve shows a sharp increase initially (adding clusters
     #'         significantly improves cohesion)
@@ -1562,76 +1389,6 @@ HClustVar <- R6::R6Class(
     #'
     #' @return None. Produces a plot as a side effect. The object's state is
     #'   preserved (restored to its original configuration after plotting).
-    #'
-    #' @section Prerequisites:
-    #' \itemize{
-    #'   \item Model must be fitted: \code{self$fitted == TRUE}
-    #'   \item No tree cutting required (method tests all possible cuts)
-    #' }
-    #'
-    #' @section Performance Note:
-    #' This method performs clustering for all possible numbers of clusters
-    #' (1 to n_variables), which can be computationally intensive for datasets
-    #' with many variables. For datasets with >50 variables, this may take
-    #' several seconds to complete.
-    #'
-    #' @examples
-    #' \dontrun{
-    #' # Fit model (no need to cut tree beforehand)
-    #' hc <- HClustVar$new(vartype = "quant", dist.metric = "rsquare")
-    #' hc$fit(data)
-    #'
-    #' # Generate cohesion plot
-    #' hc$plot_cohesion()
-    #'
-    #' # Interpret the plot:
-    #' # - Look for the "elbow" where the curve bends
-    #' # - This suggests the optimal number of clusters
-    #'
-    #' # Example: If elbow appears at k=3, cut there
-    #' hc$cut_tree(k = 3)
-    #'
-    #' # Compare with other diagnostic plots
-    #' hc$plot_dendrogram(k = 3)
-    #' hc$plot_silhouette()
-    #'
-    #' # For detailed analysis after selecting k
-    #' results <- hc$summary()
-    #' print(results$clust_summary)
-    #' }
-    #'
-    #' @section Alternative Methods:
-    #' Other approaches for selecting the number of clusters:
-    #' \itemize{
-    #'   \item \code{plot_dendrogram()}: Visual inspection of hierarchical structure
-    #'   \item \code{plot_silhouette()}: Assess cluster quality at a specific k
-    #'   \item \code{summary()}: Examine explained variance and R² statistics
-    #'   \item Domain knowledge: Consider practical interpretability
-    #' }
-    #'
-    #' @section Mathematical Background:
-    #' The cohesion measure is related to the between-cluster variance:
-    #' \itemize{
-    #'   \item Higher cohesion = Variables within clusters are more similar
-    #'   \item Lower cohesion = Variables are dispersed across clusters
-    #'   \item Maximum cohesion (100%) achieved when k = n_variables
-    #' }
-    #'
-    #' This is analogous to the within-cluster sum of squares criterion used
-    #' in k-means clustering, adapted for hierarchical variable clustering.
-    #'
-    #' @seealso
-    #' \code{\link{cut_tree}} for cutting the tree at the optimal k
-    #' \code{\link{plot_dendrogram}} for visualizing the hierarchical structure
-    #' \code{\link{plot_silhouette}} for assessing cluster quality
-    #' \code{\link{summary}} for detailed cluster statistics
-    #'
-    #' @references
-    #' \itemize{
-    #'   \item Chavent, M., et al. (2012). "ClustOfVar: An R Package for the
-    #'         Clustering of Variables". Journal of Statistical Software, 50(13).
-    #' }
-    #'
     plot_cohesion = function() {
 
       # Check if fitted.
@@ -1645,11 +1402,14 @@ HClustVar <- R6::R6Class(
 
       original_centroids <- self$centroids
       original_clusters.eigen <- self$clusters.eigen
+      original_summary <- private$.summary_results
 
       # initialize the within inertia vector.
       within.inertia <- numeric()
 
       max_clusters <- 0
+
+
 
       # loop through each cluster.
       if (self$vartype == "quant"){
@@ -1663,9 +1423,13 @@ HClustVar <- R6::R6Class(
       # initialize the inertia vector
       inertia <- numeric(max_clusters)
 
+      # compute mean silhouette for each cluster number
+      silhouette <- numeric(max_clusters)
+
+      # TODO: finish implementing silouhette
       for (k in seq_len(max_clusters)) {
 
-
+        # ------------ Compute inertia for the cluster k
         # if we reach max cluster, just update knowing each eigens values is equal 1.
         if (k == max_clusters) {
           inertia[k] <- k
@@ -1677,13 +1441,51 @@ HClustVar <- R6::R6Class(
           # save the sum of within inertia (eigens values of each cluster).
           inertia[k] <- sum(self$clusters.eigen)
         }
+
+        # ----------- Compute silouhette for the cluster k
+
+        # k==1 silouhette is not defined.
+        if (k == 1) {
+          silhouette[k] <- 0
+        } else {
+
+          # run summary method to get distance with own and next cluster.
+          silhouette_vector <- private$compute_silhouette()
+
+          silhouette[k] <- mean(silhouette_vector, na.rm = TRUE)
+        }
       } # end for.
 
       # calculate the cohesion gain.
       cohesion <- (inertia - inertia[1]) / (max_clusters - inertia[1])
 
-      # plot graph
-      plot(cohesion, type = "b", xlab = "Number of clusters", ylab = "Gain in cohesion (%)")
+
+      # --- Plot cohesion
+      plot(seq_len(max_clusters), cohesion,
+           type = "b", col = "blue", pch = 19, lwd = 2,
+           xlab = "Number of clusters (K)",
+           ylab = "Gain in cohesion / Silhouette",
+           main = "Cohesion and Silhouette vs K")
+
+      # --- Add silhouette curve (scaled if needed)
+      lines(seq_len(max_clusters), silhouette, type = "b",
+            col = "darkorange", pch = 17, lwd = 2)
+      points(seq_len(max_clusters), silhouette, col = "darkorange", pch = 17)
+
+      # --- Add legend
+      legend("bottomright",
+             legend = c("Cohesion gain", "Mean silhouette"),
+             col = c("blue", "darkorange"),
+             pch = c(19, 17),
+             lty = 1,
+             bty = "n")
+
+      # --- Highlight optimal K
+      k_opt <- which.max(silhouette)
+      abline(v = k_opt, col = "darkorange", lty = 2, lwd = 1.5)
+      text(k_opt, max(silhouette, na.rm = TRUE),
+           labels = paste("K* =", k_opt),
+           pos = 4, col = "darkorange", cex = 0.9)
 
       # Restore original configuration.
       self$labels <- original_label
@@ -1691,16 +1493,16 @@ HClustVar <- R6::R6Class(
 
       self$centroids <- original_centroids
       self$clusters.eigen <- original_clusters.eigen
-
+      private$.summary_results <- original_summary
     },
 
     # -----------------------------------------------------------------------
     # Silhouette plot method
     # -----------------------------------------------------------------------
 
+    #' @description
     #' Plot silhouette diagram for variable clustering
     #'
-    #' @description
     #' Creates a professional silhouette plot showing how well each variable fits
     #' within its assigned cluster.
     #'
@@ -1711,14 +1513,6 @@ HClustVar <- R6::R6Class(
     #' @param sort_desc Logical. Sort by silhouette descending within clusters? Default: FALSE
     #'
     #' @return Invisibly returns the silhouette coefficients
-    #'
-    #' @examples
-    #' \dontrun{
-    #' hc$fit(data)
-    #' hc$cut_tree(k = 3)
-    #' hc$plot_silhouette()
-    #' }
-    #'
     plot_silhouette = function(main = "Silhouette Analysis",
                                colors = NULL,
                                show_values = TRUE,
@@ -1898,15 +1692,16 @@ HClustVar <- R6::R6Class(
     # -----------------------------------------------------------------------
     # Multidimensional scaling
     # -----------------------------------------------------------------------
+
+
+    #' @description
     #' Plot multidimensional scaling projection of variables
     #'
-    #' @description
     #' Creates a 2D visualization of variable relationships using classical
     #' multidimensional scaling (MDS) on the distance matrix. Variables are
     #' projected onto the first two principal coordinates, with automatic
     #' cluster coloring.
     #'
-    #' @details
     #' **Algorithm:**
     #'
     #' Uses classical multidimensional scaling (\code{cmdscale}) to project
@@ -1937,64 +1732,6 @@ HClustVar <- R6::R6Class(
     #' }
     #'
     #' @return None. Produces a plot as a side effect.
-    #'
-    #' @section Prerequisites:
-    #' \itemize{
-    #'   \item Model must be fitted: \code{self$fitted == TRUE}
-    #'   \item Distance matrix must be computed
-    #' }
-    #'
-    #' @section Errors and Warnings:
-    #' \itemize{
-    #'   \item **Error**: Model not fitted
-    #'   \item **Error**: Negative eigenvalues for first two dimensions (projection impossible)
-    #'   \item **Warning**: Some eigenvalues negative (quality metric may be altered)
-    #' }
-    #'
-    #' @section Mathematical Background:
-    #' Classical MDS finds coordinates in low-dimensional space such that
-    #' Euclidean distances between points approximate original dissimilarities.
-    #' The eigenvalue decomposition provides:
-    #' \itemize{
-    #'   \item Coordinates on principal axes
-    #'   \item Variance explained by each dimension
-    #'   \item Quality of fit assessment
-    #' }
-    #'
-    #' @examples
-    #' \dontrun{
-    #' # Fit model
-    #' hc <- HClustVar$new(vartype = "quant", dist.metric = "rsquare")
-    #' hc$fit(data)
-    #'
-    #' # MDS projection before cutting (no colors)
-    #' hc$mds_projection()
-    #'
-    #' # Cut tree then visualize with cluster colors
-    #' hc$cut_tree(k = 3)
-    #' hc$mds_projection()  # Variables colored by cluster
-    #'
-    #' # Compare with dendrogram
-    #' par(mfrow = c(1, 2))
-    #' hc$plot_dendrogram(k = 3)
-    #' hc$mds_projection()
-    #' par(mfrow = c(1, 1))
-    #' }
-    #'
-    #' @section Use Cases:
-    #' \itemize{
-    #'   \item **Cluster validation**: Check if clusters are spatially separated
-    #'   \item **Outlier detection**: Identify isolated variables
-    #'   \item **Dimension reduction**: Verify if 2D captures most information
-    #'   \item **Complementary view**: Alternative to dendrogram for structure visualization
-    #' }
-    #'
-    #' @seealso
-    #' \code{\link[stats]{cmdscale}} for classical multidimensional scaling
-    #' \code{\link{plot_dendrogram}} for hierarchical structure visualization
-    #' \code{\link{plot_cohesion}} for selecting optimal number of clusters
-    #'
-    #' @keywords internal
     mds_projection = function() {
 
       if (!self$fitted) {
@@ -2046,14 +1783,13 @@ HClustVar <- R6::R6Class(
     # Summary method
     # -----------------------------------------------------------------------
 
+    #' @description
     #' Produce a detailed summary of the variable clustering results
     #'
-    #' @description
     #' Generates comprehensive statistics about the clustering results, including
     #' cluster-level summaries and individual variable membership details. Results
     #' are cached for performance optimization.
     #'
-    #' @details
     #' This method produces two main data frames:
     #'
     #' **1. Cluster Summary (`clust_summary`)**
@@ -2084,6 +1820,16 @@ HClustVar <- R6::R6Class(
     #'         own cluster than to the next closest one).
     #' }
     #'
+    #' **3. Correlation between latent component of cluster**
+    #'
+    #' Contains proximity between clusters:
+    #' \itemize{
+    #'   \item \code{cluster A}: First comparison cluster
+    #'   \item \code{cluster B}: Second comparison cluster
+    #'   \item \code{correlation}: Pearson correlation
+    #'   \item \code{suqared-correlation}: R2
+    #' }
+    #'
     #' **Similarity Metrics Used:**
     #' \itemize{
     #'   \item Quantitative variables: Squared Pearson correlation (R²)
@@ -2106,57 +1852,8 @@ HClustVar <- R6::R6Class(
     #'   \item \code{cut_tree()} is called (different number of clusters)
     #' }
     #'
-    #' @return A list with two elements:
-    #' \describe{
-    #'   \item{\code{clust_summary}}{Data frame with cluster-level statistics}
-    #'   \item{\code{clust_members}}{Data frame with variable-level statistics}
-    #' }
-    #'
     #' If the model is not fitted or the tree has not been cut, prints an
     #' informative message and returns \code{invisible(self)}.
-    #'
-    #' @section Prerequisites:
-    #' \itemize{
-    #'   \item Model must be fitted: \code{self$fitted == TRUE}
-    #'   \item Tree must be cut: \code{self$n_clusters} must not be NULL
-    #'   \item Centroids must be computed (automatic after \code{cut_tree()})
-    #' }
-    #'
-    #' @examples
-    #' \dontrun{
-    #' # Fit model and cut tree
-    #' hc <- HClustVar$new(vartype = "quant", dist.metric = "rsquare")
-    #' hc$fit(data)
-    #' hc$cut_tree(k = 3)
-    #'
-    #' # Get summary
-    #' results <- hc$summary()
-    #'
-    #' # Access cluster summary
-    #' print(results$clust_summary)
-    #' #   cluster n_members var_explained prop_explained
-    #' #   1       5         4.20          0.84
-    #' #   2       3         2.65          0.88
-    #' #   3       4         3.45          0.86
-    #'
-    #' # Access variable details
-    #' print(results$clust_members)
-    #' #              cluster own_cluster_R2 next_closest_R2 1 - R2_ratio
-    #' #   var1       1       0.95           0.23            0.07
-    #' #   var2       1       0.89           0.31            0.16
-    #' #   ...
-    #'
-    #' # Identify poorly classified variables
-    #' poorly_classified <- results$clust_members[
-    #'   results$clust_members$`1 - R2_ratio` > 0.5,
-    #' ]
-    #'
-    #' # Calculate total variance explained
-    #' total_var <- sum(results$clust_summary$var_explained)
-    #' print(paste("Total variance explained:", round(total_var, 2)))
-    #' }
-    #'
-    #' @section Interpretation Guidelines:
     #'
     #' **Cluster Quality:**
     #' \itemize{
@@ -2172,19 +1869,19 @@ HClustVar <- R6::R6Class(
     #'   \item \code{1 - R2_ratio > 0.7}: Potentially misclassified
     #' }
     #'
-    #' @seealso
-    #' \code{\link{cut_tree}} for cutting the hierarchical tree
-    #' \code{\link{plot_silhouette}} for visual assessment of cluster quality
-    #' \code{\link{predict}} for assigning new variables to clusters
-    #'
+    #' @return A list with three elements:
+    #' \describe{
+    #'   \item{\code{clust_summary}}{Data frame with cluster-level statistics}
+    #'   \item{\code{clust_members}}{Data frame with variable-level statistics}
+    #'   \item{\code{centroids_correlation}}{Data frame with correlation between
+    #'   clusters}
+    #' }
     summary = function() {
 
       # Return the result if already cached.
       if (!is.null(self$summary_results)) {
         return(self$summary_results)
       }
-
-
 
       # Model state
       if (!self$fitted) {
@@ -2197,6 +1894,12 @@ HClustVar <- R6::R6Class(
         cat("Status: Tree not cut.\n")
         cat("Use self$cut_tree().\n\n")
         return(invisible(self))
+      }
+
+      # If only 1 cluster observable, do not compute summary
+      if (self$n_clusters == 1) {
+        warning("Cannot compute proximity with other clusters if only 1 available.")
+        return(NULL)
       }
 
       if (self$vartype == "quant") {
@@ -2274,7 +1977,7 @@ HClustVar <- R6::R6Class(
       clust_members <- clust_members[order(clust_members$cluster, -clust_members$own_cluster_R2), ]
 
       # ----------------
-      # Crrelation between latent component
+      # Correlation between latent component
       # ----------------
 
       # Initialise the dataframe with all cluster pairs
@@ -2303,13 +2006,12 @@ HClustVar <- R6::R6Class(
     # -----------------------------------------------------------------------
 
 
+    #' @description
     #' Print method for HClustVar objects
     #'
-    #' @description
     #' Displays a concise overview of the HClustVar object with key information.
     #'
     #' @return Invisibly returns the object itself.
-    #'
     print = function() {
 
       cat("\n")
@@ -2459,7 +2161,6 @@ HClustVar <- R6::R6Class(
 
       private$.clusters.eigen <- value
     }
-
   )
 )
 

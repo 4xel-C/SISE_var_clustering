@@ -321,13 +321,10 @@ Journal of Statistical Software, 50(13), 1-16.
 \code{\link{ClusteringBase}} for the parent class
 \code{\link[stats]{prcomp}} for Principal Component Analysis
 \code{\link[stats]{cor}} for correlation calculations
-
-Other clustering classes: 
-\code{\link{HClustVar}}
 }
 \concept{clustering classes}
 \section{Super class}{
-\code{VarClustering::ClusteringBase} -> \code{KmeansVariables}
+\code{\link[VarClustering:ClusteringBase]{VarClustering::ClusteringBase}} -> \code{KmeansVariables}
 }
 \section{Active bindings}{
 \if{html}{\out{<div class="r6-active-bindings">}}

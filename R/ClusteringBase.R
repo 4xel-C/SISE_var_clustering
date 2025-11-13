@@ -60,7 +60,6 @@
 #' obj$fit(iris[, 1:4])
 #' }
 #'
-#' @keywords internal
 ClusteringBase <- R6::R6Class(
 
   # Calling string.
@@ -84,10 +83,10 @@ ClusteringBase <- R6::R6Class(
     # CORE VALIDATION METHODS
     # -----------------------------------------------------------------------
 
+    #' @description
     #' Validate input data structure
     #' @param data Data.frame or matrix
     #' @return The data as a dataframe with column named if needed.
-    #' @keywords internal
     validate_data_structure = function(data) {
 
       # Check type
@@ -118,9 +117,10 @@ ClusteringBase <- R6::R6Class(
     },
 
 
+    #' @description
     #' Validate number of clusters
     #' @param n_clusters Integer or NULL
-    #' @keywords internal
+    #' @return Number of clusters
     validate_n_clusters = function(n_clusters) {
 
       # Return NULL if needed as some algorithms dosn't require a specified k.
@@ -149,7 +149,9 @@ ClusteringBase <- R6::R6Class(
       return(n_clusters)
     },
 
+    #' @description
     #' Check for missing values in the data. Raise an error if found one.
+    #' @return none
     check_missing_values = function() {
 
       # Count missing values per variable
@@ -164,9 +166,9 @@ ClusteringBase <- R6::R6Class(
     },
 
 
+    #' @description
     #' Detect variable types (quantitative vs qualitative)
     #' @return The list containing vector of quantitative indices, and qualitative indices.
-    #' @keywords internal
     detect_variable_types = function() {
 
       is_quanti <- sapply(private$.data, function(x) {
@@ -201,19 +203,7 @@ ClusteringBase <- R6::R6Class(
     #' Child classes inheriting from `ClusteringBase` can implement
     #' their own constructor if needed.
     #'
-    #' @examples
-    #' \dontrun{
-    #' MyAlgo <- R6::R6Class(
-    #'   "MyAlgo",
-    #'   inherit = ClusteringBase,
-    #'   public = list(
-    #'     initialize = function() {
-    #'       message("MyAlgo initialized.")
-    #'     }
-    #'   )
-    #' )
-    #' }
-    #' @keywords internal
+    #' @return none
     initialize = function() {
 
       # Prevent direct instantiation.
@@ -233,8 +223,7 @@ ClusteringBase <- R6::R6Class(
     #' This method must be implemented by any subclass inheriting from
     #' `ClusteringBase`. It defines the core algorithm for fitting the clustering
     #' model on the input data.
-    #'
-    #' @noRd
+    #' @return none
     fit = function() {
       stop("The fit() method should be implemented in a child class.")
     },
@@ -245,8 +234,7 @@ ClusteringBase <- R6::R6Class(
     #' @details
     #' To be implemented by subclasses. Defines how to assign clusters to new
     #' observations based on the fitted model.
-    #'
-    #' @noRd
+    #' @return none
     predict = function() {
       stop("The predict() method should be implemented in a child class.")
     },
@@ -257,8 +245,7 @@ ClusteringBase <- R6::R6Class(
     #' @details
     #' Should display a human-readable summary of the clustering model
     #' (e.g., number of clusters, inertia, etc.).
-    #'
-    #' @noRd
+    #' @return none
     summary = function() {
       stop("The summary() method should be implemented in a child class.")
     },
@@ -269,8 +256,7 @@ ClusteringBase <- R6::R6Class(
     #' @details
     #' To be implemented by subclasses to control how objects of the class
     #' are printed or displayed.
-    #'
-    #' @noRd
+    #' @return none
     print = function() {
       stop("The print() method should be implemented in a child class.")
     },
@@ -280,8 +266,6 @@ ClusteringBase <- R6::R6Class(
     # -----------------------------------------------------------------------
 
 
-    #' @title Load and validate clustering input data
-    #'
     #' @description
     #' Performs all necessary checks and preprocessing steps to ensure that
     #' the input dataset is compatible with the clustering algorithm.
@@ -299,14 +283,6 @@ ClusteringBase <- R6::R6Class(
     #' @return
     #' Invisibly updates the internal `.data`, `.quanti_indices`, and `.quali_indices`
     #' fields of the object.
-    #'
-    #' @examples
-    #' \dontrun{
-    #' my_algo <- MyAlgo$new()
-    #' my_algo$load_and_check_data(iris[, 1:4])
-    #' }
-    #'
-    #' @noRd
     load_and_check_data = function(data) {
 
       if (!is.null(data)) {
@@ -321,26 +297,14 @@ ClusteringBase <- R6::R6Class(
       }
     },
 
-    #' @title Get quantitative variables only
-    #'
+
     #' @description
     #' Returns the subset of the dataset containing **quantitative variables** only.
     #'
     #' This method can be used by subclasses (or internally) to access the numeric
     #' variables detected during the `load_and_check_data()` validation process.
     #'
-    #' @return
-    #' A `data.frame` containing only the quantitative (numeric) variables.
-    #'
-    #' @examples
-    #' \dontrun{
-    #' my_algo <- MyAlgo$new()
-    #' my_algo$load_and_check_data(iris)
-    #' quanti_data <- my_algo$get_quanti_data()
-    #' head(quanti_data)
-    #' }
-    #'
-    #' @keywords internal
+    #' @return A `data.frame` containing only the quantitative (numeric) variables.
     get_quanti_data = function() {
       if (length(private$.quanti_indices) == 0) {
         stop("No quantitative variables found in data.")
@@ -350,26 +314,13 @@ ClusteringBase <- R6::R6Class(
 
 
 
-    #' @title Get qualitative variables only
-    #'
     #' @description
     #' Returns the subset of the dataset containing **qualitative variables** only.
     #'
     #' This method can be used by subclasses (or internally) to access the categorical
     #' variables detected during the `load_and_check_data()` validation process.
     #'
-    #' @return
-    #' A `data.frame` containing only the qualitative (categorical or factor) variables.
-    #'
-    #' @examples
-    #' \dontrun{
-    #' my_algo <- MyAlgo$new()
-    #' my_algo$load_and_check_data(iris)
-    #' quali_data <- my_algo$get_quali_data()
-    #' head(quali_data)
-    #' }
-    #'
-    #' @noRd
+    #' @return A `data.frame` containing only the qualitative (categorical or factor) variables.
     get_quali_data = function() {
       if (length(private$.quali_indices) == 0) {
         stop("No qualitative variables found in data.")
@@ -379,8 +330,6 @@ ClusteringBase <- R6::R6Class(
 
 
 
-    #' @title Validate data compatibility for specific clustering algorithms
-    #'
     #' @description
     #' Checks that the loaded dataset meets the requirements of the clustering
     #' algorithm regarding the type and number of variables.
@@ -397,15 +346,6 @@ ClusteringBase <- R6::R6Class(
     #' @return
     #' Invisibly returns `TRUE` if the dataset meets the required conditions.
     #' Throws an error otherwise.
-    #'
-    #' @examples
-    #' \dontrun{
-    #' my_algo <- MyAlgo$new()
-    #' my_algo$load_and_check_data(iris)
-    #' my_algo$validate_algorithm_requirements("quant")
-    #' }
-    #'
-    #' @noRd
     validate_algorithm_requirements = function(type) {
 
       has_quanti <- length(private$.quanti_indices) > 1
@@ -437,7 +377,7 @@ ClusteringBase <- R6::R6Class(
     # data getter/setter
     # -------------------------------------------------------------------------
 
-    # Access or set the data attributes (original dataframe)
+    #' @field data The dataframe loaded.
     data = function(value) {
 
       if (missing(value)) {
@@ -451,7 +391,7 @@ ClusteringBase <- R6::R6Class(
     # n_clusters getter/setter
     # -------------------------------------------------------------------------
 
-    # Access or set the number of clusters generated.
+    #' @field n_clusters Number of clusters.
     n_clusters = function(value) {
       if (missing(value)) {
         return(private$.n_clusters)
@@ -469,7 +409,7 @@ ClusteringBase <- R6::R6Class(
     # labels getter/setter
     # -------------------------------------------------------------------------
 
-    # Access or modify cluster labels.
+    #' @field labels A vector of labels for each variable.
     labels = function(value) {
       if (missing(value)) {
         return(private$.labels)
@@ -488,7 +428,7 @@ ClusteringBase <- R6::R6Class(
     # fitted getter/setter
     # -------------------------------------------------------------------------
 
-    # Access or edit fitted attribute.
+    #' @field fitted Boolean if the algorithm is fitted on data or not.
     fitted = function(value) {
       if (missing(value)) {
         return(private$.fitted)
@@ -507,10 +447,10 @@ ClusteringBase <- R6::R6Class(
     # -------------------------------------------------------------------------
 
 
-    # access to the indices of quantitative indices.
+    #' @field quanti_indices return the vector o indices of the quantitative variables.
     quanti_indices = function() private$.quanti_indices,
 
-    # access to the indices of qualitative indices
+    #' @field quali_indices return the vector o indices of the qualitative variables.
     quali_indices  = function() private$.quali_indices
   )
 )
