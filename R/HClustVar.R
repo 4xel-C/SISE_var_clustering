@@ -1387,9 +1387,12 @@ HClustVar <- R6::R6Class(
     #' This ensures the plot can be generated without affecting any existing
     #' cluster assignments.
     #'
+    #' @param max_clusters maximum cluster to plot the cohesion plot.
+    #' @param plot_silhouette Boolean indicating whether or not to plot the silhouette plot.
+    #'
     #' @return None. Produces a plot as a side effect. The object's state is
     #'   preserved (restored to its original configuration after plotting).
-    plot_cohesion = function() {
+    plot_cohesion = function(max_clusters = 0, plot_silhouette = FALSE) {
 
       # Check if fitted.
       if (!self$fitted) {
@@ -1407,17 +1410,24 @@ HClustVar <- R6::R6Class(
       # initialize the within inertia vector.
       within.inertia <- numeric()
 
-      max_clusters <- 0
+      # get the number of variables.
+      p = 0
 
+      # If max cluster == 0, compute for all clusters possibles.
 
 
       # loop through each cluster.
       if (self$vartype == "quant"){
-        max_clusters <- length(self$quanti_indices)
+        p <- length(self$quanti_indices)
       } else if (self$vartype == "qual") {
-        max_clusters <- length(self$quali_indices)
+        p <- length(self$quali_indices)
       } else {
-        max_clusters <- ncol(self$data)
+        p <- ncol(self$data)
+      }
+
+      # If max_clusters is set to 0 (default), compute up to all clusters
+      if (max_clusters == 0) {
+        max_clusters <- p
       }
 
       # initialize the inertia vector
@@ -1426,12 +1436,12 @@ HClustVar <- R6::R6Class(
       # compute mean silhouette for each cluster number
       silhouette <- numeric(max_clusters)
 
-      # TODO: finish implementing silouhette
+      # TODO: DEBUG SILHOUETTE
       for (k in seq_len(max_clusters)) {
 
         # ------------ Compute inertia for the cluster k
-        # if we reach max cluster, just update knowing each eigens values is equal 1.
-        if (k == max_clusters) {
+        # if we reach max cluster == p -> inertia = 1 for all clusters (1 cluster per variable)
+        if (k == p) {
           inertia[k] <- k
         } else {
 
@@ -1444,20 +1454,14 @@ HClustVar <- R6::R6Class(
 
         # ----------- Compute silouhette for the cluster k
 
-        # k==1 silouhette is not defined.
-        if (k == 1) {
-          silhouette[k] <- 0
-        } else {
-
-          # run summary method to get distance with own and next cluster.
-          silhouette_vector <- private$compute_silhouette()
-
-          silhouette[k] <- mean(silhouette_vector, na.rm = TRUE)
+        if (plot_silhouette && k > 1) {
+          # loop through each cluster.
+          silhouette[k] <- mean(private$compute_silhouette())
         }
       } # end for.
 
       # calculate the cohesion gain.
-      cohesion <- (inertia - inertia[1]) / (max_clusters - inertia[1])
+      cohesion <- (inertia - inertia[1]) / (p - inertia[1])
 
 
       # --- Plot cohesion
@@ -1467,25 +1471,28 @@ HClustVar <- R6::R6Class(
            ylab = "Gain in cohesion / Silhouette",
            main = "Cohesion and Silhouette vs K")
 
-      # --- Add silhouette curve (scaled if needed)
-      lines(seq_len(max_clusters), silhouette, type = "b",
-            col = "darkorange", pch = 17, lwd = 2)
-      points(seq_len(max_clusters), silhouette, col = "darkorange", pch = 17)
+      if (plot_silhouette) {
+        # --- Add silhouette curve (scaled if needed)
+        lines(seq_len(max_clusters), silhouette, type = "b",
+              col = "darkorange", pch = 17, lwd = 2)
+        points(seq_len(max_clusters), silhouette, col = "darkorange", pch = 17)
 
-      # --- Add legend
-      legend("bottomright",
-             legend = c("Cohesion gain", "Mean silhouette"),
-             col = c("blue", "darkorange"),
-             pch = c(19, 17),
-             lty = 1,
-             bty = "n")
+        # --- Add legend
+        legend("bottomright",
+               legend = c("Cohesion gain", "Mean silhouette"),
+               col = c("blue", "darkorange"),
+               pch = c(19, 17),
+               lty = 1,
+               bty = "n")
 
-      # --- Highlight optimal K
-      k_opt <- which.max(silhouette)
-      abline(v = k_opt, col = "darkorange", lty = 2, lwd = 1.5)
-      text(k_opt, max(silhouette, na.rm = TRUE),
-           labels = paste("K* =", k_opt),
-           pos = 4, col = "darkorange", cex = 0.9)
+        # --- Highlight optimal K
+        k_opt <- which.max(silhouette)
+        abline(v = k_opt, col = "darkorange", lty = 2, lwd = 1.5)
+        text(k_opt, max(silhouette, na.rm = TRUE),
+             labels = paste("K* =", k_opt),
+             pos = 4, col = "darkorange", cex = 0.9)
+      }
+
 
       # Restore original configuration.
       self$labels <- original_label
