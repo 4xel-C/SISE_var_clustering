@@ -1836,8 +1836,8 @@ HClustVar <- R6::R6Class(
     summary = function() {
 
       # Return the result if already cached.
-      if (!is.null(self$summary_results)) {
-        return(self$summary_results)
+      if (!is.null(private$.summary_results)) {
+        return(private$.summary_results)
       }
 
       # Model state
@@ -1867,7 +1867,6 @@ HClustVar <- R6::R6Class(
         variables <- colnames(self$data)
       }
 
-
       # ----------------
       # Cluster summary
       # ----------------
@@ -1884,7 +1883,6 @@ HClustVar <- R6::R6Class(
       total_var_explained <- sum(clust_summary$var_explained)
       percentage_var_explained <- total_var_explained / length(variables)
 
-
       # ----------------
       # Cluster Members
       # ----------------
@@ -1896,8 +1894,6 @@ HClustVar <- R6::R6Class(
 
       own_cluster_R2 <- numeric(length(variables))
       next_closest_R2 <- numeric(length(variables))
-
-
 
       # Iteration on all variables to calculate their properties.
       for (i in 1:length(variables)) {
@@ -1918,7 +1914,9 @@ HClustVar <- R6::R6Class(
           })
         } else {
           # correlation ratio if qualitative.
-          cor_clusters_temp <- apply(self$centroids, MARGIN = 2, FUN = function(centroid) {private$correlation_ratio(self$data[[variable]], centroid)})
+          cor_clusters_temp <- apply(self$centroids, MARGIN = 2, FUN = function(centroid) {
+            private$correlation_ratio(self$data[[variable]], centroid)
+          })
         }
 
         own_cluster_R2[i] <- cor_clusters_temp[own_clust]
@@ -1928,13 +1926,38 @@ HClustVar <- R6::R6Class(
       # Update the dataframe.
       clust_members["own_cluster_R2"] <- round(own_cluster_R2, 2)
       clust_members["next_closest_R2"] <- round(next_closest_R2, 2)
-      clust_members["1 - R2_ratio"] <- round((1 - clust_members["own_cluster_R2"]) / (1 - clust_members["next_closest_R2"]), 2)
+      clust_members["1 - R2_ratio"] <- round((1 - clust_members["own_cluster_R2"]) /
+                                               (1 - clust_members["next_closest_R2"]), 2)
+
+      # ----------------
+      # Silhouette scores based on R²
+      # ----------------
+
+      silhouette_values <- (own_cluster_R2 - next_closest_R2) /
+        pmax(own_cluster_R2, next_closest_R2)
+
+      clust_members["silhouette"] <- round(silhouette_values, 3)
+
+      # Average silhouette score
+      avg_silhouette <- mean(silhouette_values)
+
+      # Silhouette by cluster
+      cluster_silhouette <- sapply(1:self$n_clusters, function(k) {
+        cluster_vars <- which(self$labels[variables] == k)
+        if (length(cluster_vars) > 0) {
+          mean(silhouette_values[cluster_vars])
+        } else {
+          NA
+        }
+      })
+
+      clust_summary["avg_silhouette"] <- round(cluster_silhouette, 3)
 
       # Sort the clust_members df
       clust_members <- clust_members[order(clust_members$cluster, -clust_members$own_cluster_R2), ]
 
       # ----------------
-      # Correlation between latent component
+      # Correlation between latent components
       # ----------------
 
       # Initialise the dataframe with all cluster pairs
@@ -1949,8 +1972,14 @@ HClustVar <- R6::R6Class(
       # Add a squared correlation column
       component_correlations$squared_correlations <- round(component_correlations$correlation**2, 3)
 
-
-      result <- list(clust_summary = clust_summary, clust_members = clust_members, centroids_correlations = component_correlations)
+      # Prepare result object
+      result <- list(
+        clust_summary = clust_summary,
+        clust_members = clust_members,
+        centroids_correlations = component_correlations,
+        avg_silhouette = round(avg_silhouette, 3),
+        total_var_explained = round(percentage_var_explained * 100, 2)
+      )
 
       # update the private attribute to cache the data.
       private$.summary_results <- result
@@ -2011,7 +2040,9 @@ HClustVar <- R6::R6Class(
       cat("\n══════════════════════════════════════════════════════\n")
       cat("Use $summary() for detailed information and cluster analysis\n")
       cat("Use $plot_dendrogram() to visualize the tree\n")
-      cat("Use $plot_agg_levels() to visualize the cohesion gain of clusters\n\n")
+      cat("Use $plot_agg_levels() to visualize the inertia of clusters\n")
+      cat("Use $plot_silhouette() to visualize the silhouette plot of clusters\n")
+      cat("Use $mds_projection() to compute multidimensional scaling\n\n")
 
       invisible(self)
     }
