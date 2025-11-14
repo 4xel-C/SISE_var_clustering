@@ -16,7 +16,7 @@ Typical workflow:
 \enumerate{
 \item Initialize with \code{new()}
 \item Fit with \code{fit(data)}
-\item Select k using \code{plot_cohesion()}
+\item Select k using \code{plot_agg_levels()}
 \item Cut with \code{cut_tree(k)}
 \item Analyze with \code{summary()} and \code{plot_silhouette()}
 }
@@ -42,7 +42,7 @@ hc$fit(my_data)
 hc$plot_dendrogram()
 
 # 4. Choose optimal number of clusters
-hc$plot_cohesion()
+hc$plot_agg_levels()
 
 # 5. Cut tree
 hc$cut_tree(k = 3)
@@ -212,7 +212,7 @@ hc$fit(mtcars)
 hc$plot_dendrogram()
 
 # Find optimal number of clusters
-hc$plot_cohesion()
+hc$plot_agg_levels()
 
 # Cut tree into 3 clusters
 hc$cut_tree(k = 3)
@@ -311,7 +311,7 @@ Can be set manually (advanced use only).
 \item \href{#method-HClustVar-cut_tree}{\code{HClustVar$cut_tree()}}
 \item \href{#method-HClustVar-plot_dendrogram}{\code{HClustVar$plot_dendrogram()}}
 \item \href{#method-HClustVar-predict}{\code{HClustVar$predict()}}
-\item \href{#method-HClustVar-plot_cohesion}{\code{HClustVar$plot_cohesion()}}
+\item \href{#method-HClustVar-plot_agg_levels}{\code{HClustVar$plot_agg_levels()}}
 \item \href{#method-HClustVar-plot_silhouette}{\code{HClustVar$plot_silhouette()}}
 \item \href{#method-HClustVar-mds_projection}{\code{HClustVar$mds_projection()}}
 \item \href{#method-HClustVar-summary}{\code{HClustVar$summary()}}
@@ -688,78 +688,73 @@ A named numeric vector where:
 }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-HClustVar-plot_cohesion"></a>}}
-\if{latex}{\out{\hypertarget{method-HClustVar-plot_cohesion}{}}}
-\subsection{Method \code{plot_cohesion()}}{
-Plot cohesion gain curve for selecting optimal number of clusters
+\if{html}{\out{<a id="method-HClustVar-plot_agg_levels"></a>}}
+\if{latex}{\out{\hypertarget{method-HClustVar-plot_agg_levels}{}}}
+\subsection{Method \code{plot_agg_levels()}}{
+Plot aggregation levels to determine optimal number of clusters
 
-Creates a diagnostic plot showing the gain in within-cluster cohesion
-(measured by explained variance) as a function of the number of clusters.
-This plot helps determine the optimal number of clusters using the
-"elbow method".
+Creates a diagnostic plot showing the hierarchical clustering aggregation
+heights as a function of the number of clusters. This plot helps determine
+the optimal number of clusters using the "elbow method" based on
+perpendicular distance.
 
-\strong{Algorithm:}
+\strong{Elbow Detection:}
 
-The method iteratively cuts the hierarchical tree at different levels
-(from 1 to the maximum number of variables) and computes the total
-within-cluster variance explained at each level.
-
-For each number of clusters \code{k}:
-\itemize{
-\item Cuts the tree into \code{k} clusters
-\item Computes the centroid (first principal component) of each cluster
-\item Sums the eigenvalues (variance explained) across all clusters
-}
-
-\strong{Cohesion Metric:}
-
-The cohesion gain is calculated as:
-\deqn{Cohesion(k) = \frac{Inertia(k) - Inertia(1)}{MaxClusters - Inertia(1)}}
+The optimal number of clusters is detected using perpendicular distance:
+\deqn{d_i = \frac{|(y_2 - y_1)x_i - (x_2 - x_1)y_i + x_2y_1 - y_2x_1|}{\sqrt{(y_2 - y_1)^2 + (x_2 - x_1)^2}}}
 
 where:
 \itemize{
-\item \code{Inertia(k)}: Sum of eigenvalues for k clusters
-\item \code{Inertia(1)}: Baseline inertia (single cluster)
-\item \code{MaxClusters}: Total number of variables
+\item \code{(x_i, y_i)}: Normalized coordinates of point i
+\item \code{(x_1, y_1)}: First point (minimum clusters)
+\item \code{(x_2, y_2)}: Last point (maximum clusters)
+\item \code{k_optimal}: Point with maximum perpendicular distance
 }
 
-This normalization provides a percentage-like interpretation where:
+\strong{Normalization:}
+
+Both axes are normalized to ensure scale-invariance:
 \itemize{
-\item 0\% = All variables in one cluster (minimum structure)
-\item 100\% = Each variable in its own cluster (maximum structure)
+\item X-axis (cluster numbers) normalized to 0, 1
+\item Y-axis (aggregation heights) normalized to 0, 1
+\item This ensures equal weight for both dimensions in distance calculation
+\item Results are independent of original measurement units
 }
 
 \strong{Interpreting the Plot:}
 
-The ideal number of clusters is typically found at the "elbow" of the curve,
-where:
+The ideal number of clusters is found at the "elbow" of the curve:
 \itemize{
-\item The curve shows a sharp increase initially (adding clusters
-significantly improves cohesion)
-\item The curve flattens after the elbow (diminishing returns from
-adding more clusters)
-\item Look for the point where the slope changes most dramatically
+\item Sharp initial decrease in aggregation height (distinct clusters)
+\item Curve flattens after the elbow (forced merging of similar clusters)
+\item Red vertical line marks the detected optimal k
+\item Gray diagonal line shows the reference baseline
+\item Look for the point furthest from the baseline
 }
-
-\strong{State Management:}
-
-This method temporarily modifies the object's state during computation
-but restores the original configuration afterward:
-\itemize{
-\item Saves: labels, n_clusters, centroids, clusters.eigen
-\item Restores: All saved attributes after plotting
-\item Result: The object state is unchanged after the method completes
-}
-
-This ensures the plot can be generated without affecting any existing
-cluster assignments.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{HClustVar$plot_cohesion()}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{HClustVar$plot_agg_levels(max_cluster = 0)}\if{html}{\out{</div>}}
 }
 
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{max_cluster}}{Maximum number of clusters to display in the plot.
+Default is 0 (all clusters). Must be between 0 and the maximum possible
+number of clusters (number of observations). If 0, displays all available
+cluster levels. If specified, limits the plot to the first \code{max_cluster}
+levels for better visualization of early clustering structure.}
+}
+\if{html}{\out{</div>}}
+}
 \subsection{Returns}{
-None. Produces a plot as a side effect. The object's state is
-preserved (restored to its original configuration after plotting).
+None. Produces a plot as a side effect showing:
+\itemize{
+\item Aggregation heights curve with points and lines
+\item Gray diagonal reference line connecting endpoints
+\item Red vertical line at optimal k
+\item Red point highlighting the elbow position
+\item Legend displaying the optimal k value
+}
 }
 }
 \if{html}{\out{<hr>}}

@@ -13,7 +13,7 @@
 #' \enumerate{
 #'   \item Initialize with `new()`
 #'   \item Fit with `fit(data)`
-#'   \item Select k using `plot_cohesion()`
+#'   \item Select k using `plot_agg_levels()`
 #'   \item Cut with `cut_tree(k)`
 #'   \item Analyze with `summary()` and `plot_silhouette()`
 #' }
@@ -38,7 +38,7 @@
 #' hc$plot_dendrogram()
 #'
 #' # 4. Choose optimal number of clusters
-#' hc$plot_cohesion()
+#' hc$plot_agg_levels()
 #'
 #' # 5. Cut tree
 #' hc$cut_tree(k = 3)
@@ -195,7 +195,7 @@
 #' hc$plot_dendrogram()
 #'
 #' # Find optimal number of clusters
-#' hc$plot_cohesion()
+#' hc$plot_agg_levels()
 #'
 #' # Cut tree into 3 clusters
 #' hc$cut_tree(k = 3)
@@ -1319,188 +1319,138 @@ HClustVar <- R6::R6Class(
     },
 
     # -----------------------------------------------------------------------
-    # Cohesion plot
+    # Aggregation level plot
     # -----------------------------------------------------------------------
 
     #' @description
-    #' Plot cohesion gain curve for selecting optimal number of clusters
+    #' Plot aggregation levels to determine optimal number of clusters
     #'
-    #' Creates a diagnostic plot showing the gain in within-cluster cohesion
-    #' (measured by explained variance) as a function of the number of clusters.
-    #' This plot helps determine the optimal number of clusters using the
-    #' "elbow method". Also plot the mean silhouette observable for each
-    #' cluster nubmer.
+    #' Creates a diagnostic plot showing the hierarchical clustering aggregation
+    #' heights as a function of the number of clusters. This plot helps determine
+    #' the optimal number of clusters using the "elbow method" based on
+    #' perpendicular distance.
     #'
-    #' **Algorithm:**
+    #' **Elbow Detection:**
     #'
-    #' The method iteratively cuts the hierarchical tree at different levels
-    #' (from 1 to the maximum number of variables) and computes the total
-    #' within-cluster variance explained and silhouette at each level.
-    #'
-    #' For each number of clusters \code{k}:
-    #' \itemize{
-    #'   \item Cuts the tree into \code{k} clusters
-    #'   \item Computes the centroid (first principal component) of each cluster
-    #'   \item Sums the eigenvalues (variance explained) across all clusters
-    #' }
-    #'
-    #' **Cohesion Metric:**
-    #'
-    #' The cohesion gain is calculated as:
-    #' \deqn{Cohesion(k) = \frac{Inertia(k) - Inertia(1)}{MaxClusters - Inertia(1)}}
+    #' The optimal number of clusters is detected using perpendicular distance:
+    #' \deqn{d_i = \frac{|(y_2 - y_1)x_i - (x_2 - x_1)y_i + x_2y_1 - y_2x_1|}{\sqrt{(y_2 - y_1)^2 + (x_2 - x_1)^2}}}
     #'
     #' where:
     #' \itemize{
-    #'   \item \code{Inertia(k)}: Sum of eigenvalues for k clusters
-    #'   \item \code{Inertia(1)}: Baseline inertia (single cluster)
-    #'   \item \code{MaxClusters}: Total number of variables
+    #'   \item \code{(x_i, y_i)}: Normalized coordinates of point i
+    #'   \item \code{(x_1, y_1)}: First point (minimum clusters)
+    #'   \item \code{(x_2, y_2)}: Last point (maximum clusters)
+    #'   \item \code{k_optimal}: Point with maximum perpendicular distance
     #' }
     #'
-    #' This normalization provides a percentage-like interpretation where:
+    #' **Normalization:**
+    #'
+    #' Both axes are normalized to ensure scale-invariance:
     #' \itemize{
-    #'   \item 0% = All variables in one cluster (minimum structure)
-    #'   \item 100% = Each variable in its own cluster (maximum structure)
+    #'   \item X-axis (cluster numbers) normalized to 0, 1
+    #'   \item Y-axis (aggregation heights) normalized to 0, 1
+    #'   \item This ensures equal weight for both dimensions in distance calculation
+    #'   \item Results are independent of original measurement units
     #' }
     #'
     #' **Interpreting the Plot:**
     #'
-    #' The ideal number of clusters is typically found at the "elbow" of the curve,
-    #' where or at the maximum of the silhouette curve.
+    #' The ideal number of clusters is found at the "elbow" of the curve:
     #' \itemize{
-    #'   \item The curve shows a sharp increase initially (adding clusters
-    #'         significantly improves cohesion)
-    #'   \item The curve flattens after the elbow (diminishing returns from
-    #'         adding more clusters)
-    #'   \item Look for the point where the slope changes most dramatically
+    #'   \item Sharp initial decrease in aggregation height (distinct clusters)
+    #'   \item Curve flattens after the elbow (forced merging of similar clusters)
+    #'   \item Red vertical line marks the detected optimal k
+    #'   \item Gray diagonal line shows the reference baseline
+    #'   \item Look for the point furthest from the baseline
     #' }
     #'
-    #' **State Management:**
+    #' @param max_cluster Maximum number of clusters to display in the plot.
+    #'   Default is 0 (all clusters). Must be between 0 and the maximum possible
+    #'   number of clusters (number of observations). If 0, displays all available
+    #'   cluster levels. If specified, limits the plot to the first \code{max_cluster}
+    #'   levels for better visualization of early clustering structure.
     #'
-    #' This method temporarily modifies the object's state during computation
-    #' but restores the original configuration afterward:
-    #' \itemize{
-    #'   \item Saves: labels, n_clusters, centroids, clusters.eigen
-    #'   \item Restores: All saved attributes after plotting
-    #'   \item Result: The object state is unchanged after the method completes
-    #' }
-    #'
-    #' This ensures the plot can be generated without affecting any existing
-    #' cluster assignments.
-    #'
-    #' @param max_clusters maximum cluster to plot the cohesion plot.
-    #' @param plot_silhouette Boolean indicating whether or not to plot the silhouette plot.
-    #'
-    #' @return None. Produces a plot as a side effect. The object's state is
-    #'   preserved (restored to its original configuration after plotting).
-    plot_cohesion = function(max_clusters = 0, plot_silhouette = FALSE) {
+    #' @return None. Produces a plot as a side effect showing:
+    #'   \itemize{
+    #'     \item Aggregation heights curve with points and lines
+    #'     \item Gray diagonal reference line connecting endpoints
+    #'     \item Red vertical line at optimal k
+    #'     \item Red point highlighting the elbow position
+    #'     \item Legend displaying the optimal k value
+    #'   }
+    plot_agg_levels = function(max_cluster = 0) {
 
-      # Check if fitted.
-      if (!self$fitted) {
-        stop("Model should be fitted on data.")
-      }
+      hc <- private$.tree
+      # Get the height values
+      heights <- rev(hc$height)
+      n_clusters <- 1:(length(heights) + 1)
+      n_clusters_plot <- NULL
 
-      # Save the original class configuration to reset after plotting.
-      original_label <- self$labels
-      original_n_clusters <- self$n_clusters
+      # Correction of the cluster numbers
+      if (max_cluster < 0 || max_cluster > length(n_clusters)) {
+        stop(paste0("max_cluster can't be < 0 or > of the maximum clusters possible: ", length(n_clusters)))
 
-      original_centroids <- self$centroids
-      original_clusters.eigen <- self$clusters.eigen
-      original_summary <- private$.summary_results
+        # Default value: use all clusters
+      } else if (max_cluster == 0) {
 
-      # initialize the within inertia vector.
-      within.inertia <- numeric()
+        # Reverse the n_clusters (last values beeing the highets aggregation level)
+        n_clusters_plot <- n_clusters[-length(n_clusters)]
+        heights_plot <- heights
 
-      # get the number of variables.
-      p = 0
-
-      # If max cluster == 0, compute for all clusters possibles.
-
-
-      # loop through each cluster.
-      if (self$vartype == "quant"){
-        p <- length(self$quanti_indices)
-      } else if (self$vartype == "qual") {
-        p <- length(self$quali_indices)
       } else {
-        p <- ncol(self$data)
+
+        # Limit to max_cluster clusters
+        n_clusters_plot <- n_clusters[1:max_cluster]
+        heights_plot <- heights[1:max_cluster]
       }
 
-      # If max_clusters is set to 0 (default), compute up to all clusters
-      if (max_clusters == 0) {
-        max_clusters <- p
-      }
+      # Normalize data to have comparable scales
+      x <- n_clusters_plot
+      y <- heights_plot
 
-      # initialize the inertia vector
-      inertia <- numeric(max_clusters)
+      # Normalization between 0 and 1
+      x_norm <- (x - min(x)) / (max(x) - min(x))
+      y_norm <- (y - min(y)) / (max(y) - min(y))
 
-      # compute mean silhouette for each cluster number
-      silhouette <- numeric(max_clusters)
+      # Calculate perpendicular distance from each point to the line
+      # connecting the first and last point
+      x1 <- x_norm[1]
+      y1 <- y_norm[1]
+      x2 <- x_norm[length(x_norm)]
+      y2 <- y_norm[length(y_norm)]
 
-      # TODO: DEBUG SILHOUETTE
-      for (k in seq_len(max_clusters)) {
+      distances <- sapply(1:length(x_norm), function(i) {
+        # Distance from a point to a line
+        abs((y2 - y1) * x_norm[i] - (x2 - x1) * y_norm[i] + x2 * y1 - y2 * x1) /
+          sqrt((y2 - y1)^2 + (x2 - x1)^2)
+      })
 
-        # ------------ Compute inertia for the cluster k
-        # if we reach max cluster == p -> inertia = 1 for all clusters (1 cluster per variable)
-        if (k == p) {
-          inertia[k] <- k
-        } else {
+      # The elbow is the point with maximum distance
+      k_optimal <- n_clusters_plot[which.max(distances)]
 
-          # cut the tree with k clusters.
-          self$cut_tree(k)
+      # Plot
+      plot(n_clusters_plot, heights_plot,
+           type = "b", pch = 19,
+           xlab = "Number of clusters",
+           ylab = "Aggregation level",
+           main = "Elbow method (perpendicular distance)",
+           xaxt = "n")
+      axis(1, at = n_clusters_plot)
+      grid()
 
-          # save the sum of within inertia (eigens values of each cluster).
-          inertia[k] <- sum(self$clusters.eigen)
-        }
+      # Line connecting the endpoints
+      segments(n_clusters_plot[1], heights_plot[1],
+               n_clusters_plot[length(n_clusters_plot)], heights_plot[length(heights_plot)],
+               col = "gray", lty = 2)
 
-        # ----------- Compute silouhette for the cluster k
+      # Mark the optimal k
+      abline(v = k_optimal, col = "red", lty = 2, lwd = 2)
+      points(k_optimal, heights_plot[which(n_clusters_plot == k_optimal)],
+             col = "red", pch = 19, cex = 2)
 
-        if (plot_silhouette && k > 1) {
-          # loop through each cluster.
-          silhouette[k] <- mean(private$compute_silhouette())
-        }
-      } # end for.
-
-      # calculate the cohesion gain.
-      cohesion <- (inertia - inertia[1]) / (p - inertia[1])
-
-
-      # --- Plot cohesion
-      plot(seq_len(max_clusters), cohesion,
-           type = "b", col = "blue", pch = 19, lwd = 2,
-           xlab = "Number of clusters (K)",
-           ylab = "Gain in cohesion / Silhouette",
-           main = "Cohesion and Silhouette vs K")
-
-      if (plot_silhouette) {
-        # --- Add silhouette curve (scaled if needed)
-        lines(seq_len(max_clusters), silhouette, type = "b",
-              col = "darkorange", pch = 17, lwd = 2)
-        points(seq_len(max_clusters), silhouette, col = "darkorange", pch = 17)
-
-        # --- Add legend
-        legend("bottomright",
-               legend = c("Cohesion gain", "Mean silhouette"),
-               col = c("blue", "darkorange"),
-               pch = c(19, 17),
-               lty = 1,
-               bty = "n")
-
-        # --- Highlight optimal K
-        k_opt <- which.max(silhouette)
-        abline(v = k_opt, col = "darkorange", lty = 2, lwd = 1.5)
-        text(k_opt, max(silhouette, na.rm = TRUE),
-             labels = paste("K* =", k_opt),
-             pos = 4, col = "darkorange", cex = 0.9)
-      }
-
-
-      # Restore original configuration.
-      self$labels <- original_label
-      self$n_clusters <- original_n_clusters
-
-      self$centroids <- original_centroids
-      self$clusters.eigen <- original_clusters.eigen
-      private$.summary_results <- original_summary
+      legend("topright",
+             legend = paste("Optimal k =", k_optimal),
+             col = "red", lty = 2, lwd = 2, bty = "n")
     },
 
     # -----------------------------------------------------------------------
@@ -2061,7 +2011,7 @@ HClustVar <- R6::R6Class(
       cat("\n══════════════════════════════════════════════════════\n")
       cat("Use $summary() for detailed information and cluster analysis\n")
       cat("Use $plot_dendrogram() to visualize the tree\n")
-      cat("Use $plot_cohesion() to visualize the cohesion gain of clusters\n\n")
+      cat("Use $plot_agg_levels() to visualize the cohesion gain of clusters\n\n")
 
       invisible(self)
     }
