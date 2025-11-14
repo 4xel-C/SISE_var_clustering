@@ -1294,7 +1294,7 @@ HClustVar <- R6::R6Class(
               "median"   = median(cluster_similarities),   # Median similarity
               "average"  = mean(cluster_similarities),     # Mean similarity
               #TODO: Check mcquitty
-              "mcquitty" = mean(cluster_similarities),     # Same as average (no ponderation for illustrative var).
+              "mcquitty" = mean(cluster_similarities),     # UPGMC (Unweighted mean) -> Same as average.
               stop(sprintf("Unhandled CAH method: %s", private$.cah.method))
             )
           }
