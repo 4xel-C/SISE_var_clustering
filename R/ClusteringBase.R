@@ -415,8 +415,8 @@ ClusteringBase <- R6::R6Class(
         return(private$.labels)
       }
 
-      # Cheking length consistency with data.
-      if (!is.null(private$.data) && length(value) != ncol(private$.data)) {
+      # Cheking length consistency with data (allow value null to reset the attribute)
+      if (!is.null(value) && !is.null(private$.data) && length(value) != ncol(private$.data)) {
         stop("'labels' length must match number of variables.")
       }
 
