@@ -218,10 +218,7 @@
 #' Communications in Statistics - Simulation and Computation, 32(4), 1131-1150.
 #' \doi{10.1081/SAC-120023882}
 #'
-#' Ward, J. H. (1963).
-#' Hierarchical grouping to optimize an objective function.
-#' Journal of the American Statistical Association, 58(301), 236-244.
-#' \doi{10.1080/01621459.1963.10500845}
+#' @family clustering classes
 #'
 #' @export
 HClustVar <- R6::R6Class(
@@ -1293,7 +1290,6 @@ HClustVar <- R6::R6Class(
               "complete" = min(cluster_similarities),      # Farthest element
               "median"   = median(cluster_similarities),   # Median similarity
               "average"  = mean(cluster_similarities),     # Mean similarity
-              #TODO: Check mcquitty
               "mcquitty" = mean(cluster_similarities),     # UPGMC (Unweighted mean) -> Same as average.
               stop(sprintf("Unhandled CAH method: %s", private$.cah.method))
             )

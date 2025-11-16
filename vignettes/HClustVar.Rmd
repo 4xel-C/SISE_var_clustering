@@ -1,6 +1,6 @@
 ---
 title: "Hierarchical Variable Clustering with HClustVar"
-author: "Axel Cano"
+author: "Eugénie Barlet, Modou Mboup, Axel Cano"
 date: "`r Sys.Date()`"
 output: rmarkdown::html_vignette
 vignette: >
@@ -30,7 +30,9 @@ Unlike traditional clustering that groups **observations** (rows), variable clus
 - **Data understanding**: Discover the underlying structure of your dataset
 - **Multicollinearity reduction**: Group highly correlated predictors in regression models
 
-### The HClustVar Class
+### The algortihm
+
+#### HClustVar
 
 The `HClustVar` class implements hierarchical clustering of variables using:
 
@@ -68,6 +70,9 @@ library(sise.var.clustering)
 Here's a minimal example to get you started:
 
 ```{r eval = FALSE}
+
+df <- read.csv("data/players_22_cleaned.csv")
+
 # 1. Create the model
 hc <- HClustVar$new(vartype = "quant", dist.metric = "rsquare")
 
