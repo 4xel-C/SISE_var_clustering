@@ -1,11 +1,13 @@
 Package: VarClustering
-Title: Variable and modalities clustering package. 
+Title: Variable and Modalities Clustering Package
 Version: 0.0.0.9000
-Authors@R: 
-    person("Axel", "Cano", , "axel-cano@live.fr", role = c("aut", "cre"))
-    person("Eugénie", "Barlet", , "eugenie.barlet@univ-lyon2.fr", role = c("aut", "cre"))
-    person("Modou", "Mboup", , "m.mboup@univ-lyon2.fr", role = c("aut", "cre"))
-Description: The package implement HAC and Kmeans method applied to variables and modalities clustering. Each 3 classes of this package provides summary and plotting methods to better analyze the clustering.  
+Authors@R: c(
+    person("Axel", "Cano", email = "axel-cano@live.fr", role = c("aut", "cre")),
+    person("Eugénie", "Barlet", email = "eugenie.barlet@univ-lyon2.fr", role = "aut"),
+    person("Modou", "Mboup", email = "m.mboup@univ-lyon2.fr", role = "aut"))
+Description: Implements hierarchical clustering (HAC) and K-means methods for
+    clustering variables and modalities. The package provides R6 classes with
+    summary and visualization methods for cluster analysis.  
 License: `use_mit_license()`
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)

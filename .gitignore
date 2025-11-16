@@ -18,6 +18,8 @@ results/
 # Test notebooks
 test.Rmd
 test.nb.html
-data/
+
+# Data files (but keep cleaned FIFA dataset)
 *.xlsx
-*.csv
+data/*.csv
+!data/players_22_cleaned.csv

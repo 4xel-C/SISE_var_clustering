@@ -1,22 +1,18 @@
-#' Metrics for K-means Variable Clustering
-#'
-#' @description
-#' Collection of functions to evaluate K-means variable clustering results
-#' and help determine the optimal number of clusters.
-#'
-#' @details
-#' This file provides:
-#' - Elbow method (within-cluster inertia)
-#' - Silhouette coefficient
-#' - Calinski-Harabasz index
-#' - Within-cluster correlation analysis
-#' - Between/within cluster ratio
-#'
-#' @note
-#' These functions are internal utilities for the package.
-#'
-#' @keywords internal
-#' @noRd
+# ===========================================================================
+# Metrics for K-means Variable Clustering
+# ===========================================================================
+#
+# Collection of functions to evaluate K-means variable clustering results:
+# - kmeans_elbow: Elbow method (within-cluster homogeneity)
+# - kmeans_silhouette: Silhouette coefficient
+# - kmeans_calinski_harabasz: Calinski-Harabasz index
+# - kmeans_intra_correlation: Within-cluster correlation analysis
+# - kmeans_contributions: Variable contribution (R²) to clusters
+# - kmeans_correlation_table: Correlation table variable-cluster
+# - kmeans_find_optimal_k: Find optimal K using multiple criteria
+#
+# All functions are internal utilities (@noRd).
+# ===========================================================================
 
 
 #' Calculate Elbow Method Curve
