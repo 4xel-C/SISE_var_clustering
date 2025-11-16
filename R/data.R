@@ -1,19 +1,17 @@
-# ==============================
-#  Documentation For Datasets
-# ==============================
+#' Autos data
+#'
+#' Dataset containing mixed variables (quantitative and qualitative)
+#' from automotive data for non-4x4 vehicles from 2005.
+#'
+#' @format A data frame with 33 rows and 12 variables:
+"autos"
 
-#' Example Quantitative Dataset
+#' FIFA 22 Player Statistics (Cleaned)
 #'
-#' A dataset populated only by quantitative variables describing player's attribute scores.
+#' Dataset containing quantitative variables from FIFA 22 player statistics.
+#' All qualitative variables and IDs have been removed.
 #'
-#' @format A data frame with 1707 observations and 41 variables:
-#' @source Dataset downloaded from Kaggle.
-"players_22_cleanded.csv"
-
-#' Example mixed Dataset
+#' @format A data frame with 17107 rows and 41 variables:
 #'
-#' Small dataset containing mixed data describing cars characteristic.
-#'
-#' @format A data frame with 33 observations and 12 variables.
-"Autos2005Non4x4.xls"
-
+#' @source FIFA 22 game data
+"players"

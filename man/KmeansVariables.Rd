@@ -194,6 +194,9 @@ Journal of Statistical Software, 50(13), 1-16.
 \code{\link{ClusteringBase}} for the parent class
 \code{\link[stats]{prcomp}} for Principal Component Analysis
 \code{\link[stats]{cor}} for correlation calculations
+
+Other clustering classes: 
+\code{\link{HClustVar}}
 }
 \concept{clustering classes}
 \section{Super class}{
@@ -427,7 +430,11 @@ Journal of Statistical Software, 50(13), 1-16.
 \if{latex}{\out{\hypertarget{method-KmeansVariables-plot_projection}{}}}
 \subsection{Method \code{plot_projection()}}{
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{KmeansVariables$plot_projection(...)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{KmeansVariables$plot_projection(
+  supplementary_variables = NULL,
+  supplementary_clusters = NULL,
+  ...
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{

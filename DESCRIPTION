@@ -23,3 +23,6 @@ Config/testthat/edition: 3
 URL: https://github.com/4xel-C/SISE_var_clustering
 BugReports: https://github.com/4xel-C/SISE_var_clustering/issues
 VignetteBuilder: knitr
+Depends: 
+    R (>= 3.5)
+LazyData: true

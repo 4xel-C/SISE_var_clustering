@@ -235,12 +235,12 @@ Vigneau, E., & Qannari, E. M. (2003).
 Clustering of variables around latent components.
 Communications in Statistics - Simulation and Computation, 32(4), 1131-1150.
 \doi{10.1081/SAC-120023882}
-
-Ward, J. H. (1963).
-Hierarchical grouping to optimize an objective function.
-Journal of the American Statistical Association, 58(301), 236-244.
-\doi{10.1080/01621459.1963.10500845}
 }
+\seealso{
+Other clustering classes: 
+\code{\link{KmeansVariables}}
+}
+\concept{clustering classes}
 \section{Super class}{
 \code{\link[VarClustering:ClusteringBase]{VarClustering::ClusteringBase}} -> \code{HClustVar}
 }
