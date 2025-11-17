@@ -8,7 +8,7 @@
 #' @details
 #' The `KmeansVariables` class inherits from `ClusteringBase` and provides:
 #' - Iterative reallocation of variables to clusters
-#' - Distance calculation based on squared correlation with centroids
+#' - Distance calculation based on correlation with centroids (R² or signed r)
 #' - Centroid computation via Principal Component Analysis (PCA)
 #' - Multiple random initializations to avoid local minima
 #' - Convergence monitoring and iteration tracking
@@ -18,23 +18,31 @@
 #' \enumerate{
 #'   \item **Initialization**: Randomly assign variables to K clusters
 #'   \item **Centroid Calculation**: For each cluster, compute the first principal component (via PCA) as the cluster centroid
-#'   \item **Distance Calculation**: Compute distance between each variable and each centroid using: \code{d(X_j, c_k) = sqrt(1 - cor(X_j, c_k)^2)}
+#'   \item **Distance Calculation**: Compute distance between each variable and each centroid based on their correlation
 #'   \item **Reallocation**: Reassign each variable to its nearest centroid
 #'   \item **Convergence Check**: Repeat steps 2-4 until no reassignment occurs or max iterations reached
 #' }
 #'
-#' @section Distance Metric:
-#' The distance between a variable \eqn{X_j} and a centroid \eqn{c_k} is defined as:
-#' \deqn{d(X_j, c_k) = \sqrt{1 - \rho^2(X_j, c_k)}}
+#' @section Distance Metrics:
+#' Two distance metrics are available for measuring dissimilarity between variables and centroids:
+#'
+#' **R²-based distance** (\code{distance_metric = "r_squared"}):
+#' \deqn{d_{R^2}(X_j, c_k) = \sqrt{1 - \rho^2(X_j, c_k)}}
 #' where \eqn{\rho(X_j, c_k)} is the Pearson correlation coefficient.
-#' 
-#' A high correlation (close to ±1) results in a small distance (close to 0),
-#' indicating that the variable is well-represented by the centroid.
+#' This metric groups variables with high absolute correlation (positive or negative).
+#'
+#' **Signed r-based distance** (\code{distance_metric = "r_signed"}):
+#' \deqn{d_r(X_j, c_k) = \sqrt{1 - \rho(X_j, c_k)}}
+#' This metric only groups variables with positive correlation, treating
+#' negatively correlated variables as dissimilar.
 #'
 #' @section Objective Function:
-#' The algorithm maximizes the within-cluster cohesion (inertia):
-#' \deqn{I_k = \sum_{X_j \in C_k} \rho^2(X_j, c_k)}
-#' where \eqn{C_k} denotes the set of variables in cluster \eqn{k} and \eqn{c_k} is the cluster centroid.
+#' The algorithm maximizes the within-cluster cohesion (inertia). For cluster \eqn{k},
+#' the inertia is defined as the first eigenvalue \eqn{\lambda_k} from the PCA
+#' of variables in \eqn{C_k}, which equals:
+#' \deqn{I_k = \lambda_k = \sum_{X_j \in C_k} \rho^2(X_j, c_k)}
+#' where \eqn{C_k} denotes the set of variables in cluster \eqn{k} and \eqn{c_k} is the
+#' first principal component. The total inertia is \eqn{I = \sum_{k=1}^K I_k}.
 #'
 #' @section Convergence:
 #' The algorithm stops when one of the following conditions is met:
@@ -90,11 +98,11 @@
 #' km_auto$fit(data_test)
 #' # → Displays: "Optimal K selected: 3 (method: silhouette, avg_silhouette: 0.XXX)"
 #'
-#' # Option 3: Use absolute correlation (separates positively/negatively correlated vars)
-#' km_abs <- KmeansVariables$new(n_clusters = 3,
-#'                               correlation_type = "absolute",
-#'                               random_state = 42)
-#' km_abs$fit(data_test)
+#' # Option 3: Use signed correlation (separates positively/negatively correlated vars)
+#' km_signed <- KmeansVariables$new(n_clusters = 3,
+#'                                  distance_metric = "r_signed",
+#'                                  random_state = 42)
+#' km_signed$fit(data_test)
 #' # Variables with negative correlation to centroid will be in different clusters
 #'
 #' # Calculate metrics
@@ -144,7 +152,10 @@
 #' @param random_state Integer or NULL. Random seed for reproducibility. Default: NULL
 #' @param k_range Integer vector. Range of K values to test when n_clusters = "auto". Default: 2:10
 #' @param selection_method Character. Method for automatic K selection: "silhouette", "calinski", or "all". Default: "silhouette"
-#' @param correlation_type Character. Type of correlation for distance: "squared" (R²) or "absolute" (r). Default: "squared"
+#' @param distance_metric Character. Metric for distance calculation:
+#'        "r_squared" (based on R², groups variables with high absolute correlation) or
+#'        "r_signed" (based on signed r, groups only positively correlated variables).
+#'        Default: "r_squared"
 #' @param data Data frame or matrix with variables to cluster
 #' @param round_digits Integer. Number of decimal places for rounding. Default: 3
 #' @param top_n Integer. Number of top variables to display. Default: 5
@@ -152,7 +163,7 @@
 #'
 #' @section Methods:
 #' \describe{
-#'   \item{\code{$new(n_clusters, max_iter, tol, n_init, random_state, k_range, selection_method, correlation_type)}}{
+#'   \item{\code{$new(n_clusters, max_iter, tol, n_init, random_state, k_range, selection_method, distance_metric)}}{
 #'     Initialize a new KmeansVariables object. See constructor documentation for parameter details.
 #'   }
 #'   \item{\code{$fit(data)}}{
@@ -212,7 +223,7 @@ KmeansVariables <- R6::R6Class(
     .tol = NULL,             # Convergence tolerance
     .n_init = NULL,          # Number of random initializations
     .random_state = NULL,    # Seed for reproducibility
-    .correlation_type = NULL, # Type of correlation for distance: "squared" (R²) or "absolute" (|r|)
+    .distance_metric = NULL,  # Metric for distance calculation: "r_squared" (R²) or "r_signed" (signed r)
 
     # Automatic K selection parameters
     .k_range = NULL,         # Range of K values to test for automatic selection
@@ -306,14 +317,8 @@ KmeansVariables <- R6::R6Class(
       pca_result <- tryCatch({
         prcomp(X_cluster, center = TRUE, scale. = TRUE)
       }, error = function(e) {
-        # If PCA fails, return scaled mean
-        centroid <- scale(rowMeans(X_cluster))
-        return(list(
-          centroid = as.numeric(centroid),
-          eigenvalue = 0,
-          cor_loadings = numeric(ncol(X_cluster)),
-          n_vars = n_vars
-        ))
+        stop(paste0("PCA failed for cluster ", k, ": ", e$message,
+                    "\nThis may indicate numerical instability or insufficient data."))
       })
 
       # Extract first principal component (scores)
@@ -327,7 +332,7 @@ KmeansVariables <- R6::R6Class(
       cor_loadings <- pca_result$rotation[, 1] * pca_result$sdev[1]
 
       # Align centroid so that majority of variables are positively correlated
-      # This is crucial for correlation_type = "absolute" to work correctly
+      # This is crucial for distance_metric = "r_signed" to work correctly
       if (sum(cor_loadings) < 0) {
         centroid <- -centroid
         cor_loadings <- -cor_loadings
@@ -344,20 +349,22 @@ KmeansVariables <- R6::R6Class(
     # Compute distances between variables and centroids
     #
     # Calculates the distance matrix based on correlation.
-    # If correlation_type = "squared": Distance = sqrt(1 - cor(X_j, c_k)^2) (R²-based)
-    # If correlation_type = "absolute": Distance = sqrt(1 - cor(X_j, c_k)) (r-based, sign matters)
+    # If distance_metric = "r_squared": Distance = sqrt(1 - cor(X_j, c_k)^2) (R²-based)
+    # If distance_metric = "r_signed": Distance = sqrt(1 - cor(X_j, c_k)) (r-based, sign matters)
     #
     # @param X Matrix or data.frame (n observations × p variables)
     # @param centroids Matrix (n observations × K clusters)
-    # @return Matrix (p variables × K clusters) of distances
-    compute_distances = function(X, centroids) {
+    # @param return_correlations Logical. If TRUE, also return correlation matrix
+    # @return Matrix (p variables × K clusters) of distances, or list with distances and correlations
+    compute_distances = function(X, centroids, return_correlations = FALSE) {
 
       p <- ncol(X)
       K <- ncol(centroids)
 
       dist_matrix <- matrix(0, nrow = p, ncol = K)
-      rownames(dist_matrix) <- colnames(X)
-      colnames(dist_matrix) <- paste0("Cluster", 1:K)
+      cor_matrix <- matrix(0, nrow = p, ncol = K)
+      rownames(dist_matrix) <- rownames(cor_matrix) <- colnames(X)
+      colnames(dist_matrix) <- colnames(cor_matrix) <- paste0("Cluster", 1:K)
 
       for (j in 1:p) {
         for (k in 1:K) {
@@ -369,8 +376,11 @@ KmeansVariables <- R6::R6Class(
             cor_val <- 0
           }
 
-          # Calculate distance based on correlation_type
-          if (private$.correlation_type == "squared") {
+          # Store correlation
+          cor_matrix[j, k] <- cor_val
+
+          # Calculate distance based on distance_metric
+          if (private$.distance_metric == "r_squared") {
             # R²-based: groups variables with high |correlation| (positive OR negative)
             dist_matrix[j, k] <- sqrt(1 - cor_val^2)
           } else {
@@ -381,7 +391,11 @@ KmeansVariables <- R6::R6Class(
         }
       }
 
-      return(dist_matrix)
+      if (return_correlations) {
+        return(list(distances = dist_matrix, correlations = cor_matrix))
+      } else {
+        return(dist_matrix)
+      }
     },
     
     # Assign variables to nearest centroids
@@ -447,26 +461,17 @@ KmeansVariables <- R6::R6Class(
           }
         }
 
-        # Step 4: Calculate inertia from PCA metrics
-        # Inertia = sum of squared correlations (cohesion to maximize)
+        # Step 4: Calculate total inertia
         inertia_new <- 0
         for (k in 1:K) {
           n_vars <- pca_metrics[[k]]$n_vars
-          cor_loadings <- pca_metrics[[k]]$cor_loadings
 
           if (n_vars == 0) {
             next
           }
 
-          # Calculate inertia based on correlation_type
-          if (private$.correlation_type == "squared") {
-            # Inertia = sum(r²) between variables and centroid
-            inertia_new <- inertia_new + sum(cor_loadings^2)
-          } else {
-            # Inertia = sum(r) between variables and centroid
-            # After alignment, this represents sum of positive correlations
-            inertia_new <- inertia_new + sum(cor_loadings)
-          }
+          # Cluster inertia = eigenvalue of first principal component
+          inertia_new <- inertia_new + pca_metrics[[k]]$eigenvalue
         }
 
         # Check convergence
@@ -501,12 +506,7 @@ KmeansVariables <- R6::R6Class(
         cor_loadings <- pca_result$cor_loadings
 
         # Calculate cluster inertia
-        if (private$.correlation_type == "squared") {
-          cluster_inertias[k] <- sum(cor_loadings^2)
-        } else {
-          # After alignment, sum(r) represents sum of positive correlations
-          cluster_inertias[k] <- sum(cor_loadings)
-        }
+        cluster_inertias[k] <- pca_result$eigenvalue
 
         final_inertia <- final_inertia + cluster_inertias[k]
       }
@@ -549,26 +549,27 @@ KmeansVariables <- R6::R6Class(
     #        "calinski" (maximize Calinski-Harabasz index),
     #        or "all" (combine both, prefer silhouette if disagreement).
     #        Default: "silhouette". Ignored if n_clusters is an integer.
-    # @param correlation_type Character. Type of correlation for distance calculation:
-    #        "squared" uses R² (variables with high positive OR negative correlation are close),
-    #        "absolute" uses |r| (only high positive correlation makes variables close).
-    #        Default: "squared". This affects cluster composition: "squared" groups
-    #        correlated and anti-correlated variables together, "absolute" separates them.
+    # @param distance_metric Character. Metric for distance calculation:
+    #        "r_squared" - distance based on R² = sqrt(1 - cor²), groups variables
+    #                      with high absolute correlation (positive or negative)
+    #        "r_signed"  - distance based on signed r = sqrt(1 - cor), groups only
+    #                      positively correlated variables
+    #        Default: "r_squared"
     #
     # @return A new instance of `KmeansVariables`.
     initialize = function(n_clusters = 3, max_iter = 100, tol = 1e-4,
                           n_init = 10, random_state = NULL,
                           k_range = 2:10, selection_method = "silhouette",
-                          correlation_type = "squared") {
+                          distance_metric = "r_squared") {
 
       # Validate parameters
       private$validate_params(max_iter, tol, n_init)
 
-      # Validate correlation_type
-      if (!correlation_type %in% c("squared", "absolute")) {
-        stop("'correlation_type' must be either 'squared' or 'absolute'")
+      # Validate distance_metric
+      if (!distance_metric %in% c("r_squared", "r_signed")) {
+        stop("'distance_metric' must be either 'r_squared' or 'r_signed'")
       }
-      private$.correlation_type <- correlation_type
+      private$.distance_metric <- distance_metric
 
       # Handle n_clusters = "auto"
       if (is.character(n_clusters) && n_clusters == "auto") {
@@ -682,7 +683,7 @@ KmeansVariables <- R6::R6Class(
           method = private$.selection_method,
           n_init = private$.n_init,
           random_state = private$.random_state,
-          correlation_type = private$.correlation_type
+          distance_metric = private$.distance_metric
         )
 
         # Extract optimal K
@@ -769,29 +770,17 @@ KmeansVariables <- R6::R6Class(
                     " observations (same as training data)"))
       }
       
-      # Compute distances to centroids
-      dist_matrix <- private$compute_distances(X_new, private$.centroids)
-      
+      # Compute distances and correlations
+      result <- private$compute_distances(X_new, private$.centroids, return_correlations = TRUE)
+
       # Assign to nearest clusters
-      clusters_new <- private$assign_clusters(dist_matrix)
+      clusters_new <- private$assign_clusters(result$distances)
       names(clusters_new) <- colnames(X_new)
-      
-      # Calculate correlations for interpretation
-      K <- ncol(private$.centroids)
-      cor_matrix <- matrix(0, nrow = ncol(X_new), ncol = K)
-      rownames(cor_matrix) <- colnames(X_new)
-      colnames(cor_matrix) <- paste0("Cluster", 1:K)
-      
-      for (j in 1:ncol(X_new)) {
-        for (k in 1:K) {
-          cor_matrix[j, k] <- cor(X_new[, j], private$.centroids[, k])
-        }
-      }
-      
+
       return(list(
         clusters = clusters_new,
-        distances = dist_matrix,
-        correlations = cor_matrix
+        distances = result$distances,
+        correlations = result$correlations
       ))
     },
     
@@ -900,7 +889,7 @@ KmeansVariables <- R6::R6Class(
       }
 
       data <- self$get_quanti_data()
-      return(kmeans_silhouette(data, self$labels, private$.centroids, private$.correlation_type))
+      return(kmeans_silhouette(data, self$labels, private$.centroids, private$.distance_metric))
     },
 
     # Calculate Calinski-Harabasz index
@@ -914,7 +903,7 @@ KmeansVariables <- R6::R6Class(
       }
 
       data <- self$get_quanti_data()
-      return(kmeans_calinski_harabasz(data, self$labels, private$.centroids, private$.correlation_type))
+      return(kmeans_calinski_harabasz(data, self$labels, private$.centroids, private$.distance_metric))
     },
 
     # Calculate intra-cluster correlations
@@ -978,7 +967,7 @@ KmeansVariables <- R6::R6Class(
       elbow_data <- kmeans_elbow(data, k_range = k_range,
                                  n_init = private$.n_init,
                                  random_state = private$.random_state,
-                                 correlation_type = private$.correlation_type)
+                                 distance_metric = private$.distance_metric)
 
       # Plot with fitted K highlighted if model is fitted
       plot_kmeans_elbow(elbow_data, ...)
