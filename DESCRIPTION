@@ -14,7 +14,9 @@ Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
 Imports: 
     FactoMineR,
-    R6
+    htmltools,
+    R6,
+    shiny
 Suggests: 
     knitr,
     rmarkdown,

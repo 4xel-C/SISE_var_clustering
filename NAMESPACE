@@ -2,3 +2,4 @@
 
 export(HClustVar)
 export(KmeansVariables)
+export(run_hclustvar_app)
