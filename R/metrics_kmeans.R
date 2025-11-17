@@ -28,6 +28,7 @@
 #' @param random_state Integer or NULL. Random seed for reproducibility.
 #' @param max_iter Integer. Maximum iterations for K-means. Default: 100.
 #' @param tol Numeric. Convergence tolerance. Default: 1e-4.
+#' @param distance_metric Character. Distance metric: "r_squared" or "r_signed". Default: "r_squared".
 #'
 #' @return data.frame with columns:
 #' \itemize{
@@ -45,7 +46,7 @@
 #' @noRd
 kmeans_elbow <- function(data, k_range = 2:10, n_init = 10,
                          random_state = NULL, max_iter = 100, tol = 1e-4,
-                         correlation_type = "squared") {
+                         distance_metric = "r_squared") {
 
   if (!is.numeric(k_range) || any(k_range < 1)) {
     stop("'k_range' must be a vector of positive integers")
@@ -63,14 +64,14 @@ kmeans_elbow <- function(data, k_range = 2:10, n_init = 10,
 
   for (k in k_range) {
 
-    # Fit K-means with k clusters and specified correlation_type
+    # Fit K-means with k clusters and specified distance_metric
     km <- KmeansVariables$new(
       n_clusters = k,
       max_iter = max_iter,
       tol = tol,
       n_init = n_init,
       random_state = random_state,
-      correlation_type = correlation_type
+      distance_metric = distance_metric
     )
 
     km$fit(data)
@@ -96,6 +97,7 @@ kmeans_elbow <- function(data, k_range = 2:10, n_init = 10,
 #' @param data data.frame or matrix of quantitative variables
 #' @param clusters Integer vector of cluster assignments
 #' @param centroids Matrix of cluster centroids (n_obs × n_clusters)
+#' @param distance_metric Character. Distance metric: "r_squared" or "r_signed". Default: "r_squared".
 #'
 #' @return data.frame with columns:
 #' \itemize{
@@ -129,15 +131,15 @@ kmeans_elbow <- function(data, k_range = 2:10, n_init = 10,
 #' }
 #'
 #' @noRd
-kmeans_silhouette <- function(data, clusters, centroids, correlation_type = "squared") {
+kmeans_silhouette <- function(data, clusters, centroids, distance_metric = "r_squared") {
 
   X <- as.matrix(data)
   p <- ncol(X)
   K <- ncol(centroids)
 
-  # Validate correlation_type
-  if (!correlation_type %in% c("squared", "absolute")) {
-    stop("'correlation_type' must be either 'squared' or 'absolute'")
+  # Validate distance_metric
+  if (!distance_metric %in% c("r_squared", "r_signed")) {
+    stop("'distance_metric' must be either 'r_squared' or 'r_signed'")
   }
 
   # Compute distance matrix between all variables and all centroids
@@ -147,39 +149,42 @@ kmeans_silhouette <- function(data, clusters, centroids, correlation_type = "squ
     for (k in 1:K) {
       cor_val <- cor(X[, j], centroids[, k])
 
-      # Calculate distance based on correlation_type
-      if (correlation_type == "squared") {
+      # Calculate distance based on distance_metric
+      if (distance_metric == "r_squared") {
         dist_matrix[j, k] <- sqrt(1 - cor_val^2)
       } else {
-        dist_matrix[j, k] <- sqrt(1 - abs(cor_val))
+        dist_matrix[j, k] <- sqrt(1 - cor_val)
       }
     }
   }
   
   silhouettes <- numeric(p)
   
+  # Early check for single cluster case
+  if (K == 1) {
+    return(data.frame(
+      variable = colnames(X),
+      cluster = clusters,
+      silhouette = rep(0, p)
+    ))
+  }
+
   for (j in 1:p) {
-    
+
     k_own <- clusters[j]
-    
+
     # a(j): average distance to own cluster centroid
     a_j <- dist_matrix[j, k_own]
-    
+
     # b(j): distance to nearest other cluster centroid
     other_clusters <- setdiff(1:K, k_own)
-    
-    if (length(other_clusters) == 0) {
-      # Only one cluster
+    b_j <- min(dist_matrix[j, other_clusters])
+
+    # Silhouette coefficient
+    if (max(a_j, b_j) == 0) {
       silhouettes[j] <- 0
     } else {
-      b_j <- min(dist_matrix[j, other_clusters])
-      
-      # Silhouette coefficient
-      if (max(a_j, b_j) == 0) {
-        silhouettes[j] <- 0
-      } else {
-        silhouettes[j] <- (b_j - a_j) / max(a_j, b_j)
-      }
+      silhouettes[j] <- (b_j - a_j) / max(a_j, b_j)
     }
   }
   
@@ -205,6 +210,7 @@ kmeans_silhouette <- function(data, clusters, centroids, correlation_type = "squ
 #' @param random_state Integer or NULL. Random seed for reproducibility.
 #' @param max_iter Integer. Maximum iterations. Default: 100.
 #' @param tol Numeric. Convergence tolerance. Default: 1e-4.
+#' @param distance_metric Character. Distance metric: "r_squared" or "r_signed". Default: "r_squared".
 #'
 #' @return data.frame with columns:
 #' \itemize{
@@ -224,7 +230,7 @@ kmeans_silhouette <- function(data, clusters, centroids, correlation_type = "squ
 #' @noRd
 kmeans_silhouette_range <- function(data, k_range = 2:10, n_init = 10,
                                     random_state = NULL, max_iter = 100,
-                                    tol = 1e-4, correlation_type = "squared") {
+                                    tol = 1e-4, distance_metric = "r_squared") {
 
   results <- data.frame(
     k = integer(),
@@ -235,20 +241,20 @@ kmeans_silhouette_range <- function(data, k_range = 2:10, n_init = 10,
 
   for (k in k_range) {
 
-    # Fit K-means with specified correlation_type
+    # Fit K-means with specified distance_metric
     km <- KmeansVariables$new(
       n_clusters = k,
       max_iter = max_iter,
       tol = tol,
       n_init = n_init,
       random_state = random_state,
-      correlation_type = correlation_type
+      distance_metric = distance_metric
     )
 
     km$fit(data)
 
-    # Calculate silhouette with same correlation_type
-    sil <- kmeans_silhouette(data, km$clusters, km$centroids, correlation_type)
+    # Calculate silhouette with same distance_metric
+    sil <- kmeans_silhouette(data, km$clusters, km$centroids, distance_metric)
 
     results <- rbind(results, data.frame(
       k = k,
@@ -272,6 +278,7 @@ kmeans_silhouette_range <- function(data, k_range = 2:10, n_init = 10,
 #' @param data data.frame or matrix of quantitative variables
 #' @param clusters Integer vector of cluster assignments
 #' @param centroids Matrix of cluster centroids
+#' @param distance_metric Character. Distance metric used for clustering (for consistency checking).
 #'
 #' @return Numeric value (CH index). Higher is better.
 #'
@@ -294,7 +301,7 @@ kmeans_silhouette_range <- function(data, k_range = 2:10, n_init = 10,
 #' }
 #'
 #' @noRd
-kmeans_calinski_harabasz <- function(data, clusters, centroids, correlation_type = "squared") {
+kmeans_calinski_harabasz <- function(data, clusters, centroids, distance_metric = "r_squared") {
 
   X <- as.matrix(data)
   p <- ncol(X)
@@ -305,28 +312,35 @@ kmeans_calinski_harabasz <- function(data, clusters, centroids, correlation_type
     return(NA)
   }
 
-  # Validate correlation_type
-  if (!correlation_type %in% c("squared", "absolute")) {
-    stop("'correlation_type' must be either 'squared' or 'absolute'")
+  # Validate distance_metric
+  if (!distance_metric %in% c("r_squared", "r_signed")) {
+    stop("'distance_metric' must be either 'r_squared' or 'r_signed'")
   }
 
   # Within-cluster variance (W)
+  # W = p - sum(eigenvalues) = p - total inertia
   W <- 0
-  for (j in 1:p) {
-    k <- clusters[j]
-    cor_val <- cor(X[, j], centroids[, k])
+  for (k in 1:K) {
+    var_indices <- which(clusters == k)
+    if (length(var_indices) == 0) next
 
-    # Calculate within-cluster variance based on correlation_type
-    if (correlation_type == "squared") {
-      W <- W + (1 - cor_val^2)
-    } else {
-      W <- W + (1 - abs(cor_val))
+    X_cluster <- X[, var_indices, drop = FALSE]
+
+    # Single variable cluster
+    if (length(var_indices) == 1) {
+      W <- W + 0  # Perfect fit, variance = 0
+      next
     }
+
+    # Run PCA to get eigenvalue
+    pca_result <- prcomp(X_cluster, center = TRUE, scale. = TRUE)
+    eigenvalue <- pca_result$sdev[1]^2
+
+    # Within-cluster variance = number of variables - eigenvalue
+    W <- W + (length(var_indices) - eigenvalue)
   }
 
   # Between-cluster variance (B)
-  # Total variance = p (since variables are scaled)
-  # B = Total - W
   B <- p - W
 
   # Calinski-Harabasz index
@@ -348,6 +362,7 @@ kmeans_calinski_harabasz <- function(data, clusters, centroids, correlation_type
 #' @param random_state Integer or NULL. Random seed.
 #' @param max_iter Integer. Maximum iterations. Default: 100.
 #' @param tol Numeric. Convergence tolerance. Default: 1e-4.
+#' @param distance_metric Character. Distance metric: "r_squared" or "r_signed". Default: "r_squared".
 #'
 #' @return data.frame with columns:
 #' \itemize{
@@ -365,7 +380,7 @@ kmeans_calinski_harabasz <- function(data, clusters, centroids, correlation_type
 #' @noRd
 kmeans_calinski_harabasz_range <- function(data, k_range = 2:10, n_init = 10,
                                            random_state = NULL, max_iter = 100,
-                                           tol = 1e-4, correlation_type = "squared") {
+                                           tol = 1e-4, distance_metric = "r_squared") {
 
   results <- data.frame(
     k = integer(),
@@ -377,20 +392,20 @@ kmeans_calinski_harabasz_range <- function(data, k_range = 2:10, n_init = 10,
     # Skip K=1 (undefined)
     if (k == 1) next
 
-    # Fit K-means with specified correlation_type
+    # Fit K-means with specified distance_metric
     km <- KmeansVariables$new(
       n_clusters = k,
       max_iter = max_iter,
       tol = tol,
       n_init = n_init,
       random_state = random_state,
-      correlation_type = correlation_type
+      distance_metric = distance_metric
     )
 
     km$fit(data)
 
-    # Calculate CH index with same correlation_type
-    ch <- kmeans_calinski_harabasz(data, km$clusters, km$centroids, correlation_type)
+    # Calculate CH index with same distance_metric
+    ch <- kmeans_calinski_harabasz(data, km$clusters, km$centroids, distance_metric)
 
     results <- rbind(results, data.frame(
       k = k,
@@ -423,32 +438,32 @@ kmeans_calinski_harabasz_range <- function(data, k_range = 2:10, n_init = 10,
 #'
 #' @noRd
 kmeans_intra_correlation <- function(data, clusters) {
-  
+
   X <- as.matrix(data)
   K <- max(clusters)
-  
+
   intra_cors <- numeric(K)
   names(intra_cors) <- paste0("Cluster", 1:K)
-  
+
   for (k in 1:K) {
-    
+
     var_indices <- which(clusters == k)
     n_vars <- length(var_indices)
-    
+
     if (n_vars < 2) {
       intra_cors[k] <- NA
       next
     }
-    
-    # Correlation matrix for cluster k
+
+    # Use eigenvalue to measure cohesion
     X_k <- X[, var_indices, drop = FALSE]
-    cor_matrix <- cor(X_k)
-    
-    # Average of off-diagonal elements (excluding diagonal = 1)
-    cor_values <- cor_matrix[upper.tri(cor_matrix)]
-    intra_cors[k] <- mean(abs(cor_values))
+    pca_result <- prcomp(X_k, center = TRUE, scale. = TRUE)
+    eigenvalue <- pca_result$sdev[1]^2
+
+    # Cohesion = eigenvalue / n_vars (proportion of variance explained by PC1)
+    intra_cors[k] <- eigenvalue / n_vars
   }
-  
+
   return(intra_cors)
 }
 
@@ -501,6 +516,7 @@ kmeans_contributions <- function(data, clusters, centroids) {
     k <- clusters[j]
     cor_val <- cor(X[, j], centroids[, k])
     contributions$correlation[j] <- cor_val
+    # Contribution = R² = squared correlation = cos² (angle with PC1)
     contributions$contribution[j] <- cor_val^2
   }
   
@@ -517,6 +533,7 @@ kmeans_contributions <- function(data, clusters, centroids) {
 #' @param data data.frame or matrix of quantitative variables
 #' @param clusters Integer vector of cluster assignments
 #' @param centroids Matrix of cluster centroids
+#' @param distance_metric Character. Distance metric used for clustering (for consistency checking).
 #'
 #' @return Numeric value (ratio B/W). Higher is better.
 #'
@@ -535,28 +552,37 @@ kmeans_contributions <- function(data, clusters, centroids) {
 #' }
 #'
 #' @noRd
-kmeans_between_within_ratio <- function(data, clusters, centroids, correlation_type = "squared") {
+kmeans_between_within_ratio <- function(data, clusters, centroids, distance_metric = "r_squared") {
 
   X <- as.matrix(data)
   p <- ncol(X)
+  K <- max(clusters)
 
-  # Validate correlation_type
-  if (!correlation_type %in% c("squared", "absolute")) {
-    stop("'correlation_type' must be either 'squared' or 'absolute'")
+  # Validate distance_metric
+  if (!distance_metric %in% c("r_squared", "r_signed")) {
+    stop("'distance_metric' must be either 'r_squared' or 'r_signed'")
   }
 
-  # Within-cluster variance
+  # Within-cluster variance using eigenvalues
   W <- 0
-  for (j in 1:p) {
-    k <- clusters[j]
-    cor_val <- cor(X[, j], centroids[, k])
+  for (k in 1:K) {
+    var_indices <- which(clusters == k)
+    if (length(var_indices) == 0) next
 
-    # Calculate within-cluster variance based on correlation_type
-    if (correlation_type == "squared") {
-      W <- W + (1 - cor_val^2)
-    } else {
-      W <- W + (1 - abs(cor_val))
+    X_cluster <- X[, var_indices, drop = FALSE]
+
+    # Single variable cluster
+    if (length(var_indices) == 1) {
+      W <- W + 0
+      next
     }
+
+    # Run PCA to get eigenvalue
+    pca_result <- prcomp(X_cluster, center = TRUE, scale. = TRUE)
+    eigenvalue <- pca_result$sdev[1]^2
+
+    # Within-cluster variance = number of variables - eigenvalue
+    W <- W + (length(var_indices) - eigenvalue)
   }
 
   # Between-cluster variance
@@ -583,6 +609,7 @@ kmeans_between_within_ratio <- function(data, clusters, centroids, correlation_t
 #'        Default: "all".
 #' @param n_init Integer. Number of initializations. Default: 10.
 #' @param random_state Integer or NULL. Random seed.
+#' @param distance_metric Character. Distance metric: "r_squared" or "r_signed". Default: "r_squared".
 #'
 #' @return List with:
 #' \itemize{
@@ -601,19 +628,19 @@ kmeans_between_within_ratio <- function(data, clusters, centroids, correlation_t
 #' @noRd
 kmeans_find_optimal_k <- function(data, k_range = 2:10, method = "all",
                                   n_init = 10, random_state = NULL,
-                                  correlation_type = "squared") {
+                                  distance_metric = "r_squared") {
 
   if (!method %in% c("silhouette", "calinski", "all")) {
     stop("'method' must be 'silhouette', 'calinski', or 'all'")
   }
 
-  # Compute metrics with specified correlation_type
+  # Compute metrics with specified distance_metric
   elbow_data <- kmeans_elbow(data, k_range, n_init, random_state,
-                            correlation_type = correlation_type)
+                            distance_metric = distance_metric)
   sil_data <- kmeans_silhouette_range(data, k_range, n_init, random_state,
-                                      correlation_type = correlation_type)
+                                      distance_metric = distance_metric)
   ch_data <- kmeans_calinski_harabasz_range(data, k_range, n_init, random_state,
-                                            correlation_type = correlation_type)
+                                            distance_metric = distance_metric)
 
   # Merge results
   metrics <- merge(elbow_data, sil_data, by = "k")
@@ -657,6 +684,9 @@ kmeans_find_optimal_k <- function(data, k_range = 2:10, method = "all",
 #' @param clusters Integer vector of cluster assignments
 #' @param centroids Matrix of cluster centroids
 #' @param round_digits Integer. Number of decimals to round correlations. Default: 3
+#' @param distance_metric Character. Distance metric used for clustering: "r_squared" or "r_signed".
+#'        Determines whether to use absolute correlation (r_squared) or signed correlation (r_signed)
+#'        for calculating max_cor and separation metrics. Default: "r_squared".
 #'
 #' @return data.frame with columns:
 #' \itemize{
@@ -701,12 +731,18 @@ kmeans_find_optimal_k <- function(data, k_range = 2:10, method = "all",
 #' }
 #'
 #' @noRd
-kmeans_correlation_table <- function(data, clusters, centroids, round_digits = 3) {
+kmeans_correlation_table <- function(data, clusters, centroids, round_digits = 3,
+                                     distance_metric = "r_squared") {
 
   X <- as.matrix(data)
   p <- ncol(X)
   K <- ncol(centroids)
   var_names <- colnames(X)
+
+  # Validate distance_metric
+  if (!distance_metric %in% c("r_squared", "r_signed")) {
+    stop("'distance_metric' must be either 'r_squared' or 'r_signed'")
+  }
 
   # Initialize result data frame
   result <- data.frame(
@@ -735,14 +771,20 @@ kmeans_correlation_table <- function(data, clusters, centroids, round_digits = 3
   # Add correlation columns to result
   result <- cbind(result, round(cor_matrix, round_digits))
 
-  # Calculate additional metrics
-  abs_cor_matrix <- abs(cor_matrix)
+  # Calculate additional metrics based on distance_metric
+  # For r_squared: use absolute correlation (considers both positive and negative as similar)
+  # For r_signed: use raw signed correlation (only positive values indicate similarity)
+  if (distance_metric == "r_squared") {
+    metric_matrix <- abs(cor_matrix)
+  } else {
+    metric_matrix <- cor_matrix
+  }
 
   # Maximum correlation (should be with assigned cluster)
-  result$max_cor <- round(apply(abs_cor_matrix, 1, max), round_digits)
+  result$max_cor <- round(apply(metric_matrix, 1, max), round_digits)
 
   # Second maximum correlation
-  result$second_max_cor <- round(apply(abs_cor_matrix, 1, function(x) {
+  result$second_max_cor <- round(apply(metric_matrix, 1, function(x) {
     sorted <- sort(x, decreasing = TRUE)
     if (length(sorted) >= 2) sorted[2] else 0
   }), round_digits)
