@@ -12,7 +12,7 @@ with cluster centroids (first principal component of each cluster).
 The \code{KmeansVariables} class inherits from \code{ClusteringBase} and provides:
 \itemize{
 \item Iterative reallocation of variables to clusters
-\item Distance calculation based on squared correlation with centroids
+\item Distance calculation based on correlation with centroids (R² or signed r)
 \item Centroid computation via Principal Component Analysis (PCA)
 \item Multiple random initializations to avoid local minima
 \item Convergence monitoring and iteration tracking
@@ -24,27 +24,35 @@ The K-means for variables works as follows:
 \enumerate{
 \item \strong{Initialization}: Randomly assign variables to K clusters
 \item \strong{Centroid Calculation}: For each cluster, compute the first principal component (via PCA) as the cluster centroid
-\item \strong{Distance Calculation}: Compute distance between each variable and each centroid using: \code{d(X_j, c_k) = sqrt(1 - cor(X_j, c_k)^2)}
+\item \strong{Distance Calculation}: Compute distance between each variable and each centroid based on their correlation
 \item \strong{Reallocation}: Reassign each variable to its nearest centroid
 \item \strong{Convergence Check}: Repeat steps 2-4 until no reassignment occurs or max iterations reached
 }
 }
 
-\section{Distance Metric}{
+\section{Distance Metrics}{
 
-The distance between a variable \eqn{X_j} and a centroid \eqn{c_k} is defined as:
-\deqn{d(X_j, c_k) = \sqrt{1 - \rho^2(X_j, c_k)}}
+Two distance metrics are available for measuring dissimilarity between variables and centroids:
+
+\strong{R²-based distance} (\code{distance_metric = "r_squared"}):
+\deqn{d_{R^2}(X_j, c_k) = \sqrt{1 - \rho^2(X_j, c_k)}}
 where \eqn{\rho(X_j, c_k)} is the Pearson correlation coefficient.
+This metric groups variables with high absolute correlation (positive or negative).
 
-A high correlation (close to ±1) results in a small distance (close to 0),
-indicating that the variable is well-represented by the centroid.
+\strong{Signed r-based distance} (\code{distance_metric = "r_signed"}):
+\deqn{d_r(X_j, c_k) = \sqrt{1 - \rho(X_j, c_k)}}
+This metric only groups variables with positive correlation, treating
+negatively correlated variables as dissimilar.
 }
 
 \section{Objective Function}{
 
-The algorithm maximizes the within-cluster cohesion (inertia):
-\deqn{I_k = \sum_{X_j \in C_k} \rho^2(X_j, c_k)}
-where \eqn{C_k} denotes the set of variables in cluster \eqn{k} and \eqn{c_k} is the cluster centroid.
+The algorithm maximizes the within-cluster cohesion (inertia). For cluster \eqn{k},
+the inertia is defined as the first eigenvalue \eqn{\lambda_k} from the PCA
+of variables in \eqn{C_k}, which equals:
+\deqn{I_k = \lambda_k = \sum_{X_j \in C_k} \rho^2(X_j, c_k)}
+where \eqn{C_k} denotes the set of variables in cluster \eqn{k} and \eqn{c_k} is the
+first principal component. The total inertia is \eqn{I = \sum_{k=1}^K I_k}.
 }
 
 \section{Convergence}{
@@ -77,7 +85,7 @@ This class requires:
 \section{Methods}{
 
 \describe{
-\item{\code{$new(n_clusters, max_iter, tol, n_init, random_state, k_range, selection_method, correlation_type)}}{
+\item{\code{$new(n_clusters, max_iter, tol, n_init, random_state, k_range, selection_method, distance_metric)}}{
 Initialize a new KmeansVariables object. See constructor documentation for parameter details.
 }
 \item{\code{$fit(data)}}{
@@ -140,11 +148,11 @@ km_auto <- KmeansVariables$new(n_clusters = "auto",
 km_auto$fit(data_test)
 # → Displays: "Optimal K selected: 3 (method: silhouette, avg_silhouette: 0.XXX)"
 
-# Option 3: Use absolute correlation (separates positively/negatively correlated vars)
-km_abs <- KmeansVariables$new(n_clusters = 3,
-                              correlation_type = "absolute",
-                              random_state = 42)
-km_abs$fit(data_test)
+# Option 3: Use signed correlation (separates positively/negatively correlated vars)
+km_signed <- KmeansVariables$new(n_clusters = 3,
+                                 distance_metric = "r_signed",
+                                 random_state = 42)
+km_signed$fit(data_test)
 # Variables with negative correlation to centroid will be in different clusters
 
 # Calculate metrics
@@ -261,7 +269,7 @@ Other clustering classes:
   random_state = NULL,
   k_range = 2:10,
   selection_method = "silhouette",
-  correlation_type = "squared"
+  distance_metric = "r_squared"
 )}\if{html}{\out{</div>}}
 }
 
@@ -282,7 +290,10 @@ Other clustering classes:
 
 \item{\code{selection_method}}{Character. Method for automatic K selection: "silhouette", "calinski", or "all". Default: "silhouette"}
 
-\item{\code{correlation_type}}{Character. Type of correlation for distance: "squared" (R²) or "absolute" (r). Default: "squared"}
+\item{\code{distance_metric}}{Character. Metric for distance calculation:
+"r_squared" (based on R², groups variables with high absolute correlation) or
+"r_signed" (based on signed r, groups only positively correlated variables).
+Default: "r_squared"}
 }
 \if{html}{\out{</div>}}
 }

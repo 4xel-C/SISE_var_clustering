@@ -9,9 +9,9 @@ app_ui <- function() {
     shiny::titlePanel(
       shiny::div(
         style = "text-align: center; padding: 20px;",
-        shiny::h1("Hierarchical Variable Clustering",
+        shiny::h1("Variable Clustering",
                   style = "color: #2C3E50; font-weight: bold;"),
-        shiny::h4("Interactive Analysis with HClustVar",
+        shiny::h4("Interactive application for variable clustering",
                   style = "color: #7F8C8D;")
       )
     ),
@@ -37,14 +37,16 @@ app_ui <- function() {
     ),
 
     # ============================================================
-    # SIDEBAR - Paramètres
+    # SIDEBAR - Parameters
     # ============================================================
     shiny::sidebarLayout(
 
       shiny::sidebarPanel(
         width = 3,
 
-        # --- SECTION 1: Import de données ---
+        # ------------------------------------------------------------
+        # Data imports
+        # ------------------------------------------------------------
         shiny::wellPanel(
           shiny::h4("📁 Data Import", style = "color: #2C3E50;"),
 
@@ -69,28 +71,126 @@ app_ui <- function() {
               value = 1,
               min = 1,
               step = 1
+            ),
+
+            shiny::br(),
+
+            # Button to open variable configuration modal
+            shiny::actionButton(
+              "open_var_config",
+              "⚙️ Configure Variables",
+              class = "btn-info btn-block",
+              style = "font-weight: bold;"
             )
           )
         ),
 
-        # --- SECTION 2: Paramètres de clustering ---
+        # ------------------------------------------------------------
+        # Clustering algorithm selection
+        # ------------------------------------------------------------
         shiny::wellPanel(
           shiny::h4("⚙️ Clustering Parameters", style = "color: #2C3E50;"),
 
           shiny::selectInput(
-            "vartype",
-            "Variable type",
+            "algorithm",
+            "Algorithm",
             choices = c(
-              "Auto-detect" = "auto",
-              "Quantitative" = "quant",
-              "Qualitative" = "qual",
-              "Mixed" = "mixed"
+              "CAH Variables clustering" = "hclust",
+              "K-means  Variables clustering" = "kmeans"
             ),
-            selected = "auto"
+            selected = "hclust"
           ),
 
+
+          # ------------------------------------------------------------
+          # Type selection
+          # ------------------------------------------------------------
           shiny::conditionalPanel(
-            condition = "input.vartype == 'quant'",
+            condition = "input.algorithm == 'hclust'",
+            shiny::selectInput(
+              "vartype",
+              "Variable type",
+              choices = c(
+                "Auto-detect" = "auto",
+                "Quantitative" = "quant",
+                "Qualitative" = "qual",
+                "Mixed" = "mixed"
+              ),
+              selected = "auto"
+            )
+          ),
+
+
+          shiny::conditionalPanel(
+            condition = "input.algorithm == 'kmeans'",
+            shiny::selectInput(
+              "vartype_kmeans",
+              "Variable type",
+              choices = c(
+                "Quantitative" = "quant"
+              ),
+              selected = "quant"
+            )
+          ),
+
+          # ------------------------------------------------------------
+          # Descriptive text for selection
+          # ------------------------------------------------------------
+          shiny::conditionalPanel(
+            condition = "input.vartype == 'auto' && input.algorithm == 'hclust'",
+            shiny::div(
+              style = "background-color: #E8F4F8; padding: 10px; border-radius: 5px; margin-top: 10px; border-left: 3px solid #3498DB;",
+              shiny::tags$small(
+                shiny::icon("info-circle"),
+                " The algorithm will automatically detect the type of variables in your dataset."
+              )
+            )
+          ),
+
+          # Descriptive text for quantitative
+          shiny::conditionalPanel(
+            condition = "(input.vartype == 'quant' && input.algorithm == 'hclust') || (input.vartype_kmeans == 'quant' && input.algorithm == 'kmeans') ",
+            shiny::div(
+              style = "background-color: #E8F5E9; padding: 10px; border-radius: 5px; margin-top: 10px; border-left: 3px solid #2ECC71;",
+              shiny::tags$small(
+                shiny::icon("chart-line"),
+                shiny::strong(" Quantitative variables:"),
+                "Compute clustering on quantitatives data only"
+              )
+            )
+          ),
+
+          # Descriptive text for qualitative
+          shiny::conditionalPanel(
+            condition = "input.vartype == 'qual' && input.algorithm == 'hclust'",
+            shiny::div(
+              style = "background-color: #FFF3E0; padding: 10px; border-radius: 5px; margin-top: 10px; border-left: 3px solid #F39C12;",
+              shiny::tags$small(
+                shiny::icon("tags"),
+                shiny::strong(" Qualitative variables:"),
+                "Compute clustering on categorical data only"
+              )
+            )
+          ),
+
+          # Descriptive text for mixed
+          shiny::conditionalPanel(
+            condition = "input.vartype == 'mixed' && input.algorithm == 'hclust'",
+            shiny::div(
+              style = "background-color: #F3E5F5; padding: 10px; border-radius: 5px; margin-top: 10px; border-left: 3px solid #9B59B6;",
+              shiny::tags$small(
+                shiny::icon("layer-group"),
+                shiny::strong(" Mixed variables:"),
+                "Will select both quantitative and qualitative variables. If mixed type, proceed a discretization of quantitatives."
+              )
+            )
+          ),
+
+          # ------------------------------------------------------------
+          # Parameters for Correlation
+          # ------------------------------------------------------------
+          shiny::conditionalPanel(
+            condition = "(input.algorithm == 'hclust' && input.vartype == 'quant') || input.algorithm == 'kmeans'",
             shiny::selectInput(
               "dist_metric",
               "Distance metric",
@@ -102,22 +202,63 @@ app_ui <- function() {
             )
           ),
 
-          shiny::selectInput(
-            "cah_method",
-            "Clustering method",
-            choices = c(
-              "Ward D" = "ward.D",
-              "Ward D2" = "ward.D2",
-              "Complete" = "complete",
-              "Average" = "average",
-              "Single" = "single",
-              "Mcquitty" = "mcquitty",
-              "Median" = "median",
-              "Centroid" = "centroid"
-            ),
-            selected = "ward.D"
+
+          # ------------------------------------------------------------
+          # Parameters for CAH
+          # ------------------------------------------------------------
+          shiny::conditionalPanel(
+            condition = "input.algorithm == 'hclust'",
+            shiny::selectInput(
+              "cah_method",
+              "Clustering method",
+              choices = c(
+                "Ward D" = "ward.D",
+                "Ward D2" = "ward.D2",
+                "Complete" = "complete",
+                "Average" = "average",
+                "Single" = "single",
+                "Mcquitty" = "mcquitty",
+                "Median" = "median",
+                "Centroid" = "centroid"
+              ),
+              selected = "ward.D"
+            )
           ),
 
+
+          # ------------------------------------------------------------
+          # Parameters for Kmeans
+          # ------------------------------------------------------------
+          shiny::conditionalPanel(
+            condition = "input.algorithm == 'kmeans'",
+            shiny::numericInput(
+              "km_max_iter",
+              "K-means max iterations",
+              value = 100,
+              min = 1,
+              step = 1
+            ),
+            shiny::numericInput(
+              "km_n_init",
+              "K-means n_init (restarts)",
+              value = 10,
+              min = 1,
+              step = 1
+            ),
+            shiny::numericInput(
+              "km_random_state",
+              "Random seed (0 = random)",
+              value = 0,
+              min = 0,
+              step = 1
+            )
+          ),
+
+          # ------------------------------------------------------------
+          # Parameters for Number of clusters
+          # ------------------------------------------------------------
+
+          # --- Common parameter: number of clusters ---
           shiny::numericInput(
             "n_clusters",
             "Number of clusters",
@@ -127,6 +268,7 @@ app_ui <- function() {
             step = 1
           ),
 
+
           shiny::actionButton(
             "run_clustering",
             "🚀 Run Clustering",
@@ -135,7 +277,9 @@ app_ui <- function() {
           )
         ),
 
-        # --- SECTION 3: Export ---
+        # ------------------------------------------------------------
+        # Data export
+        # ------------------------------------------------------------
         shiny::wellPanel(
           shiny::h4("💾 Export Results", style = "color: #2C3E50;"),
 
@@ -151,63 +295,13 @@ app_ui <- function() {
       ),
 
       # ============================================================
-      # MAIN PANEL - Résultats
+      # MAIN PANEL - Dynamic results
       # ============================================================
       shiny::mainPanel(
         width = 9,
 
-        shiny::tabsetPanel(
-          id = "main_tabs",
-          type = "tabs",
-
-          # --- TAB 1: Data Preview ---
-          shiny::tabPanel(
-            "📊 Data Preview",
-            shiny::br(),
-            shiny::uiOutput("data_info"),
-            shiny::br(),
-            DT::DTOutput("data_table")
-          ),
-
-          # --- TAB 2: Dendrogram ---
-          shiny::tabPanel(
-            "🌳 Dendrogram",
-            shiny::br(),
-            shiny::plotOutput("dendrogram_plot", height = "600px")
-          ),
-
-          # --- TAB 3: Aggregation Levels ---
-          shiny::tabPanel(
-            "📈 Elbow Method",
-            shiny::br(),
-            shiny::plotOutput("agg_levels_plot", height = "600px")
-          ),
-
-          # --- TAB 4: Results Summary ---
-          shiny::tabPanel(
-            "📋 Summary",
-            shiny::br(),
-            shiny::h3("Cluster Summary"),
-            DT::DTOutput("cluster_summary_table"),
-            shiny::br(),
-            shiny::h3("Variable Assignments"),
-            DT::DTOutput("cluster_members_table")
-          ),
-
-          # --- TAB 5: Silhouette ---
-          shiny::tabPanel(
-            "📊 Silhouette Plot",
-            shiny::br(),
-            shiny::plotOutput("silhouette_plot", height = "700px")
-          ),
-
-          # --- TAB 6: MDS Projection ---
-          shiny::tabPanel(
-            "🗺️ MDS Projection",
-            shiny::br(),
-            shiny::plotOutput("mds_plot", height = "600px")
-          )
-        )
+        # Les tabs seront générés dynamiquement côté serveur
+        shiny::uiOutput("dynamic_tabs")
       )
     )
   )

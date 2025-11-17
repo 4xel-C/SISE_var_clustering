@@ -14,7 +14,7 @@
 #' }
 #'
 #' @export
-run_hclustvar_app <- function(...) {
+varclust <- function(...) {
 
   # Vérifier que shiny est installé
   if (!requireNamespace("shiny", quietly = TRUE)) {
