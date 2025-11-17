@@ -684,6 +684,9 @@ kmeans_find_optimal_k <- function(data, k_range = 2:10, method = "all",
 #' @param clusters Integer vector of cluster assignments
 #' @param centroids Matrix of cluster centroids
 #' @param round_digits Integer. Number of decimals to round correlations. Default: 3
+#' @param distance_metric Character. Distance metric used for clustering: "r_squared" or "r_signed".
+#'        Determines whether to use absolute correlation (r_squared) or signed correlation (r_signed)
+#'        for calculating max_cor and separation metrics. Default: "r_squared".
 #'
 #' @return data.frame with columns:
 #' \itemize{
@@ -728,12 +731,18 @@ kmeans_find_optimal_k <- function(data, k_range = 2:10, method = "all",
 #' }
 #'
 #' @noRd
-kmeans_correlation_table <- function(data, clusters, centroids, round_digits = 3) {
+kmeans_correlation_table <- function(data, clusters, centroids, round_digits = 3,
+                                     distance_metric = "r_squared") {
 
   X <- as.matrix(data)
   p <- ncol(X)
   K <- ncol(centroids)
   var_names <- colnames(X)
+
+  # Validate distance_metric
+  if (!distance_metric %in% c("r_squared", "r_signed")) {
+    stop("'distance_metric' must be either 'r_squared' or 'r_signed'")
+  }
 
   # Initialize result data frame
   result <- data.frame(
@@ -762,14 +771,20 @@ kmeans_correlation_table <- function(data, clusters, centroids, round_digits = 3
   # Add correlation columns to result
   result <- cbind(result, round(cor_matrix, round_digits))
 
-  # Calculate additional metrics
-  abs_cor_matrix <- abs(cor_matrix)
+  # Calculate additional metrics based on distance_metric
+  # For r_squared: use absolute correlation (considers both positive and negative as similar)
+  # For r_signed: use raw signed correlation (only positive values indicate similarity)
+  if (distance_metric == "r_squared") {
+    metric_matrix <- abs(cor_matrix)
+  } else {
+    metric_matrix <- cor_matrix
+  }
 
   # Maximum correlation (should be with assigned cluster)
-  result$max_cor <- round(apply(abs_cor_matrix, 1, max), round_digits)
+  result$max_cor <- round(apply(metric_matrix, 1, max), round_digits)
 
   # Second maximum correlation
-  result$second_max_cor <- round(apply(abs_cor_matrix, 1, function(x) {
+  result$second_max_cor <- round(apply(metric_matrix, 1, function(x) {
     sorted <- sort(x, decreasing = TRUE)
     if (length(sorted) >= 2) sorted[2] else 0
   }), round_digits)

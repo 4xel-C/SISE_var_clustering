@@ -939,14 +939,16 @@ KmeansVariables <- R6::R6Class(
     # Wrapper for kmeans_correlation_table() that uses the fitted model
     #
     # @param round_digits Number of decimal places to round to. Default: 3.
-    # @return Data frame with variable-cluster correlations
+    # @return Data frame with variable-cluster correlations.
+    #         Uses the same distance_metric as clustering for max_cor calculation.
     correlation_table = function(round_digits = 3) {
       if (!self$fitted) {
         stop("Model must be fitted before calculating correlation table. Use $fit() first.")
       }
 
       data <- self$get_quanti_data()
-      return(kmeans_correlation_table(data, self$labels, private$.centroids, round_digits))
+      return(kmeans_correlation_table(data, self$labels, private$.centroids,
+                                      round_digits, private$.distance_metric))
     },
 
     # -----------------------------------------------------------------------
