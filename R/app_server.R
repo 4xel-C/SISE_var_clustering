@@ -16,7 +16,8 @@ app_server <- function(input, output, session) {
     data = NULL,
     model = NULL,
     model_type = NULL,
-    clustering_done = FALSE
+    clustering_done = FALSE,
+    prediction = NULL
   )
 
   # Reactive value to store variable configurations
@@ -36,6 +37,10 @@ app_server <- function(input, output, session) {
     # Common tabs
     # ------------------------------------------------------------
     common_tabs <- list(
+
+      # -------------
+      # Data preview
+      # -------------
       shiny::tabPanel(
         "📊 Data Preview",
         shiny::br(),
@@ -44,6 +49,9 @@ app_server <- function(input, output, session) {
         DT::DTOutput("data_table")
       ),
 
+      # -------------
+      # Variable configuration
+      # -------------
       shiny::tabPanel(
         "🔍 Variable Configuration",
         shiny::br(),
@@ -114,6 +122,9 @@ app_server <- function(input, output, session) {
         )
       ),
 
+      # -------------
+      # Summary
+      # -------------
       shiny::tabPanel(
         "📋 Summary",
         shiny::br(),
@@ -124,10 +135,34 @@ app_server <- function(input, output, session) {
         DT::DTOutput("cluster_members_table")
       ),
 
+
+      # -------------
+      # Silhouette plot
+      # -------------
       shiny::tabPanel(
         "📊 Silhouette Plot",
         shiny::br(),
         shiny::plotOutput("silhouette_plot", height = "700px")
+      )
+    )
+
+
+
+    # ------------------------------------------------------------
+    # Prediction tab
+    # ------------------------------------------------------------
+    predict_tab <- list(
+      shiny::tabPanel(
+        "➡️ Predict",
+        shiny::br(),
+        shiny::h3("Cluster prediction on illustrative variables"),
+        shiny::br(),
+
+        if (is.null(rv$prediction)) {
+          shiny::h4("Configure Illustrative Variables and run a clustering to make your prediction.")
+        },
+
+        DT::DTOutput("prediction_result")
       )
     )
 
@@ -154,7 +189,9 @@ app_server <- function(input, output, session) {
       )
     )
 
-    # Tabs spécifiques à K-means
+    # ------------------------------------------------------------
+    # Kmeans tabs
+    # ------------------------------------------------------------
     kmeans_tabs <- list(
       shiny::tabPanel(
         "📉 Inertia Evolution",
@@ -176,15 +213,17 @@ app_server <- function(input, output, session) {
       )
     )
 
+    # TODO: ModalClust tab to be instantiated
+
     # ------------------------------------------------------------
     # Select the vector of tabs to display
     # ------------------------------------------------------------
     if (algorithm == "hclust") {
-      all_tabs <- c(common_tabs, hclust_tabs)
+      all_tabs <- c(common_tabs, hclust_tabs, predict_tab)
     } else if (algorithm == "kmeans") {
-      all_tabs <- c(common_tabs, kmeans_tabs)
+      all_tabs <- c(common_tabs, kmeans_tabs, predict_tab)
     } else {
-      all_tabs <- common_tabs
+      all_tabs <- c(common_tabs, predict_tab)
     }
 
     # Create the tabsetpanel with the list of tabs to use
@@ -231,7 +270,7 @@ app_server <- function(input, output, session) {
         # Detect the column to convert into factor automaticly
         for (col in names(data)) {
           if (is.character(data[[col]]) ||
-              (is.numeric(data[[col]]) && length(unique(data[[col]])) <= 10)) {
+              (is.numeric(data[[col]]) && length(unique(data[[col]])) <= 2)) {
             data[[col]] <- as.factor(data[[col]])
           }
         }
@@ -569,7 +608,7 @@ app_server <- function(input, output, session) {
     config_df <- variable_config()
 
     # Filter to active variables only
-    active_vars <- config_df$Variable[config_df$Role == "Active"]
+    active_vars <- config_df$Variable[config_df$Role == "Active" & config_df$Role == "Illustrative"]
 
     if (length(active_vars) == 0) {
       return(data)  # Return all if no selection (shouldn't happen)
@@ -606,7 +645,7 @@ app_server <- function(input, output, session) {
   })
 
   # ----------------------------------------------------------
-  # quantitatives varialbes
+  # quantitatives variables
   # ----------------------------------------------------------
 
   # Store quantitatives variables for later use
@@ -618,7 +657,7 @@ app_server <- function(input, output, session) {
   })
 
   # ----------------------------------------------------------
-  # qualitatives varialbes
+  # qualitatives variables
   # ----------------------------------------------------------
 
   # Store qualitatives variables for later use
@@ -866,6 +905,10 @@ app_server <- function(input, output, session) {
 
     shiny::withProgress(message = 'Running clustering...', value = 0, {
 
+      # -----------------------------------------------------------
+      # Error handling and data preparation
+      # -----------------------------------------------------------
+
       tryCatch({
 
         # Step 1: Initialization
@@ -874,9 +917,11 @@ app_server <- function(input, output, session) {
         # Get the filtered data
         data <- req(data_filtered())  # exit if NULL
 
-        # Get quantitative and qualitative variables
-        quant_vars <- quantitative_vars()
-        qual_vars  <- qualitative_vars()
+        # Get quantitative, qualitative and illustrative variables
+        quant_vars <- setdiff(quantitative_vars(), illustrative_vars())
+        qual_vars  <- setdiff(qualitative_vars(), illustrative_vars())
+        illust_vars <- illustrative_vars()
+
 
         # Check the selected algorithm
         if (is.null(input$algorithm) || input$algorithm == 'hclust') {
@@ -908,8 +953,6 @@ app_server <- function(input, output, session) {
 
           shiny::incProgress(0.4, detail = "Data ready for clustering...")
 
-          print(colnames(data))
-
           # -----------------------------------------------------------
           # HCLUST
           # -----------------------------------------------------------
@@ -933,6 +976,17 @@ app_server <- function(input, output, session) {
           rv$model_type <- 'hclust'
           rv$clustering_done <- TRUE
 
+          # Get the illustrative vars if any.
+          if (length(illust_vars) > 0) {
+            illustrative_df <-req(data_filtered())
+            illustrative_df <- illustrative_df[, illust_vars, drop = FALSE]
+            rv$prediction <- hc$predict(illustrative_df)
+
+            # If no illustrative vars, set the prediction to NULL.
+          } else {
+            rv$prediction <- NULL
+          }
+
           shiny::showNotification(
             "✅ Hierarchical clustering completed successfully!",
             type = "message",
@@ -941,8 +995,9 @@ app_server <- function(input, output, session) {
 
 
 
+          # TODO: Check Kmeans
         # -----------------------------------------------------------
-        # HCLUST
+        # Kmeans
         # -----------------------------------------------------------
 
         } else if (input$algorithm == 'kmeans') {
@@ -1304,6 +1359,27 @@ app_server <- function(input, output, session) {
   # ===========================================================
   # OUTPUTS - TABLES
   # ===========================================================
+
+
+  # -----------------------------------------------------------
+  # OUTPUTS - Prediction
+  # -----------------------------------------------------------
+
+  # TODO: Upgrade prediction visualization
+  output$prediction_result <- DT::renderDT({
+    req(rv$prediction)
+
+    prediction <- rv$prediction
+
+    df <- as.data.frame(prediction)
+
+    DT::datatable(
+      df,
+      options = list(pageLength = 20, dom = 't'),
+      rownames = FALSE
+    )
+  })
+
 
   output$cluster_summary_table <- DT::renderDT({
     req(rv$model)
