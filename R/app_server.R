@@ -127,12 +127,66 @@ app_server <- function(input, output, session) {
       # -------------
       shiny::tabPanel(
         "📋 Summary",
+
+        # --------------
+        # Metrics cards
+        # --------------
+        shiny::fluidRow(
+          # Average Silhouette Card
+          shiny::column(
+            6,
+            shiny::wellPanel(
+              style = "background-color: #E3F2FD; border-left: 5px solid #2196F3; min-height: 120px;",
+              shiny::div(
+                style = "text-align: center;",
+                shiny::h4("📊 Average Silhouette", style = "color: #1976D2; margin-top: 0;"),
+                shiny::uiOutput("avg_silhouette_display")
+              )
+            )
+          ),
+
+          # Total Variance Explained Card
+          shiny::column(
+            6,
+            shiny::wellPanel(
+              style = "background-color: #E8F5E9; border-left: 5px solid #4CAF50; min-height: 120px;",
+              shiny::div(
+                style = "text-align: center;",
+                shiny::h4("📈 Total Variance Explained", style = "color: #2E7D32; margin-top: 0;"),
+                shiny::uiOutput("total_var_explained_display")
+              )
+            )
+          )
+        ),
+
+        # --------------
+        # Cluster summary
+        # --------------
+        shiny::wellPanel(
+          shiny::h3("Cluster Summary"),
+          DT::DTOutput("cluster_summary_table")
+        ),
+
         shiny::br(),
-        shiny::h3("Cluster Summary"),
-        DT::DTOutput("cluster_summary_table"),
+
+        # --------------
+        # Centroid correlation
+        # --------------
+        shiny::wellPanel(
+          shiny::h3("Centroids Correlations"),
+          shiny::tags$p("Correlation matrix between cluster centroids"),
+          DT::DTOutput("centroids_correlation_table")
+        ),
+
         shiny::br(),
-        shiny::h3("Variable Assignments"),
-        DT::DTOutput("cluster_members_table")
+
+        # --------------
+        # Variable assignements
+        # --------------
+        shiny::wellPanel(
+          shiny::h3("Variable Assignments"),
+          DT::DTOutput("cluster_members_table")
+        )
       ),
 
 
@@ -155,14 +209,29 @@ app_server <- function(input, output, session) {
       shiny::tabPanel(
         "➡️ Predict",
         shiny::br(),
-        shiny::h3("Cluster prediction on illustrative variables"),
-        shiny::br(),
 
-        if (is.null(rv$prediction)) {
-          shiny::h4("Configure Illustrative Variables and run a clustering to make your prediction.")
-        },
+        # Limit the width of the table.
+        shiny::fluidRow(
+          shiny::column(
+            8,
+            offset = 2,  # Center the columns
+            shiny::h3("Cluster prediction on illustrative variables"),
+            shiny::br(),
 
-        DT::DTOutput("prediction_result")
+            if (is.null(rv$prediction)) {
+              shiny::wellPanel(
+                style = "background-color: #FFF3E0; border-left: 4px solid #F39C12;",
+                shiny::h4(
+                  "ℹ️ No predictions available",
+                  style = "color: #F39C12; margin-top: 0;"
+                ),
+                shiny::tags$p("Configure Illustrative Variables and run a clustering to make your prediction.")
+              )
+            },
+
+            DT::DTOutput("prediction_result")
+          )
+        )
       )
     )
 
@@ -605,10 +674,11 @@ app_server <- function(input, output, session) {
     req(variable_config())
 
     data <- data_loaded()
+
     config_df <- variable_config()
 
     # Filter to active variables only
-    active_vars <- config_df$Variable[config_df$Role == "Active" & config_df$Role == "Illustrative"]
+    active_vars <- config_df$Variable[config_df$Role == "Active" | config_df$Role == "Illustrative"]
 
     if (length(active_vars) == 0) {
       return(data)  # Return all if no selection (shouldn't happen)
@@ -914,13 +984,17 @@ app_server <- function(input, output, session) {
         # Step 1: Initialization
         shiny::incProgress(0.2, detail = "Initializing model...")
 
-        # Get the filtered data
+        # Get the configuration dataframe.
+        config_df <- variable_config()
+
+        # Get the filtered data (contains active + illustrative variables)
         data <- req(data_filtered())  # exit if NULL
 
-        # Get quantitative, qualitative and illustrative variables
+        # Get quantitative, qualitative, illustrative and active variables
         quant_vars <- setdiff(quantitative_vars(), illustrative_vars())
         qual_vars  <- setdiff(qualitative_vars(), illustrative_vars())
         illust_vars <- illustrative_vars()
+        active_vars <- c(quant_vars, qual_vars)
 
 
         # Check the selected algorithm
@@ -943,6 +1017,8 @@ app_server <- function(input, output, session) {
             data <- data[, quant_vars, drop = FALSE]
           } else if (input$vartype == "qual") {
             data <- data[, qual_vars, drop = FALSE]
+          } else {
+            data <- data[, active_vars, drop = FALSE]
           }
 
           # Stop if no columns remain after filtering
@@ -980,7 +1056,14 @@ app_server <- function(input, output, session) {
           if (length(illust_vars) > 0) {
             illustrative_df <-req(data_filtered())
             illustrative_df <- illustrative_df[, illust_vars, drop = FALSE]
-            rv$prediction <- hc$predict(illustrative_df)
+
+            # Store the prediction as a dataframe
+            rv$prediction <- data.frame(
+              "Illustrative variable" = illust_vars,
+              "Variable type" = config_df$Type[match(illust_vars, config_df$Variable)],
+              "Predicted clusters" = hc$predict(illustrative_df),
+              stringsAsFactors = FALSE
+            )
 
             # If no illustrative vars, set the prediction to NULL.
           } else {
@@ -1360,7 +1443,6 @@ app_server <- function(input, output, session) {
   # OUTPUTS - TABLES
   # ===========================================================
 
-
   # -----------------------------------------------------------
   # OUTPUTS - Prediction
   # -----------------------------------------------------------
@@ -1371,16 +1453,16 @@ app_server <- function(input, output, session) {
 
     prediction <- rv$prediction
 
-    df <- as.data.frame(prediction)
-
     DT::datatable(
-      df,
+      prediction,
       options = list(pageLength = 20, dom = 't'),
       rownames = FALSE
     )
   })
 
-
+  # -----------------------------------------------------------
+  # OUTPUTS - Summary tables
+  # -----------------------------------------------------------
   output$cluster_summary_table <- DT::renderDT({
     req(rv$model)
     req(rv$clustering_done)
@@ -1392,10 +1474,6 @@ app_server <- function(input, output, session) {
       # If clust_summary exists, show it. Else try to show whole summary object
       df <- if (!is.null(summary_data$clust_summary)) summary_data$clust_summary else as.data.frame(summary_data)
       dt <- DT::datatable(df, options = list(pageLength = 20, dom = 't'), rownames = FALSE)
-      # Apply styling only when column exists
-      if ('prop_explained' %in% colnames(df)) {
-        dt <- dt %>% DT::formatStyle('prop_explained', backgroundColor = DT::styleInterval(c(0.5, 0.7), c('#FADBD8', '#FCF3CF', '#D5F4E6')))
-      }
       dt
     }
   })
@@ -1416,6 +1494,139 @@ app_server <- function(input, output, session) {
       dt
     }
   })
+
+  # Average Silhouette Display
+  output$avg_silhouette_display <- shiny::renderUI({
+    req(rv$model)
+    req(rv$clustering_done)
+
+    summary_data <- tryCatch(rv$model$summary(), error = function(e) NULL)
+    avg_sil <- summary_data$avg_silhouette
+
+    if (is.null(avg_sil)) {
+      shiny::tags$div(
+        style = "color: #95A5A6; font-size: 14px;",
+        "Not available"
+      )
+    } else {
+      # Color based on silhouette value
+      color <- if (avg_sil >= 0.7) {
+        "#4CAF50"  # Green - excellent
+      } else if (avg_sil >= 0.5) {
+        "#FFC107"  # Yellow - good
+      } else if (avg_sil >= 0.25) {
+        "#FF9800"  # Orange - fair
+      } else {
+        "#F44336"  # Red - poor
+      }
+
+      quality <- if (avg_sil >= 0.7) {
+        "Excellent"
+      } else if (avg_sil >= 0.5) {
+        "Good"
+      } else if (avg_sil >= 0.25) {
+        "Fair"
+      } else {
+        "Poor"
+      }
+
+      shiny::tagList(
+        shiny::tags$div(
+          style = paste0("font-size: 48px; font-weight: bold; color: ", color, ";"),
+          sprintf("%.3f", avg_sil)
+        ),
+        shiny::tags$div(
+          style = paste0("font-size: 16px; color: ", color, "; margin-top: 5px;"),
+          quality
+        )
+      )
+    }
+  })
+
+  # Total Variance Explained Display
+  output$total_var_explained_display <- shiny::renderUI({
+    req(rv$model)
+    req(rv$clustering_done)
+
+    summary_data <- tryCatch(rv$model$summary(), error = function(e) NULL)
+    total_var <- summary_data$total_var_explained
+
+    if (is.null(total_var)) {
+      shiny::tags$div(
+        style = "color: #95A5A6; font-size: 14px;",
+        "Not available"
+      )
+    } else {
+      # Convert to percentage if needed
+      if (total_var <= 1) {
+        total_var <- total_var * 100
+      }
+
+      # Color based on variance explained
+      color <- if (total_var >= 70) {
+        "#4CAF50"  # Green - excellent
+      } else if (total_var >= 50) {
+        "#FFC107"  # Yellow - good
+      } else if (total_var >= 30) {
+        "#FF9800"  # Orange - fair
+      } else {
+        "#F44336"  # Red - poor
+      }
+
+      quality <- if (total_var >= 70) {
+        "Excellent"
+      } else if (total_var >= 50) {
+        "Good"
+      } else if (total_var >= 30) {
+        "Fair"
+      } else {
+        "Poor"
+      }
+
+      shiny::tagList(
+        shiny::tags$div(
+          style = paste0("font-size: 48px; font-weight: bold; color: ", color, ";"),
+          sprintf("%.1f%%", total_var)
+        ),
+        shiny::tags$div(
+          style = paste0("font-size: 16px; color: ", color, "; margin-top: 5px;"),
+          quality
+        )
+      )
+    }
+  })
+
+  # Centroids Correlation Table
+  output$centroids_correlation_table <- DT::renderDT({
+    req(rv$model)
+    req(rv$clustering_done)
+
+    summary_data <- tryCatch(rv$model$summary(), error = function(e) NULL)
+    centroids_df <- summary_data$centroids_correlations
+
+    if (is.null(centroids_df)) {
+      # Return empty datatable with message
+      DT::datatable(
+        data.frame(Message = "Centroids correlation matrix not available"),
+        options = list(dom = 't'),
+        rownames = FALSE
+      )
+    } else {
+
+      DT::datatable(
+        centroids_df,
+        options = list(
+          pageLength = 10,
+          dom = 't',
+          scrollX = TRUE
+        ),
+        rownames = FALSE
+      ) %>%
+        # Format correlation values
+        DT::formatRound(columns = 3:ncol(centroids_df), digits = 3)
+    }
+  })
+
 
   # ===========================================================
   # DOWNLOAD HANDLER
