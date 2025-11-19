@@ -187,16 +187,6 @@ app_server <- function(input, output, session) {
           shiny::h3("Variable Assignments"),
           DT::DTOutput("cluster_members_table")
         )
-      ),
-
-
-      # -------------
-      # Silhouette plot
-      # -------------
-      shiny::tabPanel(
-        "📊 Silhouette Plot",
-        shiny::br(),
-        shiny::plotOutput("silhouette_plot", height = "700px")
       )
     )
 
@@ -239,6 +229,16 @@ app_server <- function(input, output, session) {
     # HClust tabs
     # ------------------------------------------------------------
     hclust_tabs <- list(
+
+      # -------------
+      # Silhouette plot
+      # -------------
+      shiny::tabPanel(
+        "📊 Silhouette Plot",
+        shiny::br(),
+        shiny::plotOutput("silhouette_plot", height = "700px")
+      ),
+
       shiny::tabPanel(
         "🌳 Dendrogram",
         shiny::br(),
