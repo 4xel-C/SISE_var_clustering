@@ -839,11 +839,14 @@ KmeansVariables <- R6::R6Class(
     # @param print_summary Logical. If TRUE, prints summary to console. Default: FALSE.
     # @param top_n Integer. Number of top variables to include per cluster. Default: 3.
     #
-    # @return A list containing three dataframes:
+    # @return A list containing:
     # \itemize{
-    #   \item global_info: Overall model statistics (n_clusters, n_variables, total_inertia, n_iter)
-    #   \item cluster_stats: Per-cluster statistics (cluster_id, n_vars, inertia, mean_correlation)
+    #   \item clust_summary: Cluster statistics (cluster, n_members, variation_explained, proportion_explained)
+    #   \item clust_members: Variable details (cluster, own_cluster_R2, next_closest_R2, 1 - R2_ratio)
     #   \item top_variables: Top contributing variables (cluster_id, variable, r_squared, rank)
+    #   \item centroids_correlations: Correlation matrix between cluster centroids
+    #   \item avg_silhouette: Average silhouette coefficient
+    #   \item total_var_explained: Total proportion of variance explained by clustering
     # }
     summary = function(print_summary = FALSE, top_n = 3) {
 
@@ -853,43 +856,41 @@ KmeansVariables <- R6::R6Class(
 
       X <- as.matrix(self$get_quanti_data())
       var_names <- colnames(X)
+      n_vars_total <- ncol(X)
 
       # -----------------------------------------------------------------------
-      # 1. Global information
+      # 1. Cluster summary: variance explained per cluster
       # -----------------------------------------------------------------------
-      global_info <- data.frame(
-        n_clusters = self$n_clusters,
-        n_variables = length(self$labels),
-        total_inertia = round(private$.inertia, 4),
-        n_iterations = private$.n_iter,
-        distance_metric = private$.distance_metric
-      )
-
-      # -----------------------------------------------------------------------
-      # 2. Cluster-level statistics
-      # -----------------------------------------------------------------------
-      cluster_stats_list <- list()
+      clust_summary_list <- list()
       top_vars_list <- list()
 
       for (k in 1:self$n_clusters) {
-
         var_indices <- which(self$labels == k)
-        n_vars <- length(var_indices)
+        n_members <- length(var_indices)
 
-        # Cluster statistics
-        if (n_vars > 0) {
-          # Calculate correlations with centroid
+        # variation_explained = eigenvalue = inertia
+        variation_explained <- private$.cluster_inertias[k]
+
+        # proportion_explained = inertia / n_variables
+        proportion_explained <- variation_explained / n_members
+
+        # Store cluster summary
+        clust_summary_list[[k]] <- data.frame(
+          cluster = k,
+          n_members = n_members,
+          variation_explained = round(variation_explained, 4),
+          proportion_explained = round(proportion_explained, 4)
+        )
+
+        # Top contributing variables (based on R²)
+        if (n_members > 0) {
           cors <- sapply(var_indices, function(j) {
             cor(X[, j], private$.centroids[, k])
           })
-          mean_cor <- mean(abs(cors))
-
-          # Top contributing variables (based on R²)
           contributions <- cors^2
           names(contributions) <- var_names[var_indices]
           top_vars <- head(sort(contributions, decreasing = TRUE), top_n)
 
-          # Store top variables for this cluster
           if (length(top_vars) > 0) {
             top_vars_df <- data.frame(
               cluster_id = k,
@@ -900,21 +901,11 @@ KmeansVariables <- R6::R6Class(
             )
             top_vars_list[[k]] <- top_vars_df
           }
-        } else {
-          mean_cor <- NA
         }
-
-        # Store cluster stats
-        cluster_stats_list[[k]] <- data.frame(
-          cluster_id = k,
-          n_vars = n_vars,
-          inertia = round(private$.cluster_inertias[k], 4),
-          mean_correlation = round(mean_cor, 4)
-        )
       }
 
-      # Combine all cluster stats and top variables
-      cluster_stats <- do.call(rbind, cluster_stats_list)
+      # Combine cluster summary and top variables
+      clust_summary <- do.call(rbind, clust_summary_list)
       top_variables <- if (length(top_vars_list) > 0) {
         do.call(rbind, top_vars_list)
       } else {
@@ -922,55 +913,90 @@ KmeansVariables <- R6::R6Class(
                    r_squared = numeric(), rank = integer())
       }
 
+      # Total variance explained by clustering
+      total_var_explained <- round(sum(clust_summary$variation_explained) / n_vars_total, 4)
+
       # -----------------------------------------------------------------------
-      # 3. Print to console if requested
+      # 2. Cluster members table
+      # -----------------------------------------------------------------------
+      clust_members <- data.frame(
+        cluster = self$labels,
+        row.names = var_names
+      )
+
+      own_cluster_R2 <- numeric(length(var_names))
+      next_closest_R2 <- numeric(length(var_names))
+
+      # Calculate R² with own cluster and next closest cluster
+      for (i in 1:length(var_names)) {
+        var_cluster <- self$labels[i]
+
+        # Calculate R² with all centroids
+        r2_with_centroids <- numeric(self$n_clusters)
+        for (k in 1:self$n_clusters) {
+          cor_val <- cor(X[, i], private$.centroids[, k])
+          r2_with_centroids[k] <- cor_val^2
+        }
+
+        own_cluster_R2[i] <- r2_with_centroids[var_cluster]
+        next_closest_R2[i] <- max(r2_with_centroids[-var_cluster])
+      }
+
+      clust_members$own_cluster_R2 <- round(own_cluster_R2, 2)
+      clust_members$next_closest_R2 <- round(next_closest_R2, 2)
+      clust_members$`1 - R2_ratio` <- round((1 - own_cluster_R2) / (1 - next_closest_R2), 2)
+
+      # Sort by cluster and own_cluster_R2
+      clust_members <- clust_members[order(clust_members$cluster, -clust_members$own_cluster_R2), ]
+
+      # -----------------------------------------------------------------------
+      # 3. Centroids correlations (between cluster centers)
+      # -----------------------------------------------------------------------
+      centroids_correlations <- cor(private$.centroids)
+      rownames(centroids_correlations) <- paste0("VCHca_1_", 1:self$n_clusters)
+      colnames(centroids_correlations) <- paste0("VCHca_1_", 1:self$n_clusters)
+
+      # -----------------------------------------------------------------------
+      # 4. Average silhouette coefficient
+      # -----------------------------------------------------------------------
+      sil_result <- tryCatch({
+        self$silhouette()
+      }, error = function(e) {
+        NULL
+      })
+
+      avg_silhouette <- if (!is.null(sil_result)) {
+        round(mean(sil_result$silhouette, na.rm = TRUE), 4)
+      } else {
+        NA
+      }
+
+      # -----------------------------------------------------------------------
+      # 5. Print to console if requested
       # -----------------------------------------------------------------------
       if (print_summary) {
         cat("K-means Variable Clustering\n")
         cat("===========================\n\n")
-        cat("Number of clusters:", global_info$n_clusters, "\n")
-        cat("Number of variables:", global_info$n_variables, "\n")
-        cat("Iterations:", global_info$n_iterations, "\n")
-        cat("Total inertia:", global_info$total_inertia, "\n")
-        cat("Distance metric:", global_info$distance_metric, "\n\n")
+        cat("Number of clusters:", self$n_clusters, "\n")
+        cat("Number of variables:", n_vars_total, "\n")
+        cat("Total variance explained:", sprintf("%.2f%%", total_var_explained * 100), "\n")
+        cat("Average silhouette:", avg_silhouette, "\n\n")
 
-        cat("Cluster sizes:\n")
-        print(table(self$labels))
+        cat("Cluster Summary:\n")
+        print(clust_summary)
         cat("\n")
-
-        cat("Cluster Statistics:\n")
-        cat("===================\n\n")
-
-        for (k in 1:self$n_clusters) {
-          cluster_row <- cluster_stats[cluster_stats$cluster_id == k, ]
-          cat(sprintf("Cluster %d (%d variables):\n", k, cluster_row$n_vars))
-          cat(sprintf("  Within-cluster inertia: %.4f\n", cluster_row$inertia))
-
-          if (!is.na(cluster_row$mean_correlation)) {
-            cat(sprintf("  Mean correlation with centroid: %.4f\n",
-                        cluster_row$mean_correlation))
-
-            # Top variables for this cluster
-            top_k <- top_variables[top_variables$cluster_id == k, ]
-            if (nrow(top_k) > 0) {
-              cat("  Top variables:\n")
-              for (i in 1:nrow(top_k)) {
-                cat(sprintf("    %s (R² = %.4f)\n",
-                            top_k$variable[i], top_k$r_squared[i]))
-              }
-            }
-          }
-          cat("\n")
-        }
       }
 
       # -----------------------------------------------------------------------
-      # 4. Return structured data
+      # 6. Return structured data
       # -----------------------------------------------------------------------
       result <- list(
-        global_info = global_info,
-        cluster_stats = cluster_stats,
-        top_variables = top_variables
+        clust_summary = clust_summary,
+        clust_members = clust_members,
+        top_variables = top_variables,
+        centroids_correlations = centroids_correlations,
+        avg_silhouette = avg_silhouette,
+        total_var_explained = total_var_explained
       )
 
       return(result)

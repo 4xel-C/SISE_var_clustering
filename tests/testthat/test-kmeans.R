@@ -302,18 +302,59 @@ test_that("print() displays model information", {
 })
 
 
-test_that("summary() provides detailed information", {
-  
+test_that("summary() returns structured data for Shiny", {
+
   synthetic <- create_synthetic_data(n_vars_per_cluster = 5, n_clusters = 3)
   data <- synthetic$data
-  
+
   km <- KmeansVariables$new(n_clusters = 3, random_state = 123)
   km$fit(data)
-  
-  expect_output(km$summary(), "Cluster Statistics")
-  expect_output(km$summary(), "Within-cluster inertia")
-  expect_output(km$summary(), "Mean correlation")
-  expect_output(km$summary(), "Top variables")
+
+  # Test that summary returns a list with 6 elements
+  result <- km$summary()
+  expect_type(result, "list")
+  expect_named(result, c("clust_summary", "clust_members", "top_variables",
+                         "centroids_correlations", "avg_silhouette", "total_var_explained"))
+
+  # Test clust_summary structure (cluster statistics)
+  expect_s3_class(result$clust_summary, "data.frame")
+  expect_named(result$clust_summary, c("cluster", "n_members", "variation_explained", "proportion_explained"))
+  expect_equal(nrow(result$clust_summary), 3)
+  expect_true(all(result$clust_summary$cluster %in% 1:3))
+  expect_true(all(result$clust_summary$n_members > 0))
+  expect_true(all(result$clust_summary$variation_explained > 0))
+  expect_true(all(result$clust_summary$proportion_explained > 0))
+
+  # Test clust_members structure
+  expect_s3_class(result$clust_members, "data.frame")
+  expect_named(result$clust_members, c("cluster", "own_cluster_R2", "next_closest_R2", "1 - R2_ratio"))
+  expect_equal(nrow(result$clust_members), 15)  # All 15 variables
+  expect_true(all(result$clust_members$cluster %in% 1:3))
+  expect_true(all(result$clust_members$own_cluster_R2 >= 0 & result$clust_members$own_cluster_R2 <= 1))
+  expect_true(all(result$clust_members$next_closest_R2 >= 0 & result$clust_members$next_closest_R2 <= 1))
+
+  # Test top_variables structure
+  expect_s3_class(result$top_variables, "data.frame")
+  expect_named(result$top_variables, c("cluster_id", "variable", "r_squared", "rank"))
+  expect_equal(nrow(result$top_variables), 9)  # 3 clusters * 3 top vars by default
+
+  # Test centroids_correlations structure
+  expect_true(is.matrix(result$centroids_correlations) || is.data.frame(result$centroids_correlations))
+  expect_equal(nrow(result$centroids_correlations), 3)
+  expect_equal(ncol(result$centroids_correlations), 3)
+
+  # Test avg_silhouette is numeric
+  expect_type(result$avg_silhouette, "double")
+  expect_true(!is.na(result$avg_silhouette))
+
+  # Test total_var_explained is numeric and between 0 and 1
+  expect_type(result$total_var_explained, "double")
+  expect_true(result$total_var_explained >= 0 && result$total_var_explained <= 1)
+
+  # Test print_summary parameter
+  expect_output(km$summary(print_summary = TRUE), "K-means Variable Clustering")
+  expect_output(km$summary(print_summary = TRUE), "Cluster Summary")
+  expect_output(km$summary(print_summary = TRUE), "Total variance explained")
 })
 
 
@@ -536,8 +577,8 @@ test_that("Multiple initializations improve results", {
   km10 <- KmeansVariables$new(n_clusters = 3, n_init = 10, random_state = 123)
   km10$fit(data)
   
-  # Multiple inits should find better or equal solution
-  expect_lte(km10$inertia, km1$inertia)
+  # Multiple inits should find better or equal solution (higher inertia is better)
+  expect_gte(km10$inertia, km1$inertia)
 })
 
 
@@ -568,7 +609,7 @@ test_that("Full workflow: fit, predict, visualize", {
   
   # Print and summary
   expect_output(km$print())
-  expect_output(km$summary())
+  expect_output(km$summary(print_summary = TRUE))
   
   # Metrics
   sil <- kmeans_silhouette(data, km$clusters, km$centroids)
