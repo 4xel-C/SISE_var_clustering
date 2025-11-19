@@ -581,7 +581,7 @@ test_that("predict work well on matrices.", {
   hc$fit(data)
   hc$cut_tree(k = 2)
 
-  expect_no_error(result <- hc$predict(new_data_matrix))
+  expect_no_error(result <- hc$predict(new_data_matrix)$labels)
   expect_type(result, "integer")
   expect_named(result, "new_v")
 })
@@ -608,7 +608,7 @@ test_that("predict - quantitatives Variables (ward.D, metric = rsquare)", {
   hc$fit(data)
   hc$cut_tree(k = 2)
 
-  result <- hc$predict(new_data)
+  result <- hc$predict(new_data)$labels
 
   expect_type(result, "integer")
   expect_length(result, ncol(new_data))
@@ -630,7 +630,7 @@ test_that("predict - quantitatives Variables (ward.D, metric = r)", {
   hc$fit(data)
   hc$cut_tree(k = 2)
 
-  result <- hc$predict(new_data)
+  result <- hc$predict(new_data)$labels
 
   expect_type(result, "integer")
   expect_length(result, 1)
@@ -655,7 +655,7 @@ test_that("predict - quantitatives Variables (ward.D2)", {
   hc$fit(data)
   hc$cut_tree(k = 3)
 
-  result <- hc$predict(new_data)
+  result <- hc$predict(new_data)$labels
 
   expect_length(result, 2)
   expect_true(all(result %in% 1:3))
@@ -675,7 +675,7 @@ test_that("predict - quantitatives Variables (centroid)", {
   hc$fit(data)
   hc$cut_tree(k = 2)
 
-  result <- hc$predict(new_data)
+  result <- hc$predict(new_data)$labels
 
   expect_type(result, "integer")
   expect_true(result %in% 1:2)
@@ -701,7 +701,7 @@ test_that("predict - Qualitatives Variables (ward.D)", {
   hc$fit(data)
   hc$cut_tree(k = 2)
 
-  result <- hc$predict(new_data)
+  result <- hc$predict(new_data)$labels
 
   expect_type(result, "integer")
   expect_length(result, 1)
@@ -727,7 +727,7 @@ test_that("predict - Qualitatives Variables with qualitative variable (ward.D2)"
   hc$fit(data)
   hc$cut_tree(k = 2)
 
-  result <- hc$predict(new_data)
+  result <- hc$predict(new_data)$labels
 
   expect_length(result, 2)
   expect_true(all(result %in% 1:2))
@@ -751,7 +751,7 @@ test_that("predict - mixed quantitative variables (ward.D)", {
   hc$fit(data)
   hc$cut_tree(k = 2)
 
-  result <- hc$predict(new_data)
+  result <- hc$predict(new_data)$labels
 
   expect_type(result, "integer")
   expect_length(result, 1)
@@ -774,7 +774,7 @@ test_that("predict - mixed quantitative variables (ward.D)", {
   hc$fit(data)
   hc$cut_tree(k = 2)
 
-  result <- hc$predict(new_data)
+  result <- hc$predict(new_data)$labels
 
   expect_type(result, "integer")
   expect_true(result %in% 1:2)
@@ -798,7 +798,7 @@ test_that("predict - mixed quantitative variables (ward.D)", {
   hc$fit(data)
   hc$cut_tree(k = 2)
 
-  result <- hc$predict(new_data)
+  result <- hc$predict(new_data)$labels
 
   expect_length(result, 2)
   expect_true(all(result %in% 1:2))
@@ -823,7 +823,7 @@ test_that("predict - Quantitatives variables with qualitatives data (ward.D)", {
   hc$fit(data)
   hc$cut_tree(k = 2)
 
-  result <- hc$predict(new_data)
+  result <- hc$predict(new_data)$labels
 
   expect_type(result, "integer")
   expect_length(result, 1)
@@ -846,7 +846,7 @@ test_that("predict - Qualitative variable with quantitative data (ward.D)", {
   hc$fit(data)
   hc$cut_tree(k = 2)
 
-  result <- hc$predict(new_data)
+  result <- hc$predict(new_data)$labels
 
   expect_type(result, "integer")
   expect_length(result, 1)
@@ -871,7 +871,7 @@ test_that("predict - quantitatives with single method", {
   hc$fit(data)
   hc$cut_tree(k = 2)
 
-  result <- hc$predict(new_data)
+  result <- hc$predict(new_data)$labels
 
   expect_type(result, "integer")
   expect_length(result, 1)
@@ -892,7 +892,7 @@ test_that("predict - complete method with quantitatives", {
   hc$fit(data)
   hc$cut_tree(k = 2)
 
-  result <- hc$predict(new_data)
+  result <- hc$predict(new_data)$labels
 
   expect_type(result, "integer")
   expect_true(result %in% 1:2)
@@ -913,7 +913,7 @@ test_that("predict - median method with quantitatives", {
   hc$fit(data)
   hc$cut_tree(k = 2)
 
-  result <- hc$predict(new_data)
+  result <- hc$predict(new_data)$labels
 
   expect_type(result, "integer")
   expect_true(result %in% 1:2)
@@ -933,7 +933,7 @@ test_that("predict - average method with quantitatives", {
   hc$fit(data)
   hc$cut_tree(k = 3)
 
-  result <- hc$predict(new_data)
+  result <- hc$predict(new_data)$labels
 
   expect_type(result, "integer")
   expect_true(result %in% 1:3)
@@ -954,7 +954,7 @@ test_that("predict - McQuitty method with quantitatives", {
   hc$fit(data)
   hc$cut_tree(k = 2)
 
-  result <- hc$predict(new_data)
+  result <- hc$predict(new_data)$labels
 
   expect_type(result, "integer")
   expect_true(result %in% 1:2)
@@ -980,7 +980,7 @@ test_that("predict - Single method - qualitatives", {
   hc$fit(data)
   hc$cut_tree(k = 2)
 
-  result <- hc$predict(new_data)
+  result <- hc$predict(new_data)$labels
 
   expect_type(result, "integer")
   expect_true(result %in% 1:2)
@@ -1002,7 +1002,7 @@ test_that("predict - Complete method - qualitatives", {
   hc$fit(data)
   hc$cut_tree(k = 2)
 
-  result <- hc$predict(new_data)
+  result <- hc$predict(new_data)$labels
 
   expect_type(result, "integer")
   expect_true(result %in% 1:2)
@@ -1024,7 +1024,7 @@ test_that("predict - Average method - qualitatives", {
   hc$fit(data)
   hc$cut_tree(k = 2)
 
-  result <- hc$predict(new_data)
+  result <- hc$predict(new_data)$labels
 
   expect_type(result, "integer")
   expect_true(result %in% 1:2)
@@ -1051,7 +1051,7 @@ test_that("predict - Single method - mixed variables", {
   hc$fit(data)
   hc$cut_tree(k = 2)
 
-  result <- hc$predict(new_data)
+  result <- hc$predict(new_data)$labels
 
   expect_length(result, 2)
   expect_true(all(result %in% 1:2))
@@ -1071,7 +1071,7 @@ test_that("predict - Complete method - mixed variables", {
   hc$fit(data)
   hc$cut_tree(k = 2)
 
-  result <- hc$predict(new_data)
+  result <- hc$predict(new_data)$labels
 
   expect_type(result, "integer")
   expect_true(result %in% 1:2)
@@ -1094,7 +1094,7 @@ test_that("predict - quantitative new data with qualitative data (average)", {
   hc$fit(data)
   hc$cut_tree(k = 2)
 
-  result <- hc$predict(new_data)
+  result <- hc$predict(new_data)$labels
 
   expect_type(result, "integer")
   expect_true(result %in% 1:2)
@@ -1116,7 +1116,7 @@ test_that("predict - qualitative new data with quantitative data (average)", {
   hc$fit(data)
   hc$cut_tree(k = 2)
 
-  result <- hc$predict(new_data)
+  result <- hc$predict(new_data)$labels
 
   expect_type(result, "integer")
   expect_true(result %in% 1:2)
@@ -1145,7 +1145,7 @@ test_that("predict - quantitative variables", {
   hc$fit(data)
   hc$cut_tree(k = 3)
 
-  result <- hc$predict(new_data)
+  result <- hc$predict(new_data)$labels
 
   expect_length(result, 3)
   expect_named(result, c("new_v1", "new_v2", "new_v3"))
@@ -1169,7 +1169,7 @@ test_that("predict - qualitative variables", {
   hc$fit(data)
   hc$cut_tree(k = 2)
 
-  result <- hc$predict(new_data)
+  result <- hc$predict(new_data)$labels
 
   expect_length(result, 2)
   expect_named(result, c("new_cat1", "new_cat2"))
@@ -1195,7 +1195,7 @@ test_that("predict - mixed variables", {
   hc$fit(data)
   hc$cut_tree(k = 2)
 
-  result <- hc$predict(new_data)
+  result <- hc$predict(new_data)$labels
 
   expect_length(result, 3)
   expect_named(result, c("new_v1", "new_cat1", "new_v2"))
@@ -1222,21 +1222,21 @@ test_that("predict - Consistency with multiple clusters", {
   hc1 <- HClustVar$new(vartype = "quant", cah.method = "ward.D")
   hc1$fit(data)
   hc1$cut_tree(k = 2)
-  result1 <- hc1$predict(new_data)
+  result1 <- hc1$predict(new_data)$labels
   expect_true(result1 %in% 1:2)
 
   # Test avec k = 3
   hc2 <- HClustVar$new(vartype = "quant", cah.method = "ward.D")
   hc2$fit(data)
   hc2$cut_tree(k = 3)
-  result2 <- hc2$predict(new_data)
+  result2 <- hc2$predict(new_data)$labels
   expect_true(result2 %in% 1:3)
 
   # Test avec k = 4
   hc3 <- HClustVar$new(vartype = "quant", cah.method = "ward.D")
   hc3$fit(data)
   hc3$cut_tree(k = 4)
-  result3 <- hc3$predict(new_data)
+  result3 <- hc3$predict(new_data)$labels
   expect_true(result3 %in% 1:4)
 })
 
@@ -1260,7 +1260,7 @@ test_that("predict - vartype=auto detect quantitatives", {
 
   expect_equal(hc$vartype, "quant")
 
-  result <- hc$predict(new_data)
+  result <- hc$predict(new_data)$labels
   expect_type(result, "integer")
   expect_true(result %in% 1:2)
 })
@@ -1283,7 +1283,7 @@ test_that("predict - vartype=auto detect qualitatives", {
 
   expect_equal(hc$vartype, "qual")
 
-  result <- hc$predict(new_data)
+  result <- hc$predict(new_data)$labels
   expect_type(result, "integer")
   expect_true(result %in% 1:2)
 })
@@ -1307,7 +1307,7 @@ test_that("predict - vartype=auto detect mixed data", {
 
   expect_equal(hc$vartype, "mixed")
 
-  result <- hc$predict(new_data)
+  result <- hc$predict(new_data)$labels
   expect_length(result, 2)
   expect_true(all(result %in% 1:2))
 })
@@ -1330,7 +1330,7 @@ test_that("predict - work with only one cluster", {
   hc$fit(data)
   hc$cut_tree(k = 1)
 
-  result <- hc$predict(new_data)
+  result <- hc$predict(new_data)$labels
 
   expect_equal(result[[1]], 1)
 })
@@ -1349,7 +1349,7 @@ test_that("predict - work with variables = clusters", {
   hc$fit(data)
   hc$cut_tree(k = 3)
 
-  result <- hc$predict(new_data)
+  result <- hc$predict(new_data)$labels
 
   expect_true(result %in% 1:3)
 })
@@ -1369,7 +1369,7 @@ test_that("predict - handle missing values", {
   hc$cut_tree(k = 2)
 
   # Should work because : use = "complete.obs" in cor()
-  expect_no_error(result <- hc$predict(new_data_with_na))
+  expect_no_error(result <- hc$predict(new_data_with_na)$labels)
   expect_type(result, "integer")
 })
 
@@ -1391,11 +1391,11 @@ test_that("predict - Reproducible results withy same seed", {
 
   set.seed(2024)
   new_data1 <- data.frame(new_v = rnorm(100))
-  result1 <- hc$predict(new_data1)
+  result1 <- hc$predict(new_data1)$labels
 
   set.seed(2024)
   new_data2 <- data.frame(new_v = rnorm(100))
-  result2 <- hc$predict(new_data2)
+  result2 <- hc$predict(new_data2)$labels
 
   expect_equal(result1, result2)
 })
@@ -1426,7 +1426,7 @@ test_that("predict - Complete qualitative workflow", {
   hc <- HClustVar$new(vartype = "quant", dist.metric = "rsquare", cah.method = "ward.D")
   hc$fit(data)
   labels <- hc$cut_tree(k = 3)
-  predictions <- hc$predict(new_data)
+  predictions <- hc$predict(new_data)$labels
 
   # checks
   expect_true(hc$fitted)
@@ -1457,7 +1457,7 @@ test_that("predict -  Complete quantitative workflow", {
   hc <- HClustVar$new(vartype = "qual", cah.method = "ward.D")
   hc$fit(data)
   labels <- hc$cut_tree(k = 2)
-  predictions <- hc$predict(new_data)
+  predictions <- hc$predict(new_data)$labels
 
   # checks
   expect_true(hc$fitted)
@@ -1488,7 +1488,7 @@ test_that("predict -  Complete mixed workflow", {
   hc <- HClustVar$new(vartype = "mixed", cah.method = "ward.D")
   hc$fit(data)
   labels <- hc$cut_tree(k = 3)
-  predictions <- hc$predict(new_data)
+  predictions <- hc$predict(new_data)$labels
 
   # Checks
   expect_true(hc$fitted)
