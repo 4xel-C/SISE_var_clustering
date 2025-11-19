@@ -1072,27 +1072,12 @@ HClustVar <- R6::R6Class(
       # 1. Prerequisites validation
       # ============
 
-      # Check if model is fitted
-      if (!self$fitted) {
-        stop("Model must be fitted before prediction. Use fit() first.")
-      }
+      if (!self$fitted) stop("Model must be fitted before prediction. Use fit() first.")
+      if (is.null(self$labels)) stop("Tree must be cut before prediction. Use cut_tree() first.")
 
-      # Check if labels exist (tree has been cut)
-      if (is.null(self$labels)) {
-        stop("Tree must be cut before prediction. Use cut_tree() first.")
-      }
+      if (!is.data.frame(new_data) && !is.matrix(new_data)) stop("new_data must be a data.frame or matrix")
+      if (is.matrix(new_data)) new_data <- as.data.frame(new_data)
 
-      # Validate new_data type
-      if (!is.data.frame(new_data) && !is.matrix(new_data)) {
-        stop("new_data must be a data.frame or matrix")
-      }
-
-      # Convert matrix to data.frame if necessary
-      if (is.matrix(new_data)) {
-        new_data <- as.data.frame(new_data)
-      }
-
-      # Check row compatibility
       if (nrow(new_data) != nrow(self$data)) {
         stop(sprintf(
           "new_data must have the same number of rows as training data (%d rows expected, got %d)",
@@ -1100,218 +1085,143 @@ HClustVar <- R6::R6Class(
           nrow(new_data)
         ))
       }
+      if (ncol(new_data) == 0) stop("new_data must contain at least one variable")
 
-      # Check for empty new_data
-      if (ncol(new_data) == 0) {
-        stop("new_data must contain at least one variable")
-      }
-
-      # ========
+      # ============
       # 2. INITIALIZATION
-      # ========
+      # ============
 
       result <- integer(ncol(new_data))
       names(result) <- colnames(new_data)
 
+      # Initialize proximity matrix
+      result_proximities <- matrix(NA, nrow = ncol(new_data), ncol = self$n_clusters)
+      colnames(result_proximities) <- paste0("Cluster_", 1:self$n_clusters)
+      rownames(result_proximities) <- colnames(new_data)
 
-      # If there's only one cluster, all variables belong to it, then return.
+      # One cluster: assign all variables
       if (self$n_clusters == 1) {
         result[] <- 1
-        return(result)
+        result_proximities[] <- 1
+        return(list(labels = result, proximities = as.data.frame(result_proximities)))
       }
 
-      # =========
-      # 3. PREDICTION DEPENDING OF CAH METHOD
-      # =========
+      # ============
+      # 3. PREDICTION DEPENDING ON CAH METHOD
+      # ============
 
-      # -----------
-      # 3A. CENTROIDS BASED METHODS (Ward, Centroid)
-      # -----------
-      if (private$.cah.method %in% c("ward.D", "ward.D2", "centroid")) {
+      for (i in seq_len(ncol(new_data))) {
 
-        # Validate that centroids exist
-        if (is.null(self$centroids)) {
-          stop("Centroids not computed. This should not happen. Object may be broken.")
-        }
+        var_name <- colnames(new_data)[i]
 
-        # Process each new variable
-        for (i in seq_len(ncol(new_data))) {
+        # --- Case 3A: Centroid-based methods ---
+        if (private$.cah.method %in% c("ward.D", "ward.D2", "centroid")) {
 
-          var_name <- colnames(new_data)[i]
+          if (is.null(self$centroids)) stop("Centroids not computed. Object may be broken.")
 
-          # --- Case 1: New variable is quantitative ---
           if (is.numeric(new_data[[i]])) {
-
-            # Calculate correlation with each centroid
-            correlations <- apply(self$centroids, 2, function(centroid) {
-              cor_val <- cor(centroid, new_data[[i]], use = "complete.obs")
-
-              # Handle NA values
-              if (is.na(cor_val)) {
-                warning(sprintf(
-                  "Correlation is NA for variable '%s'. Using 0 as fallback.",
-                  var_name
-                ))
-                return(0)
-              }
-
-              return(cor_val)
+            values <- apply(self$centroids, 2, function(centroid) {
+              val <- cor(centroid, new_data[[i]], use = "complete.obs")
+              if (is.na(val)) return(0)
+              val
             })
 
-            # Apply metric transformation if needed
-            if (!is.null(self$dist.metric) && self$dist.metric == "rsquare") {
-              correlations <- correlations^2
-            }
+            # Use the square correlation for vartype == mixed (because clustering made using V cramer, always postiive)
+            if (!is.null(self$dist.metric) && self$dist.metric == "rsquare" | private$.vartype == "mixed") values <- values^2
 
-            # Assign to cluster with maximum correlation
-            result[i] <- which.max(correlations)
-
-            # --- Case 2: New variable is qualitative ---
           } else {
-
-            # Calculate correlation ratio with each centroid
-            cor_ratios <- apply(self$centroids, 2, function(centroid) {
+            values <- apply(self$centroids, 2, function(centroid) {
               private$correlation_ratio(new_data[[i]], centroid)
             })
-
-            # Assign to cluster with maximum correlation ratio
-            result[i] <- which.max(cor_ratios)
           }
-        }
 
-        # ---------------
-        # 3B. OTHER METHODS (Single, Complete, Median, Average, McQuitty)
-        # ---------------
-      } else if (private$.cah.method %in% c("single", "complete", "median", "average", "mcquitty")) {
+          # Store proximities and assign cluster
+          result_proximities[i, ] <- values
+          result[i] <- which.max(values)
 
-        # Process each new variable
-        for (i in seq_len(ncol(new_data))) {
+          # --- Case 3B: Other methods (single, complete, median, average, mcquitty) ---
+        } else if (private$.cah.method %in% c("single", "complete", "median", "average", "mcquitty")) {
 
-          var_name <- colnames(new_data)[i]
           similarity <- numeric(ncol(self$data))
           names(similarity) <- colnames(self$data)
 
-          # --------------
-          # Calculate similarity between new variable and all training variables
-          # --------------
-
-          # --- Scenario 1: Training data is purely QUANTITATIVE ---
           if (self$vartype == "quant") {
-
             if (is.numeric(new_data[[i]])) {
-              # Quantitative vs Quantitative: Use correlation
-              similarity <- apply(self$data, 2, function(x) {
-                cor(new_data[[i]], x, use = "complete.obs")
-              })
-
-              # Apply metric transformation
-              if (self$dist.metric == "rsquare") {
-                similarity <- similarity^2
-              }
-
+              similarity <- apply(self$data, 2, function(x) cor(new_data[[i]], x, use = "complete.obs"))
+              if (!is.null(self$dist.metric) && self$dist.metric == "rsquare") similarity <- similarity^2
             } else {
-              # Qualitative vs Quantitative: Use correlation ratio
-              similarity <- apply(self$data, 2, function(x) {
-                private$correlation_ratio(new_data[[i]], x)
-              })
+              similarity <- apply(self$data, 2, function(x) private$correlation_ratio(new_data[[i]], x))
             }
 
-            # --- Scenario 2: Training data is purely QUALITATIVE ---
           } else if (self$vartype == "qual") {
-
             if (is.numeric(new_data[[i]])) {
-              # Quantitative vs Qualitative: Use correlation ratio (reversed)
-              similarity <- apply(self$data, 2, function(x) {
-                private$correlation_ratio(x, new_data[[i]])
-              })
-
+              similarity <- apply(self$data, 2, function(x) private$correlation_ratio(x, new_data[[i]]))
             } else {
-              # Qualitative vs Qualitative: Use Cramer's V
-              similarity <- apply(self$data, 2, function(x) {
-                private$cramer_v(x, new_data[[i]])
-              })
+              similarity <- apply(self$data, 2, function(x) private$cramer_v(x, new_data[[i]]))
             }
 
-            # --- Scenario 3: Training data is MIXED ---
           } else if (self$vartype == "mixed") {
-
-            # Discretize new variable if quantitative
             if (is.numeric(new_data[[i]])) {
-              new_var_discretized <- private$quantile_discretisation(
-                df = data.frame(temp_var = new_data[[i]]),
-                quanti_index = 1,
-                n_groups = 4
-              )[[1]]
+              new_var_discretized <- private$quantile_discretisation(data.frame(temp_var = new_data[[i]]), 1, 4)[[1]]
             } else {
               new_var_discretized <- new_data[[i]]
             }
 
-            # Calculate Cramer's V with all training variables (after discretization)
             similarity <- sapply(seq_len(ncol(self$data)), function(j) {
-
               train_var <- self$data[[j]]
-
-              # Discretize training variable if quantitative
               if (is.numeric(train_var)) {
-                train_var_discretized <- private$quantile_discretisation(
-                  df = data.frame(temp_var = train_var),
-                  quanti_index = 1,
-                  n_groups = 4
-                )[[1]]
+                train_var_discretized <- private$quantile_discretisation(data.frame(temp_var = train_var), 1, 4)[[1]]
               } else {
                 train_var_discretized <- train_var
               }
-
-              # Calculate Cramer's V
               private$cramer_v(train_var_discretized, new_var_discretized)
             })
-
             names(similarity) <- colnames(self$data)
 
           } else {
             stop(sprintf("Unknown vartype: %s", self$vartype))
           }
 
-          # ----------
-          # Aggregate similarities by cluster according to CAH method
-          # ------------
-
+          # Aggregate by cluster
           cluster_proximity <- numeric(self$n_clusters)
-
           for (cluster_id in seq_len(self$n_clusters)) {
-
-            # Get similarities for variables in this cluster
-            cluster_similarities <- similarity[self$labels == cluster_id]
-
-            # Aggregate according to method
+            cluster_sim <- similarity[self$labels == cluster_id]
             cluster_proximity[cluster_id] <- switch(
               private$.cah.method,
-              "single"   = max(cluster_similarities),      # Closest element
-              "complete" = min(cluster_similarities),      # Farthest element
-              "median"   = median(cluster_similarities),   # Median similarity
-              "average"  = mean(cluster_similarities),     # Mean similarity
-              "mcquitty" = mean(cluster_similarities),     # UPGMC (Unweighted mean) -> Same as average.
-              stop(sprintf("Unhandled CAH method: %s", private$.cah.method))
+              "single" = max(cluster_sim),
+              "complete" = min(cluster_sim),
+              "median" = median(cluster_sim),
+              "average" = mean(cluster_sim),
+              "mcquitty" = mean(cluster_sim)
             )
           }
 
-          # Assign to cluster with maximum proximity
+          result_proximities[i, ] <- cluster_proximity
           result[i] <- which.max(cluster_proximity)
-        }
 
-        # ---------
-        # 3C. UNKNOWN METHOD
-        # ----------
-      } else {
-        stop(sprintf(
-          "Unknown or unsupported CAH method: %s. Supported methods are: %s",
-          private$.cah.method,
-          paste(c("ward.D", "ward.D2", "centroid", "single", "complete",
-                  "median", "average", "mcquitty"), collapse = ", ")
-        ))
+        } else {
+          stop(sprintf(
+            "Unknown CAH method: %s. Supported methods: %s",
+            private$.cah.method,
+            paste(c("ward.D","ward.D2","centroid","single","complete","median","average","mcquitty"), collapse = ", ")
+          ))
+        }
       }
 
-      return(result)
+      # ============
+      # 4. RETURN
+      # ============
+
+      # Convert proximities matrix to data.frame
+      proximities_df <- as.data.frame(result_proximities)
+      proximities_df$Variable <- rownames(proximities_df)
+      rownames(proximities_df) <- NULL
+      proximities_df <- proximities_df[, c("Variable", paste0("Cluster_", 1:self$n_clusters))]
+
+      return(list(
+        labels = result,
+        proximities = proximities_df
+      ))
     },
 
     # -----------------------------------------------------------------------

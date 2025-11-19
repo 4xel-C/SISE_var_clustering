@@ -17,7 +17,8 @@ app_server <- function(input, output, session) {
     model = NULL,
     model_type = NULL,
     clustering_done = FALSE,
-    prediction = NULL
+    prediction = NULL,
+    prediction_proximities = NULL
   )
 
   # Reactive value to store variable configurations
@@ -216,11 +217,13 @@ app_server <- function(input, output, session) {
         # Limit the width of the table.
         shiny::fluidRow(
           shiny::column(
-            8,
-            offset = 2,  # Center the columns
+            10,
+            offset = 1,
+
             shiny::h3("Cluster prediction on illustrative variables"),
             shiny::br(),
 
+            # Message if no prediction
             if (is.null(rv$prediction)) {
               shiny::wellPanel(
                 style = "background-color: #FFF3E0; border-left: 4px solid #F39C12;",
@@ -232,7 +235,25 @@ app_server <- function(input, output, session) {
               )
             },
 
-            DT::DTOutput("prediction_result")
+            # Prediction labels table
+            shiny::wellPanel(
+              shiny::h4("📌 Predicted Clusters"),
+              shiny::tags$p("Cluster assignment for each illustrative variable"),
+              DT::DTOutput("prediction_result")
+            ),
+
+            shiny::br(),
+
+            # Proximities table
+            shiny::wellPanel(
+              shiny::h4("📊 Proximity Matrix"),
+              shiny::tags$p(
+                "Correlation/proximity values between each illustrative variable and all cluster centroids.",
+                shiny::tags$br(),
+                "Higher values indicate stronger association with that cluster."
+              ),
+              DT::DTOutput("prediction_proximities_table")
+            )
           )
         )
       )
@@ -1070,17 +1091,24 @@ app_server <- function(input, output, session) {
             illustrative_df <-req(data_filtered())
             illustrative_df <- illustrative_df[, illust_vars, drop = FALSE]
 
+
+            prediction_result <- hc$predict(illustrative_df)
+
             # Store the prediction as a dataframe
             rv$prediction <- data.frame(
-              "Illustrative variable" = illust_vars,
-              "Variable type" = config_df$Type[match(illust_vars, config_df$Variable)],
-              "Predicted clusters" = hc$predict(illustrative_df),
+              "Illustrative_variable" = illust_vars,
+              "Variable_type" = config_df$Type[match(illust_vars, config_df$Variable)],
+              "Predicted_clusters" = prediction_result$labels,
               stringsAsFactors = FALSE
             )
+
+            # Save the matrix of similiraties.
+            rv$prediction_proximities <- prediction_result$proximities
 
             # If no illustrative vars, set the prediction to NULL.
           } else {
             rv$prediction <- NULL
+            rv$prediction_proximities <- NULL
           }
 
           shiny::showNotification(
@@ -1460,7 +1488,6 @@ app_server <- function(input, output, session) {
   # OUTPUTS - Prediction
   # -----------------------------------------------------------
 
-  # TODO: Upgrade prediction visualization
   output$prediction_result <- DT::renderDT({
     req(rv$prediction)
 
@@ -1468,9 +1495,55 @@ app_server <- function(input, output, session) {
 
     DT::datatable(
       prediction,
-      options = list(pageLength = 20, dom = 't'),
-      rownames = FALSE
-    )
+      options = list(
+        pageLength = 20,
+        dom = 't'
+      ),
+      rownames = FALSE,
+      class = 'cell-border stripe'
+    ) %>%
+      DT::formatStyle(
+        'Predicted_clusters',
+        backgroundColor = '#E8F5E9',
+        fontWeight = 'bold'
+      )
+  })
+
+  # Prediction proximities table
+  output$prediction_proximities_table <- DT::renderDT({
+    req(rv$prediction_proximities)
+
+    proximities_df <- rv$prediction_proximities
+
+    DT::datatable(
+      proximities_df,
+      options = list(
+        pageLength = 20,
+        scrollX = TRUE,
+        dom = 'Bfrtip',
+        buttons = c('copy', 'csv', 'excel')
+      ),
+      rownames = FALSE,
+      class = 'cell-border stripe compact'
+    ) %>%
+      # Color code based on proximity values
+      DT::formatStyle(
+        columns = 2:ncol(proximities_df),
+        backgroundColor = DT::styleInterval(
+          cuts = c(0.3, 0.5, 0.7, 0.85),
+          values = c('#FFEBEE', '#FFF3E0', '#FFF9C4', '#E8F5E9', '#C8E6C9')
+        )
+      ) %>%
+      # Format numbers with 3 decimals
+      DT::formatRound(columns = 2:ncol(proximities_df), digits = 3) %>%
+      # Bold for high proximity (> 0.7)
+      DT::formatStyle(
+        columns = 2:ncol(proximities_df),
+        fontWeight = DT::styleInterval(
+          cuts = c(0.7),
+          values = c('normal', 'bold')
+        )
+      )
   })
 
   # -----------------------------------------------------------
