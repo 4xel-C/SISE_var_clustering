@@ -680,10 +680,10 @@ Must have the same number of rows as the training data.}
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-A named numeric vector where:
+A list of two object where:
 \itemize{
-\item Names correspond to column names in new_data
-\item Values are cluster assignments (integers from 1 to n_clusters)
+\item labels contains all the label predicted per new variables.
+\item proximities (df) containing the detail about the proximities to all clusters.
 }
 }
 }

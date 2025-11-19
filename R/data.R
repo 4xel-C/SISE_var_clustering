@@ -12,6 +12,12 @@
 #' All qualitative variables and IDs have been removed.
 #'
 #' @format A data frame with 17107 rows and 41 variables:
-#'
-#' @source FIFA 22 game data
 "players"
+
+
+#' Canines dataset containing information about dogs characteristics.
+#'
+#' Dataset contaiing exclusively qualitative data.
+#'
+#' @format A data frame with 27 rows and 8 variables:
+"canines"

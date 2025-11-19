@@ -95,7 +95,10 @@ Fit the K-means model to the data. Runs multiple random initializations and keep
 Predict cluster assignments for new variables based on fitted centroids.
 }
 \item{\code{$print()}}{Display concise model information}
-\item{\code{$summary()}}{Display detailed model information with statistics}
+\item{\code{$summary(print_summary = FALSE, top_n = 3)}}{
+Return structured summary data as list of dataframes (global_info, cluster_stats, top_variables).
+Set print_summary = TRUE to also display to console.
+}
 \item{\code{$silhouette()}}{Calculate silhouette coefficients for all variables}
 \item{\code{$calinski_harabasz()}}{Calculate Calinski-Harabasz index (cluster quality metric)}
 \item{\code{$intra_correlation()}}{Calculate mean intra-cluster correlations}
@@ -133,7 +136,16 @@ km$fit(data_test)
 
 # Display results
 km$print()
-km$summary()
+
+# Get summary as structured data (for Shiny apps or programmatic use)
+summary_data <- km$summary()
+# Returns a list with 3 dataframes:
+#   - global_info: overall statistics
+#   - cluster_stats: per-cluster metrics
+#   - top_variables: top contributing variables per cluster
+
+# Or display summary to console
+km$summary(print_summary = TRUE)
 
 # Access properties
 km$clusters      # Cluster assignments
@@ -344,9 +356,16 @@ Default: "r_squared"}
 \if{latex}{\out{\hypertarget{method-KmeansVariables-summary}{}}}
 \subsection{Method \code{summary()}}{
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{KmeansVariables$summary()}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{KmeansVariables$summary(print_summary = FALSE, top_n = 3)}\if{html}{\out{</div>}}
 }
 
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{top_n}}{Integer. Number of top variables to display. Default: 5}
+}
+\if{html}{\out{</div>}}
+}
 }
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-KmeansVariables-silhouette"></a>}}

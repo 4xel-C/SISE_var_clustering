@@ -7,9 +7,6 @@
 \format{
 A data frame with 17107 rows and 41 variables:
 }
-\source{
-FIFA 22 game data
-}
 \usage{
 players
 }
