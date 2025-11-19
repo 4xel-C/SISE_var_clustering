@@ -530,13 +530,17 @@ copies or substantial portions of the Software.
 
 ### Scientific Publications
 
-1. **Vigneau, E., & Qannari, E. M. (2003).** *Clustering of variables around latent components.* Communications in Statistics-Simulation and Computation, 32(4), 1131-1150.  
+1.**Rakotomalala, R. (2020).** *Clustering de variables.* Support de cours, Université Lyon 2.
+
+2. **Vigneau, E., & Qannari, E. M. (2003).** *Clustering of variables around latent components.* Communications in Statistics-Simulation and Computation, 32(4), 1131-1150.  
    [DOI: 10.1081/SAC-120023882](https://doi.org/10.1081/SAC-120023882)
 
-2. **Chavent, M., Kuentz-Simonet, V., Labenne, A., & Saracco, J. (2012).** *ClustOfVar: An R Package for the Clustering of Variables.* Journal of Statistical Software, 50(13), 1-16.  
+3. **Chavent, M., Kuentz-Simonet, V., Labenne, A., & Saracco, J. (2012).** *ClustOfVar: An R Package for the Clustering of Variables.* Journal of Statistical Software, 50(13), 1-16.  
    [DOI: 10.18637/jss.v050.i13](https://doi.org/10.18637/jss.v050.i13)
 
-3. **Ward, J. H. (1963).** *Hierarchical Grouping to Optimize an Objective Function.* Journal of the American Statistical Association, 58(301), 236-244.
+4. **Ward, J. H. (1963).** *Hierarchical Grouping to Optimize an Objective Function.* Journal of the American Statistical Association, 58(301), 236-244.
+
+5. **Lebart, L., Morineau, A., & Piron, M. (2006).** *Statistique exploratoire multidimensionnelle : Visualisation et inférences en fouille de données (4e éd.).* Dunod.
 
 
 ---
