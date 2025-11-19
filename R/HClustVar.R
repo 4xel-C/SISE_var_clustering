@@ -1063,9 +1063,9 @@ HClustVar <- R6::R6Class(
     #' @param new_data A data.frame or matrix containing new variables to classify.
     #'   Must have the same number of rows as the training data.
     #'
-    #' @return A named numeric vector where:
-    #'   - Names correspond to column names in new_data
-    #'   - Values are cluster assignments (integers from 1 to n_clusters)
+    #' @return A list of two object where:
+    #'   - labels contains all the label predicted per new variables.
+    #'   - proximities (df) containing the detail about the proximities to all clusters.
     predict = function(new_data) {
 
       # ============
