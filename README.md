@@ -530,7 +530,7 @@ copies or substantial portions of the Software.
 
 ### Scientific Publications
 
-1.**Rakotomalala, R. (2020).** *Clustering de variables.* Support de cours, Université Lyon 2.
+1. **Rakotomalala, R. (2020).** *Clustering de variables.* Support de cours, Université Lyon 2.
 
 2. **Vigneau, E., & Qannari, E. M. (2003).** *Clustering of variables around latent components.* Communications in Statistics-Simulation and Computation, 32(4), 1131-1150.  
    [DOI: 10.1081/SAC-120023882](https://doi.org/10.1081/SAC-120023882)
