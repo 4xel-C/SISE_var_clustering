@@ -1968,14 +1968,70 @@ HClustVar <- R6::R6Class(
       # Add a squared correlation column
       component_correlations$squared_correlations <- round(component_correlations$correlation**2, 3)
 
+      # ----------------
+      # All clusters correlations for each variable
+      # ----------------
+
+      # Create a matrix to store all correlations
+      all_clusters_correlations <- matrix(
+        nrow = length(variables),
+        ncol = self$n_clusters,
+        dimnames = list(variables, paste0("Cluster_", 1:self$n_clusters))
+      )
+
+      # Iterate on all variables to calculate their R² with all clusters
+      for (i in 1:length(variables)) {
+
+        variable <- variables[i]
+
+        # Compute the correlation² with all centroids
+        if (is.numeric(self$data[[variable]])) {
+          # Correlation if quantitative
+          all_clusters_correlations[i, ] <- apply(self$centroids, 2, function(centroid) {
+            cor(self$data[[variable]], centroid, use = "complete.obs")^2
+          })
+        } else {
+          # Correlation ratio if qualitative
+          all_clusters_correlations[i, ] <- apply(self$centroids, MARGIN = 2, FUN = function(centroid) {
+            private$correlation_ratio(self$data[[variable]], centroid)
+          })
+        }
+      }
+
+      # Convert to data frame and round values
+      all_clusters_R2 <- as.data.frame(round(all_clusters_correlations, 3))
+
+      # Add variable names as a column
+      all_clusters_R2 <- cbind(Variable = rownames(all_clusters_R2), all_clusters_R2)
+      rownames(all_clusters_R2) <- NULL
+
+
+      # For each variable, get the cluster with highest R²
+      all_clusters_R2$Cluster <- apply(all_clusters_R2[, -1], 1, function(row) {
+        which.max(row)
+      })
+
+      own_cluster_R2 <- sapply(1:nrow(all_clusters_R2), function(i) {
+        cluster_num <- all_clusters_R2$Cluster[i]
+        all_clusters_R2[[paste0("Cluster_", cluster_num)]][i]
+      })
+
+      all_clusters_R2 <- all_clusters_R2[order(all_clusters_R2$Cluster, -own_cluster_R2), ]
+
+      # Get rid of the additional column.
+      all_clusters_R2 <- all_clusters_R2[, !names(all_clusters_R2) %in% "Cluster"]
+
+
       # Prepare result object
       result <- list(
         clust_summary = clust_summary,
         clust_members = clust_members,
         centroids_correlations = component_correlations,
+        all_clusters_R2 = all_clusters_R2,
         avg_silhouette = round(avg_silhouette, 3),
         total_var_explained = round(percentage_var_explained * 100, 2)
       )
+
 
       # update the private attribute to cache the data.
       private$.summary_results <- result

@@ -186,6 +186,19 @@ app_server <- function(input, output, session) {
         shiny::wellPanel(
           shiny::h3("Variable Assignments"),
           DT::DTOutput("cluster_members_table")
+        ),
+
+        # --------------
+        # All clusters R² matrix  <-- NOUVEAU
+        # --------------
+        shiny::wellPanel(
+          shiny::h3("R² Matrix: All Variables vs All Clusters"),
+          shiny::tags$p(
+            "Complete correlation matrix showing R² values between each variable and all cluster centroids.",
+            shiny::tags$br(),
+            "Higher values indicate stronger association with that cluster."
+          ),
+          DT::DTOutput("all_clusters_R2_table")
         )
       )
     )
@@ -1624,6 +1637,56 @@ app_server <- function(input, output, session) {
       ) %>%
         # Format correlation values
         DT::formatRound(columns = 3:ncol(centroids_df), digits = 3)
+    }
+  })
+
+  # All Clusters R² Table
+  output$all_clusters_R2_table <- DT::renderDT({
+    req(rv$model)
+    req(rv$clustering_done)
+
+    summary_data <- tryCatch(rv$model$summary(), error = function(e) NULL)
+
+    if (is.null(summary_data) || is.null(summary_data$all_clusters_R2)) {
+      # Return empty datatable with message
+      DT::datatable(
+        data.frame(Message = "R² matrix not available"),
+        options = list(dom = 't'),
+        rownames = FALSE
+      )
+    } else {
+      all_clusters_R2 <- summary_data$all_clusters_R2
+
+      DT::datatable(
+        all_clusters_R2,
+        options = list(
+          pageLength = 20,
+          scrollX = TRUE,
+          scrollY = "500px",
+          dom = 'Bfrtip',
+          buttons = c('copy', 'csv', 'excel')
+        ),
+        rownames = FALSE,
+        class = 'cell-border stripe compact'
+      ) %>%
+        # Colorer selon les valeurs de R²
+        DT::formatStyle(
+          columns = 2:ncol(all_clusters_R2),
+          backgroundColor = DT::styleInterval(
+            cuts = c(0.3, 0.5, 0.7, 0.85),
+            values = c('#FFEBEE', '#FFF3E0', '#FFF9C4', '#E8F5E9', '#C8E6C9')
+          )
+        ) %>%
+        # Formater les nombres avec 3 décimales
+        DT::formatRound(columns = 2:ncol(all_clusters_R2), digits = 3) %>%
+        # Mettre en gras les valeurs > 0.7 (forte corrélation)
+        DT::formatStyle(
+          columns = 2:ncol(all_clusters_R2),
+          fontWeight = DT::styleInterval(
+            cuts = c(0.7),
+            values = c('normal', 'bold')
+          )
+        )
     }
   })
 
