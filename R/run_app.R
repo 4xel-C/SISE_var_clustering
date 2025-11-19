@@ -14,7 +14,7 @@
 #' }
 #'
 #' @export
-varclust <- function(...) {
+varclust_gui <- function(...) {
 
   # Vérifier que shiny est installé
   if (!requireNamespace("shiny", quietly = TRUE)) {
