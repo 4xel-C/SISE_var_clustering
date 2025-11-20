@@ -43,6 +43,7 @@ plot_kmeans_elbow <- function(elbow_data,
                               lwd = 2,
                               ...) {
 
+
   plot(elbow_data$k, elbow_data$inertia,
        type = "b",
        pch = 19,
@@ -305,17 +306,28 @@ plot_kmeans_projection <- function(data, clusters,
   lines(cos(theta), sin(theta),
         col = "gray30", lty = 3, lwd = 2)
 
-  # Legend
+  # ===========================================================================
+  # LEGEND (CORRECTED - two separate legends)
+  # ===========================================================================
+
+  # Legend 1: Clusters with colors
   legend("topright",
-         legend = c(paste0("Cluster ", 1:K),
-                    "",
-                    sprintf("Quality threshold: %.2f", label_threshold),
-                    sprintf("Labeled: %d/%d variables",
-                            sum(quality > label_threshold), nrow(coords))),
-         fill = c(col_palette, rep(NA, 3)),
-         border = c(rep("black", K), rep(NA, 3)),
+         legend = paste0("Cluster ", 1:K),
+         fill = col_palette,
+         border = "black",
          bty = "n",
          cex = 0.85)
+
+  # Legend 2: Info text (positioned below first legend)
+  n_labeled <- sum(quality > label_threshold)
+  legend("topright",
+         legend = c("",
+                    sprintf("Quality threshold: %.2f", label_threshold),
+                    sprintf("Labeled: %d/%d variables", n_labeled, nrow(coords))),
+         bty = "n",
+         cex = 0.75,
+         text.col = "gray40",
+         inset = c(0, 0.05 * (K + 1)))  # Adjust position based on K
 
   invisible(list(coords = coords, quality = quality, var_exp = var_exp))
 }

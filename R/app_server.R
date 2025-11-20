@@ -201,10 +201,26 @@ app_server <- function(input, output, session) {
           ),
           DT::DTOutput("all_clusters_R2_table")
         )
+      ),
+
+      # ------------------------------------------------------------
+      # Elbow tab
+      # ------------------------------------------------------------
+      shiny::tabPanel(
+        "📈 Elbow Method",
+        shiny::br(),
+        shiny::plotOutput("agg_levels_plot", height = "600px")
+      ),
+
+      # ------------------------------------------------------------
+      # Projection tab
+      # ------------------------------------------------------------
+      shiny::tabPanel(
+        "🗺️ Factorial Projection",
+        shiny::br(),
+        shiny::plotOutput("fact_plot", height = "600px")
       )
     )
-
-
 
     # ------------------------------------------------------------
     # Prediction tab
@@ -277,18 +293,6 @@ app_server <- function(input, output, session) {
         "🌳 Dendrogram",
         shiny::br(),
         shiny::plotOutput("dendrogram_plot", height = "600px")
-      ),
-
-      shiny::tabPanel(
-        "📈 Elbow Method",
-        shiny::br(),
-        shiny::plotOutput("agg_levels_plot", height = "600px")
-      ),
-
-      shiny::tabPanel(
-        "🗺️ Factorial Projection",
-        shiny::br(),
-        shiny::plotOutput("mds_plot", height = "600px")
       )
     )
 
@@ -1181,12 +1185,18 @@ app_server <- function(input, output, session) {
   # OUTPUTS - PLOTS (HCLUST)
   # ===========================================================
 
+  # -----------------------------------------------------------
+  # Reactive variable for UI condition
+  # -----------------------------------------------------------
   output$clustering_done <- shiny::reactive({
     return(rv$clustering_done)
   })
+
   shiny::outputOptions(output, "clustering_done", suspendWhenHidden = FALSE)
 
-  # Dendrogram
+  # -----------------------------------------------------------
+  # Dendogram
+  # -----------------------------------------------------------
   output$dendrogram_plot <- shiny::renderPlot({
     req(rv$model)
     req(rv$clustering_done)
@@ -1204,34 +1214,27 @@ app_server <- function(input, output, session) {
     })
   })
 
-  # Aggregation levels (Elbow for HClust)
-  output$agg_levels_plot <- shiny::renderPlot({
+  # -----------------------------------------------------------
+  # Factorial projection
+  # -----------------------------------------------------------
+  #TODO: repair kmeans acp's
+  output$fact_plot <- shiny::renderPlot({
     req(rv$model)
     req(rv$clustering_done)
-    req(rv$model_type == 'hclust')
+    req(rv$model_type)
 
     tryCatch({
-      rv$model$plot_agg_levels()
-    }, error = function(e) {
-      plot.new()
-      text(0.5, 0.5, paste("Error:", e$message), col = "red")
-    })
-  })
 
-  # MDS Projection (HClust)
-  output$mds_plot <- shiny::renderPlot({
-    req(rv$model)
-    req(rv$clustering_done)
-    req(rv$model_type == 'hclust')
-
-    tryCatch({
-      if (!is.null(rv$model$mds_projection)) {
+      # HClust projection
+      if (rv$model == "hclust") {
         rv$model$mds_projection()
-      } else if (!is.null(rv$model$plot_projection)) {
+
+      # Kmeans projection
+      } else if (rv$model == "kmeans") {
         rv$model$plot_projection()
       } else {
         plot.new()
-        text(0.5, 0.5, "MDS projection not available.", cex = 1.1)
+        text(0.5, 0.5, "Factorial projection not available.", cex = 1.1)
       }
     }, error = function(e) {
       plot.new()
@@ -1244,12 +1247,34 @@ app_server <- function(input, output, session) {
   # ===========================================================
 
 
-
   # ===========================================================
   # OUTPUTS - COMMON PLOTS
   # ===========================================================
 
-  # Silhouette
+  # -----------------------------------------------------------
+  # Elbow plot
+  # -----------------------------------------------------------
+  output$agg_levels_plot <- shiny::renderPlot({
+    req(rv$model)
+    req(rv$clustering_done)
+    req(!is.null(rv$model_type))
+
+    tryCatch({
+
+      if(rv$model_type == 'hclust') {
+        rv$model$plot_agg_levels()
+      } else if (rv$model_type == "kmeans") {
+        rv$model$plot_elbow()
+      }
+    }, error = function(e) {
+      plot.new()
+      text(0.5, 0.5, paste("Error:", e$message), col = "red")
+    })
+  })
+
+  # -----------------------------------------------------------
+  # Silhouette plot
+  # -----------------------------------------------------------
   output$silhouette_plot <- shiny::renderPlot({
     req(rv$model)
     req(rv$clustering_done)
@@ -1282,9 +1307,8 @@ app_server <- function(input, output, session) {
   # ===========================================================
 
   # -----------------------------------------------------------
-  # OUTPUTS - Prediction
+  # OUTPUTS - prediction result
   # -----------------------------------------------------------
-
   output$prediction_result <- DT::renderDT({
     req(rv$prediction)
 
@@ -1306,7 +1330,9 @@ app_server <- function(input, output, session) {
       )
   })
 
-  # Prediction proximities table
+  # -----------------------------------------------------------
+  # prediction proximities
+  # -----------------------------------------------------------
   output$prediction_proximities_table <- DT::renderDT({
     req(rv$prediction_proximities)
 

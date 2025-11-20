@@ -1104,7 +1104,8 @@ KmeansVariables <- R6::R6Class(
     # @param k_range Range of K values to test. Default: 2:10.
     # @param ... Additional arguments passed to plot_kmeans_elbow()
     # @return None (displays plot)
-    plot_elbow = function(k_range = 2:10, ...) {
+    # TODO: repair plot for range < 10?
+    plot_elbow = function(k_range = 2:length(private$.quanti_indices), ...) {
       data <- self$get_quanti_data()
 
       # Compute elbow data
