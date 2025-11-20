@@ -676,6 +676,8 @@ KmeansVariables <- R6::R6Class(
       # This ensures labels length matches the data used for clustering
       private$.data <- X_quanti
       private$.quali_indices <- integer(0)  # No more quali vars
+      private$.quanti_indices <- seq_len(ncol(X_quanti)) # update quanti_indices
+
 
       # Convert to matrix for algorithm
       X <- as.matrix(X_quanti)
