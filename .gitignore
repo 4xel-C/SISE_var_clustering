@@ -18,6 +18,7 @@ results/
 # Test notebooks
 test.Rmd
 test.nb.html
+test.knit.md
 
 # Data files (but keep cleaned FIFA dataset)
 *.xlsx

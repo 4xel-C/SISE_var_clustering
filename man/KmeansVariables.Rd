@@ -424,7 +424,7 @@ Default: "r_squared"}
 \if{latex}{\out{\hypertarget{method-KmeansVariables-plot_elbow}{}}}
 \subsection{Method \code{plot_elbow()}}{
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{KmeansVariables$plot_elbow(k_range = 2:10, ...)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{KmeansVariables$plot_elbow(k_range = 2:length(private$.quanti_indices), ...)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
