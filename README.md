@@ -549,9 +549,6 @@ copies or substantial portions of the Software.
 
 **⭐ If you find this package useful, please consider giving it a star on GitHub! ⭐**
 
-![GitHub stars](https://img.shields.io/github/stars/4xel-C/VarClustering?style=social)
-![GitHub forks](https://img.shields.io/github/forks/4xel-C/VarClustering?style=social)
-
 Made with ❤️ using [devtools](https://devtools.r-lib.org/) and [R6](https://r6.r-lib.org/)
 
 [⬆ Back to top](#-VarClustering---advanced-variable-clustering-in-r)
