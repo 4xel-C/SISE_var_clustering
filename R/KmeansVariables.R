@@ -849,6 +849,7 @@ KmeansVariables <- R6::R6Class(
     #   \item centroids_correlations: Correlation matrix between cluster centroids
     #   \item avg_silhouette: Average silhouette coefficient
     #   \item total_var_explained: Total proportion of variance explained by clustering
+    #   \item all_clusters_R2: Complete correlation of each variable with each cluster
     # }
     summary = function(print_summary = FALSE, top_n = 3) {
 
@@ -860,6 +861,35 @@ KmeansVariables <- R6::R6Class(
       var_names <- colnames(X)
       n_vars_total <- ncol(X)
 
+      r2_matrix <- matrix(0, nrow = n_vars_total, ncol = self$n_clusters)
+      rownames(r2_matrix) <- var_names
+      colnames(r2_matrix) <- paste0("Cluster", 1:self$n_clusters)
+
+
+      for (j in 1:n_vars_total) {
+        for (k in 1:self$n_clusters) {
+          cor_val <- cor(X[, j], private$.centroids[, k])
+          r2_matrix[j, k] <- cor_val^2
+        }
+      }
+
+      # Convert to dataframe.
+      r2_all_vars <- as.data.frame(round(r2_matrix, 4))
+      r2_all_vars <- cbind(variable = var_names,
+                           r2_all_vars)
+
+      # Calculate the R2 with own cluster for each variable.
+      r2_all_vars$own_cluster_r2 <- sapply(1:n_vars_total, function(i) {
+        cluster_col <- paste0("Cluster", self$labels[i])
+        r2_all_vars[i, cluster_col]
+      })
+
+      # Order by decreasing order of own cluster correlation
+      r2_all_vars <- r2_all_vars[order(-r2_all_vars$own_cluster_r2), ]
+
+      # Drop the own R2 correlation column to avoid redundancy.
+      r2_all_vars <- r2_all_vars[, c("variable", paste0("Cluster", 1:self$n_clusters))]
+
       # -----------------------------------------------------------------------
       # 1. Cluster summary: variance explained per cluster
       # -----------------------------------------------------------------------
@@ -870,13 +900,9 @@ KmeansVariables <- R6::R6Class(
         var_indices <- which(self$labels == k)
         n_members <- length(var_indices)
 
-        # variation_explained = eigenvalue = inertia
         variation_explained <- private$.cluster_inertias[k]
-
-        # proportion_explained = inertia / n_variables
         proportion_explained <- variation_explained / n_members
 
-        # Store cluster summary
         clust_summary_list[[k]] <- data.frame(
           cluster = k,
           n_members = n_members,
@@ -884,12 +910,9 @@ KmeansVariables <- R6::R6Class(
           proportion_explained = round(proportion_explained, 4)
         )
 
-        # Top contributing variables (based on R²)
         if (n_members > 0) {
-          cors <- sapply(var_indices, function(j) {
-            cor(X[, j], private$.centroids[, k])
-          })
-          contributions <- cors^2
+
+          contributions <- r2_matrix[var_indices, k]
           names(contributions) <- var_names[var_indices]
           top_vars <- head(sort(contributions, decreasing = TRUE), top_n)
 
@@ -906,7 +929,6 @@ KmeansVariables <- R6::R6Class(
         }
       }
 
-      # Combine cluster summary and top variables
       clust_summary <- do.call(rbind, clust_summary_list)
       top_variables <- if (length(top_vars_list) > 0) {
         do.call(rbind, top_vars_list)
@@ -915,7 +937,6 @@ KmeansVariables <- R6::R6Class(
                    r_squared = numeric(), rank = integer())
       }
 
-      # Total variance explained by clustering
       total_var_explained <- round(sum(clust_summary$variation_explained) / n_vars_total, 4)
 
       # -----------------------------------------------------------------------
@@ -926,41 +947,30 @@ KmeansVariables <- R6::R6Class(
         row.names = var_names
       )
 
-      own_cluster_R2 <- numeric(length(var_names))
-      next_closest_R2 <- numeric(length(var_names))
+      own_cluster_R2 <- numeric(n_vars_total)
+      next_closest_R2 <- numeric(n_vars_total)
 
-      # Calculate R² with own cluster and next closest cluster
-      for (i in 1:length(var_names)) {
+      for (i in 1:n_vars_total) {
         var_cluster <- self$labels[i]
-
-        # Calculate R² with all centroids
-        r2_with_centroids <- numeric(self$n_clusters)
-        for (k in 1:self$n_clusters) {
-          cor_val <- cor(X[, i], private$.centroids[, k])
-          r2_with_centroids[k] <- cor_val^2
-        }
-
-        own_cluster_R2[i] <- r2_with_centroids[var_cluster]
-        next_closest_R2[i] <- max(r2_with_centroids[-var_cluster])
+        own_cluster_R2[i] <- r2_matrix[i, var_cluster]
+        next_closest_R2[i] <- max(r2_matrix[i, -var_cluster])
       }
 
       clust_members$own_cluster_R2 <- round(own_cluster_R2, 2)
       clust_members$next_closest_R2 <- round(next_closest_R2, 2)
       clust_members$`1 - R2_ratio` <- round((1 - own_cluster_R2) / (1 - next_closest_R2), 2)
 
-      # Sort by cluster and own_cluster_R2
       clust_members <- clust_members[order(clust_members$cluster, -clust_members$own_cluster_R2), ]
 
       # -----------------------------------------------------------------------
-      # 3. Centroids correlations (between cluster centers)
+      # 3. Centroids correlations
       # -----------------------------------------------------------------------
       centroids_correlations <- cor(private$.centroids)
       rownames(centroids_correlations) <- paste0("VCHca_1_", 1:self$n_clusters)
       colnames(centroids_correlations) <- paste0("VCHca_1_", 1:self$n_clusters)
 
-
       # -----------------------------------------------------------------------
-      # 4. Average silhouette coefficient
+      # 4. Average silhouette
       # -----------------------------------------------------------------------
       sil_result <- tryCatch({
         self$silhouette()
@@ -999,7 +1009,8 @@ KmeansVariables <- R6::R6Class(
         top_variables = top_variables,
         centroids_correlations = centroids_correlations,
         avg_silhouette = avg_silhouette,
-        total_var_explained = total_var_explained
+        total_var_explained = total_var_explained,
+        all_clusters_R2 = r2_all_vars
       )
 
       return(result)

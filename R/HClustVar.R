@@ -1814,7 +1814,7 @@ HClustVar <- R6::R6Class(
 
         # Compute the correlation² with all the other centroids
         # Correlation if quantitative.
-        if (is.numeric(self$data[[variable]])) {  # Double crochet [[]]
+        if (is.numeric(self$data[[variable]])) {
           cor_clusters_temp <- apply(self$centroids, 2, function(centroid) {
             cor(self$data[[variable]], centroid, use = "complete.obs")^2
           })
@@ -1916,16 +1916,18 @@ HClustVar <- R6::R6Class(
       rownames(all_clusters_R2) <- NULL
 
 
-      # For each variable, get the cluster with highest R²
+      # For each variable, get the maximum cluster (own)
       all_clusters_R2$Cluster <- apply(all_clusters_R2[, -1], 1, function(row) {
         which.max(row)
       })
 
+      # Create the own cluster vector
       own_cluster_R2 <- sapply(1:nrow(all_clusters_R2), function(i) {
         cluster_num <- all_clusters_R2$Cluster[i]
         all_clusters_R2[[paste0("Cluster_", cluster_num)]][i]
       })
 
+      # Order the dataframe per own cluster correlation.
       all_clusters_R2 <- all_clusters_R2[order(all_clusters_R2$Cluster, -own_cluster_R2), ]
 
       # Get rid of the additional column.

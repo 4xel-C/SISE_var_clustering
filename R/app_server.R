@@ -1553,7 +1553,6 @@ app_server <- function(input, output, session) {
     }
   })
 
-  # TODO: Add R² matrix for kmeans
   # All Clusters R² Table
   output$all_clusters_R2_table <- DT::renderDT({
     req(rv$model)
