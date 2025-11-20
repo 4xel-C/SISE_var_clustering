@@ -878,17 +878,25 @@ KmeansVariables <- R6::R6Class(
       r2_all_vars <- cbind(variable = var_names,
                            r2_all_vars)
 
-      # Calculate the R2 with own cluster for each variable.
-      r2_all_vars$own_cluster_r2 <- sapply(1:n_vars_total, function(i) {
-        cluster_col <- paste0("Cluster", self$labels[i])
-        r2_all_vars[i, cluster_col]
-      })
+      # Add a column for cluster label
+      r2_all_vars$cluster <- self$labels
 
-      # Order by decreasing order of own cluster correlation
-      r2_all_vars <- r2_all_vars[order(-r2_all_vars$own_cluster_r2), ]
+      # Colnames (Cluster1, Cluster2, etc...)
+      cluster_cols <- paste0("Cluster", 1:self$n_clusters)
 
-      # Drop the own R2 correlation column to avoid redundancy.
-      r2_all_vars <- r2_all_vars[, c("variable", paste0("Cluster", 1:self$n_clusters))]
+      # Add correlation to own cluster
+      r2_all_vars$cor_to_own_cluster <- mapply(
+        function(i, clust) r2_all_vars[i, cluster_cols[clust]],
+        i = 1:nrow(r2_all_vars),
+        clust = r2_all_vars$cluster
+      )
+
+      # Order by cluster, then by descending correlation
+      r2_all_vars <- r2_all_vars[order(r2_all_vars$cluster,
+                                       -r2_all_vars$cor_to_own_cluster), ]
+
+      # Get rid of useless columns
+      r2_all_vars <- r2_all_vars[, !(names(r2_all_vars) %in% c("cluster", "cor_to_own_cluster"))]
 
       # -----------------------------------------------------------------------
       # 1. Cluster summary: variance explained per cluster
@@ -1156,6 +1164,7 @@ KmeansVariables <- R6::R6Class(
     plot_projection = function(supplementary_variables = NULL,
                                supplementary_clusters = NULL,
                                ...) {
+
       if (!self$fitted) {
         stop("Model must be fitted before plotting. Use $fit() first.")
       }

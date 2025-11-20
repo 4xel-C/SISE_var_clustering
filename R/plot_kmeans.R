@@ -197,6 +197,8 @@ plot_kmeans_projection <- function(data, clusters,
 
   colors <- col_palette[clusters]
 
+
+
   # Point size based on quality (bounded between 0.5 and 2.5)
   cex_values <- pmax(0.5, pmin(2.5, 0.8 + 1.5 * quality))
 

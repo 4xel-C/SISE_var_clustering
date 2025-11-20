@@ -300,23 +300,11 @@ app_server <- function(input, output, session) {
     # Kmeans tabs
     # ------------------------------------------------------------
     kmeans_tabs <- list(
-      shiny::tabPanel(
-        "📉 Inertia Evolution",
-        shiny::br(),
-        shiny::plotOutput("inertia_plot", height = "600px")
-      ),
 
       shiny::tabPanel(
-        "🗺️ Variable Projection",
+        "🔄 Contribution",
         shiny::br(),
-        shiny::plotOutput("kmeans_projection_plot", height = "600px")
-      ),
-
-      shiny::tabPanel(
-        "🔄 Cluster Centers",
-        shiny::br(),
-        shiny::h4("Cluster Centers Heatmap"),
-        shiny::plotOutput("centers_heatmap", height = "600px")
+        shiny::plotOutput("kmeans_contributions", height = "600px")
       )
     )
 
@@ -1160,6 +1148,36 @@ app_server <- function(input, output, session) {
           rv$model_type <- 'kmeans'
           rv$clustering_done <- TRUE
 
+          # Get the illustrative vars if any.
+          if (length(illust_vars) > 0) {
+            illustrative_df <- req(data_filtered())
+            illustrative_df <- illustrative_df[, illust_vars, drop = FALSE]
+
+
+            prediction_result <- km$predict(illustrative_df)
+
+            # Store the prediction as a dataframe
+            rv$prediction <- data.frame(
+              "Illustrative_variable" = illust_vars,
+              "Variable_type" = config_df$Type[match(illust_vars, config_df$Variable)],
+              "Predicted_clusters" = prediction_result$clusters,
+              stringsAsFactors = FALSE
+            )
+
+            # Save the matrix of similiraties.
+            rv$prediction_proximities <- data.frame(
+              Variables = names(prediction_result$clusters),
+              Proximity = 1 - prediction_result$distances
+            )
+
+            # If no illustrative vars, set the prediction to NULL.
+          } else {
+            rv$prediction <- NULL
+            rv$prediction_proximities <- NULL
+          }
+
+
+
           shiny::showNotification(
             "✅ K-means variable clustering completed successfully!",
             type = "message",
@@ -1226,11 +1244,12 @@ app_server <- function(input, output, session) {
     tryCatch({
 
       # HClust projection
-      if (rv$model == "hclust") {
+      if (rv$model_type == "hclust") {
         rv$model$mds_projection()
 
       # Kmeans projection
-      } else if (rv$model == "kmeans") {
+      } else if (rv$model_type == "kmeans") {
+        print(rv$model)
         rv$model$plot_projection()
       } else {
         plot.new()
@@ -1246,6 +1265,20 @@ app_server <- function(input, output, session) {
   # OUTPUTS - PLOTS (KMEANS)
   # ===========================================================
 
+  output$kmeans_contributions <- shiny::renderPlot({
+    req(rv$model)
+    req(rv$clustering_done)
+    req(!is.null(rv$model_type))
+
+    tryCatch({
+
+      rv$model$plot_contributions()
+
+    }, error = function(e) {
+      plot.new()
+      text(0.5, 0.5, paste("Error:", e$message), col = "red")
+    })
+  })
 
   # ===========================================================
   # OUTPUTS - COMMON PLOTS
