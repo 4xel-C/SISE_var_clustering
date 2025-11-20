@@ -190,7 +190,7 @@ app_server <- function(input, output, session) {
         ),
 
         # --------------
-        # All clusters R² matrix  <-- NOUVEAU
+        # All clusters R² matrix
         # --------------
         shiny::wellPanel(
           shiny::h3("R² Matrix: All Variables vs All Clusters"),
@@ -1243,216 +1243,13 @@ app_server <- function(input, output, session) {
   # OUTPUTS - PLOTS (KMEANS)
   # ===========================================================
 
-  # Inertia Evolution Plot
-  output$inertia_plot <- shiny::renderPlot({
-    req(rv$model)
-    req(rv$clustering_done)
-    req(rv$model_type == 'kmeans')
 
-    tryCatch({
-      # Si votre modèle a une méthode plot_elbow ou inertia_evolution
-      if (!is.null(rv$model$plot_elbow)) {
-        rv$model$plot_elbow()
-      } else if (!is.null(rv$model$inertia)) {
-        # Créer un plot manuel de l'inertie
-        inertia_value <- rv$model$inertia
-
-        plot.new()
-        par(mar = c(5, 5, 4, 2))
-        plot(1, inertia_value,
-             type = "p",
-             pch = 19,
-             cex = 2,
-             col = "#E74C3C",
-             xlab = "Iteration",
-             ylab = "Inertia",
-             main = "Within-Cluster Sum of Squares (Inertia)",
-             cex.lab = 1.2,
-             cex.main = 1.4,
-             ylim = c(0, max(inertia_value) * 1.1))
-
-        grid(col = "gray80")
-        points(1, inertia_value, pch = 19, cex = 2, col = "#E74C3C")
-        text(1, inertia_value,
-             labels = sprintf("Inertia: %.2f", inertia_value),
-             pos = 3, cex = 1.1, col = "#2C3E50")
-
-      } else {
-        plot.new()
-        text(0.5, 0.5, "Inertia data not available.", cex = 1.1, col = "gray50")
-      }
-    }, error = function(e) {
-      plot.new()
-      text(0.5, 0.5, paste("Error:", e$message), col = "red")
-    })
-  })
-
-  # Variable Projection (K-means)
-  output$kmeans_projection_plot <- shiny::renderPlot({
-    req(rv$model)
-    req(rv$clustering_done)
-    req(rv$model_type == 'kmeans')
-
-    tryCatch({
-      if (!is.null(rv$model$plot_projection)) {
-        rv$model$plot_projection()
-      } else if (!is.null(rv$model$mds_projection)) {
-        rv$model$mds_projection()
-      } else {
-        # Créer une projection MDS manuelle si les données sont disponibles
-        data <- data_filtered()
-        labels <- rv$model$labels_
-
-        if (!is.null(labels) && length(labels) == ncol(data)) {
-          # Calculer la matrice de corrélation
-          cor_matrix <- cor(data, use = "pairwise.complete.obs")
-          dist_matrix <- as.dist(1 - abs(cor_matrix))
-
-          # MDS
-          mds_result <- cmdscale(dist_matrix, k = 2)
-
-          # Préparer les couleurs
-          colors <- c("#E74C3C", "#3498DB", "#2ECC71", "#F39C12",
-                      "#9B59B6", "#1ABC9C", "#E67E22", "#95A5A6")
-          cluster_colors <- colors[labels]
-
-          # Plot
-          par(mar = c(5, 5, 4, 2))
-          plot(mds_result[, 1], mds_result[, 2],
-               col = cluster_colors,
-               pch = 19,
-               cex = 1.5,
-               xlab = "Dimension 1",
-               ylab = "Dimension 2",
-               main = "MDS Projection of Variables (K-means)",
-               cex.lab = 1.2,
-               cex.main = 1.4)
-
-          # Ajouter les labels
-          text(mds_result[, 1], mds_result[, 2],
-               labels = colnames(data),
-               pos = 3,
-               cex = 0.8,
-               col = cluster_colors)
-
-          # Légende
-          legend("topright",
-                 legend = paste("Cluster", unique(labels)),
-                 col = colors[unique(labels)],
-                 pch = 19,
-                 cex = 0.9)
-
-          grid(col = "gray80")
-        } else {
-          plot.new()
-          text(0.5, 0.5, "Projection data not available.", cex = 1.1)
-        }
-      }
-    }, error = function(e) {
-      plot.new()
-      text(0.5, 0.5, paste("Error:", e$message), col = "red")
-    })
-  })
-
-  # Cluster Centers Heatmap
-  output$centers_heatmap <- shiny::renderPlot({
-    req(rv$model)
-    req(rv$clustering_done)
-    req(rv$model_type == 'kmeans')
-
-    tryCatch({
-      # Essayer d'obtenir les centres des clusters
-      if (!is.null(rv$model$cluster_centers_)) {
-        centers <- rv$model$cluster_centers_
-
-        # Créer une heatmap des centres
-        par(mar = c(5, 10, 4, 2))
-
-        # Normaliser les centres pour la visualisation
-        centers_scaled <- scale(centers)
-
-        # Créer la heatmap
-        image(t(centers_scaled),
-              col = colorRampPalette(c("#3498DB", "white", "#E74C3C"))(100),
-              xlab = "Cluster",
-              ylab = "",
-              main = "Cluster Centers Heatmap",
-              axes = FALSE,
-              cex.main = 1.4)
-
-        # Ajouter les axes
-        axis(1, at = seq(0, 1, length.out = nrow(centers)),
-             labels = paste("Cluster", 1:nrow(centers)),
-             cex.axis = 1.1)
-
-        axis(2, at = seq(0, 1, length.out = ncol(centers)),
-             labels = colnames(centers),
-             las = 2,
-             cex.axis = 0.9)
-
-        # Ajouter une légende de couleur
-        legend("topright",
-               legend = c("High", "Medium", "Low"),
-               fill = c("#E74C3C", "white", "#3498DB"),
-               cex = 0.9,
-               title = "Correlation")
-
-      } else if (!is.null(rv$model$labels_)) {
-        # Alternative: montrer la composition des clusters
-        data <- data_filtered()
-        labels <- rv$model$labels_
-
-        # Calculer les centres manuellement
-        centers <- matrix(NA, nrow = input$n_clusters, ncol = ncol(data))
-        colnames(centers) <- colnames(data)
-        rownames(centers) <- paste("Cluster", 1:input$n_clusters)
-
-        for (k in 1:input$n_clusters) {
-          vars_in_cluster <- which(labels == k)
-          if (length(vars_in_cluster) > 0) {
-            cluster_data <- data[, vars_in_cluster, drop = FALSE]
-            # Calculer la corrélation moyenne avec toutes les variables
-            for (j in 1:ncol(data)) {
-              cors <- cor(data[, j], cluster_data, use = "pairwise.complete.obs")
-              centers[k, j] <- mean(abs(cors), na.rm = TRUE)
-            }
-          }
-        }
-
-        # Plot heatmap
-        par(mar = c(5, 10, 4, 2))
-        image(t(centers),
-              col = colorRampPalette(c("white", "#3498DB", "#E74C3C"))(100),
-              xlab = "Cluster",
-              ylab = "",
-              main = "Cluster-Variable Correlation Strength",
-              axes = FALSE,
-              cex.main = 1.4)
-
-        axis(1, at = seq(0, 1, length.out = nrow(centers)),
-             labels = rownames(centers),
-             cex.axis = 1.1)
-
-        axis(2, at = seq(0, 1, length.out = ncol(centers)),
-             labels = colnames(centers),
-             las = 2,
-             cex.axis = 0.9)
-
-      } else {
-        plot.new()
-        text(0.5, 0.5, "Cluster centers not available.", cex = 1.1)
-      }
-    }, error = function(e) {
-      plot.new()
-      text(0.5, 0.5, paste("Error:", e$message), col = "red")
-    })
-  })
 
   # ===========================================================
   # OUTPUTS - COMMON PLOTS
   # ===========================================================
 
-  # Silhouette (commun aux deux algorithmes)
+  # Silhouette
   output$silhouette_plot <- shiny::renderPlot({
     req(rv$model)
     req(rv$clustering_done)
@@ -1549,37 +1346,6 @@ app_server <- function(input, output, session) {
   # -----------------------------------------------------------
   # OUTPUTS - Summary tables
   # -----------------------------------------------------------
-  output$cluster_summary_table <- DT::renderDT({
-    req(rv$model)
-    req(rv$clustering_done)
-
-    summary_data <- tryCatch(rv$model$summary(), error = function(e) NULL)
-    if (is.null(summary_data)) {
-      DT::datatable(data.frame())
-    } else {
-      # If clust_summary exists, show it. Else try to show whole summary object
-      df <- if (!is.null(summary_data$clust_summary)) summary_data$clust_summary else as.data.frame(summary_data)
-      dt <- DT::datatable(df, options = list(pageLength = 20, dom = 't'), rownames = FALSE)
-      dt
-    }
-  })
-
-  output$cluster_members_table <- DT::renderDT({
-    req(rv$model)
-    req(rv$clustering_done)
-
-    summary_data <- tryCatch(rv$model$summary(), error = function(e) NULL)
-    if (is.null(summary_data)) {
-      DT::datatable(data.frame())
-    } else {
-      df <- if (!is.null(summary_data$clust_members)) summary_data$clust_members else as.data.frame(summary_data)
-      dt <- DT::datatable(df, options = list(pageLength = 20, scrollX = TRUE), rownames = TRUE)
-      if ('own_cluster_R2' %in% colnames(df)) {
-        dt <- dt %>% DT::formatStyle('own_cluster_R2', backgroundColor = DT::styleInterval(c(0.5, 0.7), c('#FADBD8', '#FCF3CF', '#D5F4E6')))
-      }
-      dt
-    }
-  })
 
   # Average Silhouette Display
   output$avg_silhouette_display <- shiny::renderUI({
@@ -1587,7 +1353,12 @@ app_server <- function(input, output, session) {
     req(rv$clustering_done)
 
     summary_data <- tryCatch(rv$model$summary(), error = function(e) NULL)
-    avg_sil <- summary_data$avg_silhouette
+
+    # Get average silouhette depending of the algorithm
+    if (rv$model_type == "kmeans" | rv$model_type == "hclust") {
+      avg_sil <- summary_data$avg_silhouette
+    }
+
 
     if (is.null(avg_sil)) {
       shiny::tags$div(
@@ -1635,7 +1406,12 @@ app_server <- function(input, output, session) {
     req(rv$clustering_done)
 
     summary_data <- tryCatch(rv$model$summary(), error = function(e) NULL)
-    total_var <- summary_data$total_var_explained
+
+    # Get total variance depending of the algorithm
+    if (rv$model_type == "kmeans" | rv$model_type == "hclust") {
+      total_var <- summary_data$total_var_explained
+    }
+
 
     if (is.null(total_var)) {
       shiny::tags$div(
@@ -1682,13 +1458,58 @@ app_server <- function(input, output, session) {
     }
   })
 
+  output$cluster_summary_table <- DT::renderDT({
+    req(rv$model)
+    req(rv$clustering_done)
+
+    summary_data <- tryCatch(rv$model$summary(), error = function(e) NULL)
+    if (is.null(summary_data)) {
+      DT::datatable(data.frame())
+    } else {
+      # If clust_summary exists, show it. Else try to show whole summary object
+      df <- if (!is.null(summary_data$clust_summary)) summary_data$clust_summary else as.data.frame(summary_data)
+      dt <- DT::datatable(df, options = list(pageLength = 20, dom = 't'), rownames = FALSE)
+      dt
+    }
+  })
+
   # Centroids Correlation Table
   output$centroids_correlation_table <- DT::renderDT({
     req(rv$model)
     req(rv$clustering_done)
 
     summary_data <- tryCatch(rv$model$summary(), error = function(e) NULL)
-    centroids_df <- summary_data$centroids_correlations
+
+    # Get total variance depending of the algorithm
+    if (rv$model_type == "kmeans" | rv$model_type == "hclust") {
+      centroids_df <- summary_data$centroids_correlations
+    }
+
+    # Reformat to match the other algorithm
+    if (rv$model_type == "kmeans") {
+      new_centroids_df <- data.frame(
+        "cluster A" = c(),
+        "cluster B" = c(),
+        "correlation" = c(),
+        "square_correlations" = c()
+      )
+
+      clusters <- 1:ncol(centroids_df)
+
+      for (i in 1:(nrow(centroids_df)-1)) {
+        for (j in (i+1):ncol(centroids_df)) {
+          new_centroids_df <- rbind(new_centroids_df, data.frame(
+            "cluster A"= clusters[i],
+            "cluster B" = clusters[j],
+            "correlation" = centroids_df[i, j],
+            "square_correlations" = centroids_df[i, j]
+          ))
+        }
+      } # end for
+
+      centroids_df <- new_centroids_df
+    }
+
 
     if (is.null(centroids_df)) {
       # Return empty datatable with message
@@ -1698,6 +1519,7 @@ app_server <- function(input, output, session) {
         rownames = FALSE
       )
     } else {
+
 
       DT::datatable(
         centroids_df,
@@ -1713,6 +1535,25 @@ app_server <- function(input, output, session) {
     }
   })
 
+  # Variable assignments table
+  output$cluster_members_table <- DT::renderDT({
+    req(rv$model)
+    req(rv$clustering_done)
+
+    summary_data <- tryCatch(rv$model$summary(), error = function(e) NULL)
+    if (is.null(summary_data)) {
+      DT::datatable(data.frame())
+    } else {
+      df <- if (!is.null(summary_data$clust_members)) summary_data$clust_members else as.data.frame(summary_data)
+      dt <- DT::datatable(df, options = list(pageLength = 20, scrollX = TRUE), rownames = TRUE)
+      if ('own_cluster_R2' %in% colnames(df)) {
+        dt <- dt %>% DT::formatStyle('own_cluster_R2', backgroundColor = DT::styleInterval(c(0.5, 0.7), c('#FADBD8', '#FCF3CF', '#D5F4E6')))
+      }
+      dt
+    }
+  })
+
+  # TODO: Add R² matrix for kmeans
   # All Clusters R² Table
   output$all_clusters_R2_table <- DT::renderDT({
     req(rv$model)

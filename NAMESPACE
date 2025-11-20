@@ -2,4 +2,4 @@
 
 export(HClustVar)
 export(KmeansVariables)
-export(varclust)
+export(varclust_gui)
