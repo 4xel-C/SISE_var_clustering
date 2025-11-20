@@ -17,7 +17,14 @@
 
 #' Canines dataset containing information about dogs characteristics.
 #'
-#' Dataset contaiing exclusively qualitative data.
+#' Dataset containing exclusively qualitative data.
 #'
 #' @format A data frame with 27 rows and 8 variables:
 "canines"
+
+#' Votes dataset containing only qualitatives data.
+#'
+#' Dataset containing exclusively qualitative data.
+#'
+#' @format A data frame with 435 rows and 7 variables:
+"vote"

@@ -24,7 +24,15 @@ players <- read.csv("data-raw/players_22_cleaned.csv", stringsAsFactors = FALSE)
 # Save data file
 usethis::use_data(players, overwrite = TRUE)
 
+# ---- Votes ----
+vote <- read_excel("data-raw/vote.xls")
 
+# Convert to factor
+vote <- vote %>%
+  dplyr::mutate(across(where(is.character), as.factor))
+
+# Save data file
+usethis::use_data(vote, overwrite = TRUE)
 
 # ---- players_22_cleaned ----
 canines <- read_excel("data-raw/races_canines.xls")
