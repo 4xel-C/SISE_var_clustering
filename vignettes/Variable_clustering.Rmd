@@ -30,25 +30,27 @@ knitr::opts_chunk$set(
 
 # Introduction
 
-This vignette demonstrates the use of clustering for variable. We'll explore three main approaches:
+This vignette demonstrates the use of **Hierarchical Variable Clustering (HClustVar)** for grouping variables based on similarity.
 
-1. **Hierarchical Variable Clustering (HClustVar)** - Groups variables based on similarity. This similarity is computed using correlation or squared correlation between quantitative variables, Cramer's V between qualitative variables, and a discretization algorithms to transform quantitatives into qualitatives on a mixed scenarios.
-2. **K-Means Clustering (KMeans)** - Focused onto clustering quantitative variables using PCA to compute centroid of clusters.
-3. **Quantitative Variable Clustering** - *TODO*
+HClustVar computes similarity using:
+- **Correlation (r) or squared correlation (r²)** between quantitative variables
+- **Cramer's V** between qualitative variables
+- **Discretization + Cramer's V** for mixed scenarios
+
+For K-means variable clustering, see the dedicated vignette `KmeansVariables.Rmd`.
 
 ## Loading the library
 
 ```{r libraries}
-library(VarClustering)  
+library(VarClustering)
 ```
 
 ## Dataset Overview
 
-We'll work with three datasets:
+We'll work with two datasets:
 
-- **Auto2005Non4x4.xls**: Mixed variables (quantitative and qualitative) from automotive data
-- **players_22_cleaned.csv**: Quantitative variables from FIFA 22 player statistics
-- **races_canines.xls**: Qualitative variables on dogs characteristics.
+- **autos**: Quantitative variables from automotive data
+- **canines**: Qualitative variables on dogs characteristics
 
 ---
 
@@ -251,48 +253,20 @@ canines_result$all_clusters_R2
 hc_canines$mds_projection()
 ```
 
-This study could be pushed further and used in tandem with modalities clustering (part 3).
-
----
-
-# Part 2: Kmeans on variable Clustering.
-
-## 1.1 Introduction to KmeansVariables
-
-The `KmeansVariables` class implements kmeans clustering of variables using PAC to generate latent composant as the centroids of clusters. It then groups variables based on their correlation or squared correlation.
-
-This class only implements **quantitative variables** clustering.
-
-
-### Key Features
-
-- Quantitative clustering.
-- R and R² for similarity measure and cluster fusion.
-- Comprehensive diagnostics
-- Cluster quality assessment
-- Prediction of illustrative variables
-
----
-
-# Part 3: Modalities clustering
-
-## 1.1 Introduction to KmeansVariables
-
-
-
-### Key Features
-
-
-
-
+This study could be pushed further with modalities clustering analysis.
 
 ---
 
 # Conclusion
 
-This vignette demonstrated:
+This vignette demonstrated **HClustVar** for hierarchical variable clustering:
 
-1. **HClustVar manipulation**: Initialization, fitting, and interpretation.
+- Quantitative variables clustering using R or R² distance
+- Qualitative variables clustering using Cramer's V
+- Quality assessment with silhouette and MDS projection
+- Prediction on illustrative variables
+
+For K-means variable clustering, see the dedicated vignette `KmeansVariables.Rmd`.
 
 ---
 
