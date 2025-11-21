@@ -608,14 +608,18 @@ ModCluster <- R6::R6Class(
     #' @return Data frame with predictions and distances
     predict = function(new_data) {
 
+      if (!self$fitted) {
+        stop("Model must be fitted")
+      }
+
       if (nrow(new_data) != nrow(private$.data)) {
         stop("New values have invalid row numbers.")
+
       } else if (is.null(private$.modality_labels)) {
         stop("Tree must be cutted first")
       }
 
       quant_cols <- sapply(new_data, is.numeric)
-
       if (any(quant_cols)) {
         warning("Quantitative columns discarded : ",
                 paste(names(new_data)[quant_cols], collapse = ", "))
@@ -646,56 +650,65 @@ ModCluster <- R6::R6Class(
       }
 
       colnames(disj_matrix_illust) <- new_names
-
       # Calculate the dice matrix of illustrative variable with all data.
       d2 <- matrix(0, ncol(disj_matrix_illust), ncol(private$.disjunctive_matrix))
-
       for (j in 1:ncol(disj_matrix_illust)) {
         for(jprim in 1:ncol(private$.disjunctive_matrix)) {
           d2[j, jprim] <- 0.5 * (sum((disj_matrix_illust[, j] - private$.disjunctive_matrix[, jprim])**2))
         }
       }
-
       colnames(d2) <- colnames(private$.disjunctive_matrix)
       rownames(d2) <- colnames(disj_matrix_illust)
-
-
-
       # Initialize cluster_distances matrix.
       cluster_distances <- data.frame(
         modality = colnames(disj_matrix_illust)
       )
-
-      #TODO finish predict
       # Calculate cluster distances.
       for (i in 1:private$.n_clusters) {
+        # Get indices of modalities in cluster i
+        cluster_indices <- which(private$.modality_labels == i)
 
         # Initialize the vector of distances of each variable to the ith cluster.
         temp_distances <- c()
 
         if (private$.hclust_method == "average") {
+
           # Compute the mean distance between each illustrative variable and a cluster
-          temp_distances <- apply(d2[, which(private$.modality_labels == i)], MARGIN = 1, FUN = mean)
+          if (length(cluster_indices) == 1) {
 
+            # If only one modality in cluster, use it directly
+            temp_distances <- d2[, cluster_indices]
+          } else {
+            temp_distances <- apply(d2[, cluster_indices, drop = FALSE], MARGIN = 1, FUN = mean)
+          }
         } else if (private$.hclust_method == "single"){
+
           # compute the minimum distance
-          temp_distances <- apply(d2[, which(private$.modality_labels == i)], MARGIN = 1, FUN = min)
+          if (length(cluster_indices) == 1) {
 
+            temp_distances <- d2[, cluster_indices]
+          } else {
+            temp_distances <- apply(d2[, cluster_indices, drop = FALSE], MARGIN = 1, FUN = min)
+          }
         } else if (private$.hclust_method == "complete") {
-          # compute the maximum distance to clusters
-          temp_distances <- apply(d2[, which(private$.modality_labels == i)], MARGIN = 1, FUN = max)
-        }
 
-        # Save the temp distances vector to the cluster_distances dataframe by creating a new column for the cluster
+          # compute the maximum distance to clusters
+          if (length(cluster_indices) == 1) {
+            temp_distances <- d2[, cluster_indices]
+          } else {
+
+            temp_distances <- apply(d2[, cluster_indices, drop = FALSE], MARGIN = 1, FUN = max)
+          }
+        }
+        # Save the temp distances vector to the cluster_distances dataframe
         cluster_distances[[paste0("cluster_", i)]] <- temp_distances
       }
 
       # Cluster attribution by the minimal distance.
-      predicted_labels <- apply(cluster_distances[, -1], 1, which.min) # Ignore modality column and get the index of the cluster.
+      predicted_labels <- apply(cluster_distances[, -1], 1, which.min)
       names(predicted_labels) <- colnames(disj_matrix_illust)
 
-
-      # return a list of object containing the new labels and
+      # return a list of object containing the new labels and distances
       return(list(prediction = predicted_labels, distances = cluster_distances))
     },
 
@@ -705,6 +718,8 @@ ModCluster <- R6::R6Class(
     #' @param axes Integer vector of MCA axes to use (default: all)
     #' @return Matrix of projected coordinates
     project_new_modalities = function(new_data, axes = NULL) {
+
+      # TODO: correcting new modalities projection in MCA
       if (!self$fitted) {
         stop("Model must be fitted before projection")
       }
@@ -719,7 +734,7 @@ ModCluster <- R6::R6Class(
       message("Projecting new modalities into MCA space...")
 
       disj_new <- private$create_new_disjunctive(new_data)
-      n_new <- nrow(disj_new)
+      n_new <- ncol(disj_new)
 
       mod_coords <- private$.modality_coords
       K <- length(private$.variable_info$var_names)
@@ -1155,9 +1170,9 @@ ModCluster <- R6::R6Class(
 
       heights <- private$.clustering_object$height
       n <- length(heights) + 1
-
       k_values <- 2:(n - 1)
       heights_k <- heights[n - k_values]
+
 
       plot(
         k_values,
