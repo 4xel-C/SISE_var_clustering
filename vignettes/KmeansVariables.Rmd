@@ -1,0 +1,759 @@
+---
+title: "K-means Variable Clustering with KmeansVariables"
+author: "Eugénie Barlet, Modou Mboup, Axel Cano"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    theme: flatly
+    highlight: tango
+    code_folding: show
+    number_sections: true
+vignette: >
+  %\VignetteIndexEntry{Variable Clustering with KmeansVariables}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 10,
+  fig.height = 6,
+  fig.align = "center"
+)
+```
+
+# Introduction
+
+This vignette demonstrates the use of K-means clustering for variable grouping. The `KmeansVariables` class implements a reallocation-based algorithm that groups variables by maximizing their correlation with cluster centroids computed via Principal Component Analysis (PCA).
+
+## Key Features
+
+- **Iterative reallocation** of variables to clusters
+- **Centroid computation via PCA** (first principal component)
+- **Multiple random initializations** to avoid local minima
+- **Two distance metrics**: R² (absolute correlation) or signed r
+- **Automatic K selection** via elbow, silhouette, or Calinski-Harabasz criteria
+- **Comprehensive diagnostics**: silhouette, contributions, projections
+
+## Loading Required Libraries
+
+```{r libraries}
+library(R6)          # For R6 class system
+library(ggplot2)     # For enhanced visualizations
+library(dplyr)       # For data manipulation
+library(tidyr)       # For data reshaping
+library(knitr)       # For table formatting
+
+# Load the package
+# library(sise.var.clustering)
+# Or source the files directly
+# source("R/KmeansVariables.R")
+# source("R/metrics_kmeans.R")
+# source("R/plot_kmeans.R")
+```
+
+## Dataset Overview
+
+We'll work with the **FIFA 22 players dataset** containing 41 quantitative skill variables for 17,107 players.
+
+```{r load-data}
+# Load the FIFA players dataset
+data("players")
+
+# Display structure
+cat(sprintf("Number of observations: %d\n", nrow(players)))
+cat(sprintf("Number of variables: %d\n", ncol(players)))
+
+# Display first variables
+head(names(players), 20)
+```
+
+---
+
+# Part 1: Basic Usage
+
+## 1.1 Introduction to K-means Variable Clustering
+
+The K-means for variables algorithm works as follows:
+
+1. **Initialization**: Randomly assign variables to K clusters
+2. **Centroid Calculation**: For each cluster, compute the first principal component (via PCA) as the cluster centroid
+3. **Distance Calculation**: Compute distance between each variable and each centroid based on their correlation
+4. **Reallocation**: Reassign each variable to its nearest centroid
+5. **Iteration**: Repeat steps 2-4 until convergence
+
+### Distance Metrics
+
+Two distance metrics are available:
+
+- **R² (r_squared)**: Groups variables with high absolute correlation (positive OR negative)
+  $$d(x_j, c_k) = \sqrt{1 - r^2(x_j, c_k)}$$
+
+- **Signed r (r_signed)**: Groups only variables with high positive correlation
+  $$d(x_j, c_k) = 1 - r(x_j, c_k)$$
+
+### Inertia Criterion
+
+The algorithm maximizes within-cluster cohesion (inertia). For cluster $k$, the inertia equals the first eigenvalue $\lambda_k$ from PCA:
+
+$$I_k = \lambda_k = \sum_{j \in C_k} r^2(x_j, c_k)$$
+
+---
+
+## 1.2 Data Preparation
+
+```{r prepare-data}
+# Check for missing values
+missing_counts <- colSums(is.na(players))
+cat("Variables with missing values:", sum(missing_counts > 0), "\n")
+
+# Summary statistics
+summary(players[, 1:6])
+
+# Display first rows
+head(players) %>% kable()
+```
+
+---
+
+## 1.3 Fitting the Model
+
+### Basic Fitting
+
+```{r fit-basic}
+# Initialize KmeansVariables with 5 clusters
+km <- KmeansVariables$new(
+  n_clusters = 5,
+  n_init = 10,           # Number of random initializations
+  max_iter = 100,        # Maximum iterations per init
+  random_state = 42      # For reproducibility
+)
+
+# Fit the model
+km$fit(players)
+
+# Print model summary
+print(km)
+```
+
+### Accessing Results
+
+```{r access-results}
+# Cluster assignments
+cat("Cluster assignments:\n")
+head(km$labels, 10)
+
+# Cluster sizes
+cat("\nCluster sizes:\n")
+km$cluster_sizes
+
+# Total inertia
+cat("\nTotal inertia:", round(km$inertia, 4), "\n")
+
+# Inertia per cluster
+cat("\nInertia per cluster:\n")
+km$cluster_inertias
+```
+
+---
+
+## 1.4 Visualizing Results
+
+### Elbow Plot for Optimal K
+
+```{r elbow-plot}
+# Plot elbow curve to determine optimal K
+km$plot_elbow(k_range = 2:10)
+```
+
+The elbow plot shows how total inertia increases with K. Look for the "elbow" point where adding more clusters provides diminishing returns.
+
+### Variable Projection (PCA Circle)
+
+```{r projection-plot}
+# Plot variable projection on first two principal components
+km$plot_projection(show_labels = TRUE)
+```
+
+This plot shows variables grouped by cluster in a PCA-like projection. Variables close together are highly correlated.
+
+### Top Contributing Variables
+
+```{r contributions-plot}
+# Plot top 5 contributing variables per cluster
+km$plot_contributions(top_n = 5)
+```
+
+This plot identifies the most representative variables for each cluster based on their R² with the centroid.
+
+---
+
+## 1.5 Analyzing Results
+
+### Comprehensive Summary
+
+```{r summary-results}
+# Get detailed summary
+results <- km$summary(print_summary = TRUE)
+```
+
+### Cluster Summary
+
+```{r cluster-summary}
+# Cluster-level statistics
+cat("\n=== CLUSTER SUMMARY ===\n")
+results$clust_summary %>% kable()
+```
+
+**Interpretation**:
+- `n_members`: Number of variables in each cluster
+- `variation_explained`: Total variance explained by the cluster (eigenvalue)
+- `proportion_explained`: Average variance per variable (quality indicator)
+
+### Variable Assignments
+
+```{r variable-assignments}
+# Variable details
+cat("\n=== VARIABLE ASSIGNMENTS ===\n")
+results$clust_members %>%
+  arrange(cluster, desc(own_cluster_R2)) %>%
+  kable()
+```
+
+**Interpretation**:
+- `own_cluster_R2`: Correlation² with own cluster centroid (higher = better fit)
+- `next_closest_R2`: Correlation² with second closest centroid
+- `1 - R2_ratio`: Adhesion to own cluster vs next closest (lower = better separation)
+
+### Top Variables per Cluster
+
+```{r top-variables}
+# Top contributing variables
+cat("\n=== TOP VARIABLES PER CLUSTER ===\n")
+results$top_variables %>% kable()
+```
+
+### Centroid Correlations
+
+```{r centroid-correlations}
+# Correlations between cluster centroids
+cat("\n=== CORRELATIONS BETWEEN CLUSTER CENTROIDS ===\n")
+round(results$centroids_correlations, 3) %>% kable()
+```
+
+Low correlations between centroids indicate well-separated clusters.
+
+### Overall Quality Metrics
+
+```{r quality-metrics}
+# Quality metrics
+cat("\n=== OVERALL QUALITY ===\n")
+cat(sprintf("Average Silhouette: %.3f\n", results$avg_silhouette))
+cat(sprintf("Total Variance Explained: %.2f%%\n", results$total_var_explained * 100))
+```
+
+**Interpretation**:
+- **Average Silhouette > 0.5**: Good clustering
+- **Average Silhouette 0.25-0.5**: Reasonable clustering
+- **Average Silhouette < 0.25**: Consider different K or method
+- **Total Variance Explained**: Percentage of total variance captured by clustering
+
+---
+
+## 1.6 Silhouette Analysis
+
+```{r silhouette-analysis}
+# Get silhouette coefficients
+sil <- km$silhouette()
+
+# Display silhouette values
+cat("=== SILHOUETTE COEFFICIENTS ===\n")
+sil %>%
+  arrange(cluster, desc(silhouette)) %>%
+  kable()
+
+# Summary by cluster
+cat("\n=== AVERAGE SILHOUETTE BY CLUSTER ===\n")
+sil %>%
+  group_by(cluster) %>%
+  summarise(
+    n_variables = n(),
+    avg_silhouette = round(mean(silhouette), 3),
+    min_silhouette = round(min(silhouette), 3),
+    max_silhouette = round(max(silhouette), 3)
+  ) %>%
+  kable()
+```
+
+---
+
+## 1.7 Variable Contributions
+
+```{r contributions-table}
+# Get contributions table
+contrib <- km$contributions()
+
+# Display contributions
+cat("=== VARIABLE CONTRIBUTIONS ===\n")
+contrib %>%
+  arrange(cluster, desc(contribution)) %>%
+  kable()
+```
+
+---
+
+## 1.8 Correlation Table
+
+```{r correlation-table}
+# Get correlation matrix between variables and centroids
+cor_table <- km$correlation_table(round_digits = 3)
+
+# Display correlation table
+cat("=== VARIABLE-CENTROID CORRELATIONS ===\n")
+cor_table %>% kable()
+```
+
+---
+
+# Part 2: Advanced Features
+
+## 2.1 Distance Metrics Comparison
+
+### R² Metric (Default)
+
+```{r rsquare-metric}
+# R²-based clustering (groups variables with high |correlation|)
+km_rsq <- KmeansVariables$new(
+  n_clusters = 5,
+  distance_metric = "r_squared",
+  random_state = 42
+)
+km_rsq$fit(players)
+
+cat("R² metric - Total inertia:", round(km_rsq$inertia, 4), "\n")
+```
+
+### Signed r Metric
+
+```{r signed-metric}
+# Signed r clustering (groups only positively correlated variables)
+km_signed <- KmeansVariables$new(
+  n_clusters = 5,
+  distance_metric = "r_signed",
+  random_state = 42
+)
+km_signed$fit(players)
+
+cat("Signed r metric - Total inertia:", round(km_signed$inertia, 4), "\n")
+```
+
+### Comparison
+
+```{r compare-metrics}
+# Compare silhouette scores
+results_rsq <- km_rsq$summary()
+results_signed <- km_signed$summary()
+
+comparison <- data.frame(
+  Metric = c("R² (r_squared)", "Signed r (r_signed)"),
+  Total_Inertia = c(km_rsq$inertia, km_signed$inertia),
+  Avg_Silhouette = c(results_rsq$avg_silhouette, results_signed$avg_silhouette),
+  Var_Explained = c(results_rsq$total_var_explained, results_signed$total_var_explained)
+)
+
+comparison %>% kable()
+```
+
+---
+
+## 2.2 Automatic K Selection
+
+The `KmeansVariables` class supports automatic selection of the optimal number of clusters.
+
+### Using Silhouette Method
+
+```{r auto-silhouette}
+# Automatic K selection using silhouette
+km_auto_sil <- KmeansVariables$new(
+  n_clusters = "auto",
+  k_range = 2:10,
+  selection_method = "silhouette",
+  random_state = 42
+)
+
+km_auto_sil$fit(players)
+
+cat("Optimal K (silhouette):", km_auto_sil$n_clusters, "\n")
+cat("Inertia:", round(km_auto_sil$inertia, 4), "\n")
+```
+
+### Using Elbow Method
+
+```{r auto-elbow}
+# Automatic K selection using elbow
+km_auto_elbow <- KmeansVariables$new(
+  n_clusters = "auto",
+  k_range = 2:10,
+  selection_method = "elbow",
+  random_state = 42
+)
+
+km_auto_elbow$fit(players)
+
+cat("Optimal K (elbow):", km_auto_elbow$n_clusters, "\n")
+```
+
+### Using Calinski-Harabasz Index
+
+```{r auto-calinski}
+# Automatic K selection using Calinski-Harabasz
+km_auto_ch <- KmeansVariables$new(
+  n_clusters = "auto",
+  k_range = 2:10,
+  selection_method = "calinski",
+  random_state = 42
+)
+
+km_auto_ch$fit(players)
+
+cat("Optimal K (Calinski-Harabasz):", km_auto_ch$n_clusters, "\n")
+```
+
+### Using All Methods (Consensus)
+
+```{r auto-all}
+# Automatic K selection using all methods
+km_auto_all <- KmeansVariables$new(
+  n_clusters = "auto",
+  k_range = 2:10,
+  selection_method = "all",
+  random_state = 42
+)
+
+km_auto_all$fit(players)
+
+cat("Optimal K (consensus):", km_auto_all$n_clusters, "\n")
+```
+
+---
+
+## 2.3 Prediction on New Variables
+
+```{r prediction}
+# Create some new variables (example with noise)
+set.seed(123)
+new_vars <- data.frame(
+  new_stat_1 = players$pace + rnorm(nrow(players), 0, 5),
+  new_stat_2 = players$defending + rnorm(nrow(players), 0, 5),
+  new_stat_3 = rnorm(nrow(players))  # Random noise
+)
+
+# Predict cluster assignment
+predictions <- km$predict(new_vars)
+
+cat("Predictions for new variables:\n")
+print(predictions)
+```
+
+### Project Supplementary Variables
+
+```{r supplementary-projection}
+# Project new variables onto PCA plot
+km$plot_projection(
+  supplementary_variables = new_vars,
+  show_labels = TRUE
+)
+```
+
+---
+
+## 2.4 Multiple Initializations Impact
+
+```{r multiple-inits}
+# Compare results with different number of initializations
+inertias <- numeric(5)
+init_values <- c(1, 5, 10, 20, 50)
+
+for (i in seq_along(init_values)) {
+  km_temp <- KmeansVariables$new(
+    n_clusters = 5,
+    n_init = init_values[i],
+    random_state = 42
+  )
+  km_temp$fit(players)
+  inertias[i] <- km_temp$inertia
+}
+
+# Display comparison
+init_comparison <- data.frame(
+  n_init = init_values,
+  inertia = round(inertias, 4)
+)
+
+cat("=== IMPACT OF MULTIPLE INITIALIZATIONS ===\n")
+init_comparison %>% kable()
+
+# Plot
+ggplot(init_comparison, aes(x = n_init, y = inertia)) +
+  geom_line(color = "steelblue", size = 1) +
+  geom_point(color = "steelblue", size = 3) +
+  labs(
+    title = "Impact of Number of Initializations on Inertia",
+    x = "Number of Initializations",
+    y = "Total Inertia"
+  ) +
+  theme_minimal()
+```
+
+---
+
+## 2.5 Reproducibility with Random State
+
+```{r reproducibility}
+# Same random_state = same results
+km1 <- KmeansVariables$new(n_clusters = 5, random_state = 123)
+km1$fit(players)
+
+km2 <- KmeansVariables$new(n_clusters = 5, random_state = 123)
+km2$fit(players)
+
+cat("Same random state produces identical results:\n")
+cat("Inertia 1:", km1$inertia, "\n")
+cat("Inertia 2:", km2$inertia, "\n")
+cat("Labels identical:", all(km1$labels == km2$labels), "\n")
+```
+
+---
+
+# Part 3: Interpreting FIFA Player Skill Clusters
+
+## 3.1 Understanding the Clusters
+
+```{r interpret-clusters}
+# Get final results
+results <- km$summary()
+
+# Display variables by cluster
+cat("=== VARIABLES BY CLUSTER ===\n\n")
+for (i in 1:km$n_clusters) {
+  cluster_vars <- names(km$labels)[km$labels == i]
+  cat(sprintf("Cluster %d (%d variables):\n", i, length(cluster_vars)))
+  cat(paste("  -", cluster_vars, collapse = "\n"), "\n\n")
+}
+```
+
+## 3.2 Cluster Characterization
+
+```{r characterize-clusters}
+# Identify cluster themes based on variable names
+cat("=== CLUSTER THEMES ===\n\n")
+
+for (i in 1:km$n_clusters) {
+  cluster_vars <- names(km$labels)[km$labels == i]
+
+  # Count variable prefixes
+  prefixes <- sapply(strsplit(cluster_vars, "_"), `[`, 1)
+  prefix_table <- sort(table(prefixes), decreasing = TRUE)
+
+  cat(sprintf("Cluster %d:\n", i))
+  cat("  Main themes:", paste(names(prefix_table), collapse = ", "), "\n")
+  cat("  Top variables:\n")
+
+  # Get top 3 by R²
+  top_vars <- results$top_variables %>%
+    filter(cluster_id == i) %>%
+    arrange(desc(r_squared)) %>%
+    head(3)
+
+  for (j in 1:nrow(top_vars)) {
+    cat(sprintf("    - %s (R² = %.3f)\n",
+                top_vars$variable[j],
+                top_vars$r_squared[j]))
+  }
+  cat("\n")
+}
+```
+
+## 3.3 Quality Assessment
+
+```{r quality-assessment}
+# Identify best and worst classified variables
+clust_members <- results$clust_members
+
+# Best classified (high silhouette, low 1 - R2_ratio)
+cat("=== BEST CLASSIFIED VARIABLES ===\n")
+best <- clust_members %>%
+  arrange(`1 - R2_ratio`) %>%
+  head(5)
+print(best)
+
+# Worst classified (low silhouette, high 1 - R2_ratio)
+cat("\n=== WORST CLASSIFIED VARIABLES ===\n")
+worst <- clust_members %>%
+  arrange(desc(`1 - R2_ratio`)) %>%
+  head(5)
+print(worst)
+```
+
+---
+
+# Part 4: Using Clusters for Dimensionality Reduction
+
+## 4.1 Extract Cluster Centroids
+
+```{r dimensionality-reduction}
+# Get centroids (first principal component of each cluster)
+centroids <- km$centroids
+
+# Display dimensions
+cat("Original variables:", ncol(players), "\n")
+cat("Cluster centroids:", ncol(centroids), "\n")
+cat("Dimensionality reduction:",
+    sprintf("%.1f%%", (1 - ncol(centroids)/ncol(players)) * 100), "\n")
+```
+
+## 4.2 Use Centroids as Features
+
+```{r centroids-as-features}
+# Use centroids as reduced feature set
+players_reduced <- as.data.frame(centroids)
+colnames(players_reduced) <- paste0("Cluster_", 1:ncol(centroids))
+
+# Display reduced data
+cat("\n=== REDUCED DATASET (First 6 rows) ===\n")
+head(players_reduced) %>% kable()
+
+# Correlation between new features
+cat("\n=== CORRELATION BETWEEN CLUSTER FEATURES ===\n")
+round(cor(players_reduced), 3) %>% kable()
+```
+
+---
+
+# Practical Recommendations
+
+## Best Practices for KmeansVariables
+
+### 1. Data Preparation
+
+- **Check variable types**: Ensure all variables are numeric
+- **Handle missing values**: The algorithm handles them, but consider imputation
+- **Remove constant variables**: Variables with zero variance cause issues
+- **Scale awareness**: PCA handles scaling internally
+
+### 2. Parameter Selection
+
+- **n_clusters**: Use elbow plot, silhouette, or domain knowledge
+- **n_init**: At least 10 for stable results (default)
+- **distance_metric**:
+  - Use `"r_squared"` if you want to group variables with high |correlation|
+  - Use `"r_signed"` if only positive correlation should matter
+- **random_state**: Set for reproducibility
+
+### 3. Determining K
+
+- Use `plot_elbow()` for visual inspection
+- Use `n_clusters = "auto"` with different `selection_method` values
+- Consider domain knowledge and interpretability
+- Try multiple K values and compare silhouette scores
+
+### 4. Quality Assessment
+
+- **Average silhouette > 0.5**: Good clustering
+- **Average silhouette 0.25-0.5**: Reasonable clustering
+- **Average silhouette < 0.25**: Consider different K
+- Check `1 - R2_ratio` for individual variables (low is better)
+- Low centroid correlations indicate good separation
+
+### 5. Interpretation
+
+- Examine variable names in each cluster
+- Look for thematic groupings
+- Use `plot_contributions()` to identify key variables
+- Validate with domain expertise
+
+---
+
+# Troubleshooting
+
+## Common Issues and Solutions
+
+### Issue 1: Low inertia or silhouette
+
+**Solutions**:
+- Try different number of clusters
+- Increase `n_init` for more initializations
+- Check for outlier variables
+- Try different distance metric
+
+### Issue 2: Unstable results
+
+**Solution**: Increase `n_init` or set `random_state`
+
+```{r troubleshoot-unstable, eval=FALSE}
+km <- KmeansVariables$new(
+  n_clusters = 5,
+  n_init = 50,       # More initializations
+  random_state = 42  # For reproducibility
+)
+```
+
+### Issue 3: Empty clusters
+
+**Solution**: The algorithm handles this automatically by reassigning variables
+
+### Issue 4: High centroid correlations
+
+**Solution**: Reduce number of clusters or use different distance metric
+
+---
+
+# Comparison: K-means vs Hierarchical Clustering
+
+| Aspect | KmeansVariables | HClustVar |
+|--------|-----------------|-----------|
+| **Algorithm** | Reallocation-based | Agglomerative |
+| **Output** | Flat partition | Dendrogram + cut |
+| **K selection** | Must specify or auto | Cut at any level |
+| **Speed** | Fast | Slower for large p |
+| **Determinism** | Depends on init | Deterministic |
+| **Variable types** | Quantitative only | Mixed supported |
+
+---
+
+# Conclusion
+
+This vignette demonstrated:
+
+1. **Basic usage**: Fitting, visualization, and interpretation
+2. **Distance metrics**: R² vs signed r comparison
+3. **Automatic K selection**: Multiple criteria available
+4. **Prediction**: Assigning new variables to clusters
+5. **Dimensionality reduction**: Using centroids as features
+6. **Quality assessment**: Silhouette, contributions, correlations
+
+## Next Steps
+
+- Compare results with `HClustVar` on the same data
+- Use cluster centroids in downstream analysis
+- Experiment with different K values and distance metrics
+- Apply to your own datasets
+
+## References
+
+- Vigneau, E., & Qannari, E. M. (2003). Clustering of variables around latent components. *Communications in Statistics - Simulation and Computation*, 32(4), 1131-1150.
+- Chavent, M., et al. (2012). ClustOfVar: An R Package for the Clustering of Variables. *Journal of Statistical Software*, 50(13).
+
+---
+
+# Session Info
+
+```{r session-info}
+sessionInfo()
+```
