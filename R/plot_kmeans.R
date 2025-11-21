@@ -53,7 +53,11 @@ plot_kmeans_elbow <- function(elbow_data,
        xlab = xlab,
        ylab = ylab,
        las = 1,
-       ...)
+       xaxt = "n",   # Désactive l’axe x
+       ...
+  )
+
+  axis(1, at = elbow_data$k, labels = elbow_data$k, las = 1)
 
   # Add grid for readability
   grid()

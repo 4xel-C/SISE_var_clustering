@@ -36,15 +36,9 @@ test_that("ModCluster initialisation avec paramètres par défaut", {
   expect_false(model$fitted)
 })
 
-test_that("ModCluster initialisation avec n_clusters spécifié", {
-  model <- ModCluster$new(n_clusters = 3)
-
-  expect_s3_class(model, "ModCluster")
-  expect_false(model$fitted)
-})
 
 test_that("ModCluster initialisation avec différentes méthodes hclust", {
-  methods <- c("ward.D2", "average", "single", "complete")
+  methods <- c("average", "single", "complete")
 
   for (method in methods) {
     model <- ModCluster$new(hclust_method = method)
@@ -71,14 +65,14 @@ test_that("ModCluster rejette les méthodes de clustering non supportées", {
 # ==============================================================================
 
 test_that("fit() fonctionne avec des données valides", {
-  model <- ModCluster$new(n_clusters = 3)
+  model <- ModCluster$new()
 
   expect_message(model$fit(test_data), "completed successfully")
   expect_true(model$fitted)
 })
 
 test_that("fit() crée la matrice disjonctive correctement", {
-  model <- ModCluster$new(n_clusters = 3)
+  model <- ModCluster$new()
   model$fit(test_data)
 
   expect_false(is.null(model$modality_names))
@@ -89,7 +83,7 @@ test_that("fit() crée la matrice disjonctive correctement", {
 })
 
 test_that("fit() calcule les fréquences des modalités", {
-  model <- ModCluster$new(n_clusters = 3)
+  model <- ModCluster$new()
   model$fit(test_data)
 
   freqs <- model$modality_frequencies
@@ -100,7 +94,7 @@ test_that("fit() calcule les fréquences des modalités", {
 })
 
 test_that("fit() calcule la matrice de distances Dice", {
-  model <- ModCluster$new(n_clusters = 3)
+  model <- ModCluster$new()
   model$fit(test_data)
 
   dice_mat <- model$get_dice_matrix()
@@ -112,18 +106,8 @@ test_that("fit() calcule la matrice de distances Dice", {
   expect_equal(as.numeric(diag(dice_mat)), rep(0, 9))
 })
 
-test_that("fit() effectue le clustering hiérarchique", {
-  model <- ModCluster$new(n_clusters = 3)
-  model$fit(test_data)
-
-  labels <- model$modality_labels
-  expect_false(is.null(labels))
-  expect_equal(length(labels), 9)
-  expect_true(all(labels %in% 1:3))
-})
-
 test_that("fit() calcule l'ACM pour la visualisation", {
-  model <- ModCluster$new(n_clusters = 3, n_dimensions = 5)
+  model <- ModCluster$new(, n_dimensions = 5)
   model$fit(test_data)
 
   mca <- model$mca_result
@@ -133,7 +117,7 @@ test_that("fit() calcule l'ACM pour la visualisation", {
 
 test_that("fit() échoue avec des données non catégorielles", {
   numeric_data <- data.frame(x = rnorm(100), y = rnorm(100))
-  model <- ModCluster$new(n_clusters = 3)
+  model <- ModCluster$new()
 
   # FIX 2: Utiliser le message d'erreur réel
   expect_error(
@@ -179,7 +163,7 @@ test_that("cut_tree() échoue si le modèle n'est pas fitted", {
 # ==============================================================================
 
 test_that("predict() fonctionne avec de nouvelles données", {
-  model <- ModCluster$new(n_clusters = 3)
+  model <- ModCluster$new()
   model$fit(test_data)
 
   new_data <- create_test_data(10, seed = 999)
@@ -192,7 +176,7 @@ test_that("predict() fonctionne avec de nouvelles données", {
 })
 
 test_that("predict() retourne les distances aux clusters", {
-  model <- ModCluster$new(n_clusters = 3)
+  model <- ModCluster$new()
   model$fit(test_data)
 
   new_data <- create_test_data(5, seed = 999)
@@ -204,7 +188,7 @@ test_that("predict() retourne les distances aux clusters", {
 })
 
 test_that("predict() échoue si le modèle n'est pas fitted", {
-  model <- ModCluster$new(n_clusters = 3)
+  model <- ModCluster$new()
   new_data <- create_test_data(5)
 
   expect_error(
@@ -225,7 +209,7 @@ test_that("predict() échoue si les clusters ne sont pas définis", {
 })
 
 test_that("predict() échoue avec des variables manquantes", {
-  model <- ModCluster$new(n_clusters = 3)
+  model <- ModCluster$new()
   model$fit(test_data)
 
   incomplete_data <- data.frame(color = factor(c("red", "blue")))
@@ -237,7 +221,7 @@ test_that("predict() échoue avec des variables manquantes", {
 })
 
 test_that("predict() gère les niveaux inconnus", {
-  model <- ModCluster$new(n_clusters = 3)
+  model <- ModCluster$new()
   model$fit(test_data)
 
   new_data <- data.frame(
@@ -257,7 +241,7 @@ test_that("predict() gère les niveaux inconnus", {
 # ==============================================================================
 
 test_that("project_new_modalities() projette correctement", {
-  model <- ModCluster$new(n_clusters = 3)
+  model <- ModCluster$new()
   model$fit(test_data)
 
   new_data <- create_test_data(5, seed = 888)
@@ -269,7 +253,7 @@ test_that("project_new_modalities() projette correctement", {
 })
 
 test_that("project_new_modalities() respecte les axes spécifiés", {
-  model <- ModCluster$new(n_clusters = 3, n_dimensions = 5)
+  model <- ModCluster$new(, n_dimensions = 5)
   model$fit(test_data)
 
   new_data <- create_test_data(5, seed = 888)
@@ -280,7 +264,7 @@ test_that("project_new_modalities() respecte les axes spécifiés", {
 })
 
 test_that("project_new_modalities() échoue si non fitted", {
-  model <- ModCluster$new(n_clusters = 3)
+  model <- ModCluster$new()
   new_data <- create_test_data(5)
 
   expect_error(
@@ -294,7 +278,7 @@ test_that("project_new_modalities() échoue si non fitted", {
 # ==============================================================================
 
 test_that("plot_dendrogram() fonctionne", {
-  model <- ModCluster$new(n_clusters = 3)
+  model <- ModCluster$new()
   model$fit(test_data)
 
   # FIX 3: Accepter les messages, vérifier juste qu'il n'y a pas d'erreur
@@ -303,7 +287,7 @@ test_that("plot_dendrogram() fonctionne", {
 })
 
 test_that("plot_mca() fonctionne", {
-  model <- ModCluster$new(n_clusters = 3)
+  model <- ModCluster$new()
   model$fit(test_data)
 
   expect_silent(model$plot_mca())
@@ -312,7 +296,7 @@ test_that("plot_mca() fonctionne", {
 })
 
 test_that("plot_mca_with_new() fonctionne", {
-  model <- ModCluster$new(n_clusters = 3)
+  model <- ModCluster$new()
   model$fit(test_data)
 
   new_data <- create_test_data(5, seed = 777)
@@ -327,7 +311,7 @@ test_that("plot_mca_with_new() fonctionne", {
 })
 
 test_that("plot_silhouette() fonctionne", {
-  model <- ModCluster$new(n_clusters = 3)
+  model <- ModCluster$new()
   model$fit(test_data)
 
   sil_result <- model$plot_silhouette()
@@ -338,7 +322,7 @@ test_that("plot_silhouette() fonctionne", {
 })
 
 test_that("plot_heights() fonctionne", {
-  model <- ModCluster$new(n_clusters = 3)
+  model <- ModCluster$new()
   model$fit(test_data)
 
   expect_silent(model$plot_heights())
@@ -349,7 +333,7 @@ test_that("plot_heights() fonctionne", {
 # ==============================================================================
 
 test_that("summary() retourne les bonnes informations", {
-  model <- ModCluster$new(n_clusters = 3)
+  model <- ModCluster$new()
   model$fit(test_data)
 
   summ <- model$summary()
@@ -363,7 +347,7 @@ test_that("summary() retourne les bonnes informations", {
 })
 
 test_that("get_cluster_table() retourne un tableau correct", {
-  model <- ModCluster$new(n_clusters = 3)
+  model <- ModCluster$new()
   model$fit(test_data)
 
   table <- model$get_cluster_table()
@@ -374,7 +358,7 @@ test_that("get_cluster_table() retourne un tableau correct", {
 })
 
 test_that("get_dice_matrix() retourne la matrice de distances", {
-  model <- ModCluster$new(n_clusters = 3)
+  model <- ModCluster$new()
   model$fit(test_data)
 
   dice_mat <- model$get_dice_matrix()
@@ -385,7 +369,7 @@ test_that("get_dice_matrix() retourne la matrice de distances", {
 })
 
 test_that("print() fonctionne", {
-  model <- ModCluster$new(n_clusters = 3)
+  model <- ModCluster$new()
 
   # Avant fit
   expect_output(print(model), "NOT FITTED")
@@ -400,7 +384,7 @@ test_that("print() fonctionne", {
 # ==============================================================================
 
 test_that("Active bindings retournent les bonnes valeurs", {
-  model <- ModCluster$new(n_clusters = 3)
+  model <- ModCluster$new()
   model$fit(test_data)
 
   expect_false(is.null(model$modality_labels))
@@ -416,7 +400,7 @@ test_that("Active bindings retournent les bonnes valeurs", {
 
 test_that("Workflow complet fonctionne", {
   # Initialisation
-  model <- ModCluster$new(n_clusters = 3, hclust_method = "average")
+  model <- ModCluster$new(, hclust_method = "average")
   expect_false(model$fitted)
 
   # Fit
@@ -471,7 +455,7 @@ test_that("Workflow avec cut_tree() après fit", {
 
 test_that("Gère les données avec peu d'observations", {
   small_data <- create_test_data(10, seed = 222)
-  model <- ModCluster$new(n_clusters = 2)
+  model <- ModCluster$new()
 
   expect_message(model$fit(small_data))
   expect_true(model$fitted)
@@ -488,11 +472,11 @@ test_that("Gère différents nombres de clusters", {
 })
 
 test_that("Méthodes de linkage donnent des résultats différents", {
-  methods <- c("ward.D2", "average", "single", "complete")
+  methods <- c("average", "single", "complete")
   results <- list()
 
   for (method in methods) {
-    model <- ModCluster$new(n_clusters = 3, hclust_method = method)
+    model <- ModCluster$new(, hclust_method = method)
     model$fit(test_data)
     results[[method]] <- model$modality_labels
   }

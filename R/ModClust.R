@@ -321,7 +321,6 @@ ModCluster <- R6::R6Class(
     .summary_results = NULL,
     .mca_result = NULL,
     .modality_coords = NULL,
-    .cluster_centers = NULL,
     .variable_info = NULL,
 
     #' Build the complete disjunctive matrix with unique modality names
@@ -370,6 +369,7 @@ ModCluster <- R6::R6Class(
     #' @return NULL (stores result in private$.dice_matrix)
     compute_dice_distances = function() {
       disj <- private$.disjunctive_matrix
+
       n <- nrow(disj)
       m <- ncol(disj)
 
@@ -381,10 +381,8 @@ ModCluster <- R6::R6Class(
           if (j == j_prime) {
             dice_matrix[j, j_prime] <- 0
           } else {
-            val <- 0.5 * sum(
-              disj[, j] * (1 - disj[, j_prime]) +
-                (1 - disj[, j]) * disj[, j_prime]
-            )
+            val <- 0.5 * sum((disj[, j] - disj[, j_prime])**2)
+
             dice_matrix[j, j_prime] <- val
             dice_matrix[j_prime, j] <- val
           }
@@ -394,7 +392,7 @@ ModCluster <- R6::R6Class(
       colnames(dice_matrix) <- private$.modality_names
       rownames(dice_matrix) <- private$.modality_names
       private$.dice_matrix <- dice_matrix
-      private$.modality_dist <- as.dist(sqrt(dice_matrix))
+      private$.modality_dist <- as.dist(dice_matrix)
 
       message("✓ Dice distance matrix computed")
       message("  - ", m, " modalities")
@@ -467,8 +465,6 @@ ModCluster <- R6::R6Class(
         private$.modality_labels <- cutree(hc, k = private$.n_clusters)
         names(private$.modality_labels) <- private$.modality_names
 
-        private$compute_cluster_centers()
-
         message("✓ Hierarchical clustering completed")
         message("  - ", private$.n_clusters, " clusters")
         message("  - Linkage: ", private$.hclust_method)
@@ -478,27 +474,7 @@ ModCluster <- R6::R6Class(
       }
     },
 
-    #' Compute cluster centers
-    #' @description Internal method to calculate average profiles for each cluster
-    #' @return NULL (stores result in private$.cluster_centers)
-    compute_cluster_centers = function() {
-      if (is.null(private$.modality_labels)) return(invisible(NULL))
 
-      disj <- private$.disjunctive_matrix
-      labels <- private$.modality_labels
-      n_clusters <- private$.n_clusters
-
-      centers <- matrix(0, nrow = n_clusters, ncol = ncol(disj))
-      colnames(centers) <- colnames(disj)
-
-      for (k in 1:n_clusters) {
-        mods_in_cluster <- names(labels)[labels == k]
-        centers[k, mods_in_cluster] <- 1
-      }
-
-      private$.cluster_centers <- centers
-      return(invisible(NULL))
-    },
 
     #' Create disjunctive matrix for new data
     #' @description Internal method to create indicator matrix for prediction
@@ -576,33 +552,29 @@ ModCluster <- R6::R6Class(
     #' @param n_dimensions Integer, number of MCA dimensions (default: 5)
     #' @param hclust_method Character, linkage method (default: "average")
     #' @return A new ModCluster object
-    initialize = function(n_clusters = NULL,
-                          method = "hclust",
-                          n_dimensions = 5,
+    initialize = function(method = "hclust",
+                          n_dimensions = 2,
                           hclust_method = "average") {
 
       if (method != "hclust") {
         stop("Only 'hclust' is supported with Dice distances")
       }
 
-      valid_methods <- c("ward.D2", "ward.D", "single", "complete",
-                         "average", "mcquitty", "median", "centroid")
+      valid_methods <- c("single", "complete", "average")
+
       if (!hclust_method %in% valid_methods) {
         stop("Invalid hclust_method. Choose from: ",
              paste(valid_methods, collapse = ", "))
       }
 
-      private$.n_clusters <- n_clusters
       private$.method <- method
       private$.n_dimensions <- n_dimensions
       private$.hclust_method <- hclust_method
 
       message("  Linkage: ", hclust_method)
-      if (!is.null(n_clusters)) {
-        message("  Target clusters: ", n_clusters)
-      }
       message("  MCA dims (viz): ", n_dimensions)
     },
+
 
     #' @description
     #' Fit the clustering model on training data
@@ -635,68 +607,96 @@ ModCluster <- R6::R6Class(
     #' @param new_data Data frame with same variables as training data
     #' @return Data frame with predictions and distances
     predict = function(new_data) {
-      if (!self$fitted) {
-        stop("Model must be fitted before prediction")
+
+      if (nrow(new_data) != nrow(private$.data)) {
+        stop("New values have invalid row numbers.")
+      } else if (is.null(private$.modality_labels)) {
+        stop("Tree must be cutted first")
       }
-      if (is.null(private$.modality_labels)) {
-        stop("Clusters must be defined. Use cut_tree(k) first.")
+
+      quant_cols <- sapply(new_data, is.numeric)
+
+      if (any(quant_cols)) {
+        warning("Quantitative columns discarded : ",
+                paste(names(new_data)[quant_cols], collapse = ", "))
       }
 
-      message("Predicting clusters for new modalities...")
+      # Keep only non quantitatives
+      new_data <- new_data[ , !quant_cols, drop = FALSE]
 
-      disj_new <- private$create_new_disjunctive(new_data)
+      # Convert to factor
+      new_data[] <- lapply(new_data, as.factor)
 
-      n_new <- nrow(disj_new)
-      predictions <- integer(n_new)
-      distances_to_clusters <- matrix(0, nrow = n_new, ncol = private$.n_clusters)
+      # transform into disjunctive table.
+      disj_matrix_illust <- FactoMineR::tab.disjonctif(new_data)
 
-      for (i in 1:n_new) {
-        new_profile <- disj_new[i, ]
+      # ALWAYS create unique names in format variable.level
+      var_names <- names(new_data)
+      new_names <- character(ncol(disj_matrix_illust))
+      col_idx <- 1
 
-        for (k in 1:private$.n_clusters) {
-          mods_in_cluster <- names(private$.modality_labels)[private$.modality_labels == k]
+      data_quali <- self$get_quali_data()
 
-          dice_vals <- numeric(length(mods_in_cluster))
-          for (j in seq_along(mods_in_cluster)) {
-            mod_name <- mods_in_cluster[j]
-            mod_col <- which(private$.modality_names == mod_name)
+      for (var_name in var_names) {
+        levels_var <- levels(data_quali[[var_name]])
+        n_levels <- length(levels_var)
+        new_names[col_idx:(col_idx + n_levels - 1)] <-
+          paste(var_name, levels_var, sep = ".")
+        col_idx <- col_idx + n_levels
+      }
 
-            # Correct Dice distance calculation:
-            # new_profile[mod_col] is a single value (0 or 1)
-            # private$.disjunctive_matrix[, mod_col] is a vector of training values
-            val <- 0.5 * sum(
-              new_profile[mod_col] * (1 - private$.disjunctive_matrix[, mod_col]) +
-                (1 - new_profile[mod_col]) * private$.disjunctive_matrix[, mod_col]
-            )
-            dice_vals[j] <- sqrt(val)
-          }
+      colnames(disj_matrix_illust) <- new_names
 
-          if (private$.hclust_method == "average") {
-            distances_to_clusters[i, k] <- mean(dice_vals)
-          } else if (private$.hclust_method == "single") {
-            distances_to_clusters[i, k] <- min(dice_vals)
-          } else if (private$.hclust_method == "complete") {
-            distances_to_clusters[i, k] <- max(dice_vals)
-          } else {
-            distances_to_clusters[i, k] <- mean(dice_vals)
-          }
+      # Calculate the dice matrix of illustrative variable with all data.
+      d2 <- matrix(0, ncol(disj_matrix_illust), ncol(private$.disjunctive_matrix))
+
+      for (j in 1:ncol(disj_matrix_illust)) {
+        for(jprim in 1:ncol(private$.disjunctive_matrix)) {
+          d2[j, jprim] <- 0.5 * (sum((disj_matrix_illust[, j] - private$.disjunctive_matrix[, jprim])**2))
         }
-
-        predictions[i] <- which.min(distances_to_clusters[i, ])
       }
 
-      result <- data.frame(
-        observation = 1:n_new,
-        predicted_cluster = predictions,
-        stringsAsFactors = FALSE
+      colnames(d2) <- colnames(private$.disjunctive_matrix)
+      rownames(d2) <- colnames(disj_matrix_illust)
+
+
+
+      # Initialize cluster_distances matrix.
+      cluster_distances <- data.frame(
+        modality = colnames(disj_matrix_illust)
       )
 
-      colnames(distances_to_clusters) <- paste0("dist_cluster_", 1:private$.n_clusters)
-      result <- cbind(result, distances_to_clusters)
+      #TODO finish predict
+      # Calculate cluster distances.
+      for (i in 1:private$.n_clusters) {
 
-      message("✓ Prediction completed for ", n_new, " observations")
+        # Initialize the vector of distances of each variable to the ith cluster.
+        temp_distances <- c()
 
-      return(result)
+        if (private$.hclust_method == "average") {
+          # Compute the mean distance between each illustrative variable and a cluster
+          temp_distances <- apply(d2[, which(private$.modality_labels == i)], MARGIN = 1, FUN = mean)
+
+        } else if (private$.hclust_method == "single"){
+          # compute the minimum distance
+          temp_distances <- apply(d2[, which(private$.modality_labels == i)], MARGIN = 1, FUN = min)
+
+        } else if (private$.hclust_method == "complete") {
+          # compute the maximum distance to clusters
+          temp_distances <- apply(d2[, which(private$.modality_labels == i)], MARGIN = 1, FUN = max)
+        }
+
+        # Save the temp distances vector to the cluster_distances dataframe by creating a new column for the cluster
+        cluster_distances[[paste0("cluster_", i)]] <- temp_distances
+      }
+
+      # Cluster attribution by the minimal distance.
+      predicted_labels <- apply(cluster_distances[, -1], 1, which.min) # Ignore modality column and get the index of the cluster.
+      names(predicted_labels) <- colnames(disj_matrix_illust)
+
+
+      # return a list of object containing the new labels and
+      return(list(prediction = predicted_labels, distances = cluster_distances))
     },
 
     #' @description
@@ -810,8 +810,6 @@ ModCluster <- R6::R6Class(
       private$.modality_labels <- cutree(private$.clustering_object, k = k)
       names(private$.modality_labels) <- private$.modality_names
       private$.summary_results <- NULL
-
-      private$compute_cluster_centers()
 
       message("✓ Tree cut into ", k, " clusters")
       invisible(self)
@@ -1283,10 +1281,7 @@ ModCluster <- R6::R6Class(
     modality_frequencies = function() private$.modality_frequencies,
 
     #' @field mca_result Complete MCA result object
-    mca_result = function() private$.mca_result,
-
-    #' @field cluster_centers Matrix of cluster centers
-    cluster_centers = function() private$.cluster_centers
+    mca_result = function() private$.mca_result
   )
 )
 
