@@ -96,7 +96,8 @@ app_ui <- function() {
             "Algorithm",
             choices = c(
               "CAH Variables clustering" = "hclust",
-              "K-means  Variables clustering" = "kmeans"
+              "K-means  Variables clustering" = "kmeans",
+              "CAH Modalities clustering"= "modClust"
             ),
             selected = "hclust"
           ),
@@ -133,13 +134,25 @@ app_ui <- function() {
             )
           ),
 
+          shiny::conditionalPanel(
+            condition = "input.algorithm == 'modClust'",
+            shiny::selectInput(
+              "vartype_hmod",
+              "Variable type",
+              choices = c(
+                "Qualitative" = "qual"
+              ),
+              selected = "qual"
+            )
+          ),
+
           # ------------------------------------------------------------
           # Descriptive text for selection
           # ------------------------------------------------------------
           shiny::conditionalPanel(
             condition = "input.vartype == 'auto' && input.algorithm == 'hclust'",
             shiny::div(
-              style = "background-color: #E8F4F8; padding: 10px; border-radius: 5px; margin-top: 10px; border-left: 3px solid #3498DB;",
+              style = "background-color: #E8F4F8; padding: 10px; border-radius: 5px; margin-top: 10px; margin-bottom: 10px; border-left: 3px solid #3498DB;",
               shiny::tags$small(
                 shiny::icon("info-circle"),
                 " The algorithm will automatically detect the type of variables in your dataset."
@@ -151,7 +164,7 @@ app_ui <- function() {
           shiny::conditionalPanel(
             condition = "(input.vartype == 'quant' && input.algorithm == 'hclust') || (input.vartype_kmeans == 'quant' && input.algorithm == 'kmeans') ",
             shiny::div(
-              style = "background-color: #E8F5E9; padding: 10px; border-radius: 5px; margin-top: 10px; border-left: 3px solid #2ECC71;",
+              style = "background-color: #E8F5E9; padding: 10px; border-radius: 5px; margin-top: 10px; margin-bottom: 10px; border-left: 3px solid #2ECC71;",
               shiny::tags$small(
                 shiny::icon("chart-line"),
                 shiny::strong(" Quantitative variables:"),
@@ -162,9 +175,9 @@ app_ui <- function() {
 
           # Descriptive text for qualitative
           shiny::conditionalPanel(
-            condition = "input.vartype == 'qual' && input.algorithm == 'hclust'",
+            condition = "input.vartype == 'qual' && input.algorithm == 'hclust' || (input.vartype_hmod == 'qual' && input.algorithm == 'modClust')",
             shiny::div(
-              style = "background-color: #FFF3E0; padding: 10px; border-radius: 5px; margin-top: 10px; border-left: 3px solid #F39C12;",
+              style = "background-color: #FFF3E0; padding: 10px; border-radius: 5px; margin-top: 10px; margin-bottom: 10px; border-left: 3px solid #F39C12;",
               shiny::tags$small(
                 shiny::icon("tags"),
                 shiny::strong(" Qualitative variables:"),
@@ -177,7 +190,7 @@ app_ui <- function() {
           shiny::conditionalPanel(
             condition = "input.vartype == 'mixed' && input.algorithm == 'hclust'",
             shiny::div(
-              style = "background-color: #F3E5F5; padding: 10px; border-radius: 5px; margin-top: 10px; border-left: 3px solid #9B59B6;",
+              style = "background-color: #F3E5F5; padding: 10px; border-radius: 5px; margin-top: 10px; margin-bottom: 10px; border-left: 3px solid #9B59B6;",
               shiny::tags$small(
                 shiny::icon("layer-group"),
                 shiny::strong(" Mixed variables:"),
