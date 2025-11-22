@@ -23,7 +23,7 @@
 - [Algorithms](#-algorithms)
   - [Hierarchical Clustering (HClustVar)](#1️⃣-hierarchical-clustering-hclustvar)
   - [K-means Variable Clustering (KmeansVariables)](#2️⃣-k-means-variable-clustering-kmeansvariables)
-  - [Modal Clustering (ModalClust)](#3️⃣-modal-clustering-modalclust--coming-soon)
+  - [Modality Clustering (ModCluster)](#3️⃣-modality-clustering-modcluster)
 - [Quick Start](#-quick-start)
 - [Interactive Shiny App](#-interactive-shiny-app)
 - [Documentation](#-documentation)
@@ -54,15 +54,15 @@ The package is ideal for:
 
 ### 🔧 Core Functionality
 
-| Feature | HClustVar | KmeansVariables | ModalClust |
+| Feature | HClustVar | KmeansVariables | ModCluster |
 |---------|:---------:|:---------------:|:----------:|
-| **Quantitative variables** | ✅ | ✅ | 🔜 |
-| **Qualitative variables** | ✅ | ❌ | 🔜 |
-| **Mixed data** | ✅ | ❌ | 🔜 |
-| **Automatic type detection** | ✅ | ✅ | 🔜 |
-| **Multiple distance metrics** | ✅ | ✅ | 🔜 |
-| **Prediction on new variables** | ✅ | ✅ | 🔜 |
-| **Interactive visualizations** | ✅ | ✅ | 🔜 |
+| **Quantitative variables** | ✅ | ✅ | ❌ |
+| **Qualitative variables** | ✅ | ❌ | ✅ |
+| **Mixed data** | ✅ | ❌ | ❌ |
+| **Automatic type detection** | ✅ | ✅ | ✅ |
+| **Multiple distance metrics** | ✅ | ✅ | ✅ |
+| **Prediction on new observations** | ✅ | ✅ | ✅ |
+| **Interactive visualizations** | ✅ | ✅ | ✅ |
 
 ### 📊 Visualization Tools
 
@@ -255,27 +255,60 @@ km$plot_contributions(top_n = 5)
 
 ---
 
-### 3️⃣ Modal Clustering (`ModalClust`) 🔜 *Coming Soon*
+### 3️⃣ Modality Clustering (`ModCluster`)
 
-**Density-based clustering** for identifying natural groupings in categorical spaces.
+**Hierarchical clustering of modalities** (categories) using Dice distance for categorical data analysis.
 
-#### 📌 Planned Characteristics
+#### 📌 Key Characteristics
 
-- **Focus**: Qualitative (categorical) variables
-- **Method**: Mode-seeking algorithm in association space
-- **Distance**: Based on Cramer's V, chi-square tests
-- **Automatic cluster detection**: No need to specify K
+- **Distance metric**: Dice coefficient (measures co-occurrence of categories)
+- **Linkage methods**: Complete, Average, Single
+- **Clustering target**: Modalities (categories) rather than variables
+- **Visualization**: MCA projection for cluster interpretation
+- **Variable types**: Qualitative only
 
-#### 💡 Planned Use Cases
+#### 💡 When to use
 
 - ✅ Pure categorical datasets (surveys, questionnaires)
-- ✅ Identification of natural groupings
-- ✅ Non-spherical cluster shapes
-- ✅ Variable number of clusters
+- ✅ You want to cluster categories, not variables
+- ✅ You need to identify which modalities co-occur
+- ✅ You want to predict cluster membership for new observations
 
-#### 📅 Status
+#### 📝 Basic Example
 
-🚧 **In development** - Expected soon
+```r
+library(VarClustering)
+
+# Load sample data
+data(vote)
+
+# Initialize model
+mc <- ModCluster$new(
+  n_clusters = NULL,
+  hclust_method = "ward.D2",
+  n_dimensions = 5
+)
+
+# Fit on data
+mc$fit(vote)
+
+# Visualize dendrogram
+mc$plot_dendrogram()
+
+# Determine optimal K
+mc$plot_heights()
+
+# Cut tree
+mc$cut_tree(k = 4)
+
+# Analyze results
+results <- mc$summary()
+mc$plot_silhouette()
+mc$plot_mca(axes = c(1, 2))
+
+# Predict new observations
+predictions <- mc$predict(new_data)
+```
 
 ---
 
@@ -379,15 +412,18 @@ vignette("mixed-data", package = "VarClustering")
 # Class documentation
 ?HClustVar
 ?KmeansVariables
+?ModCluster
 
 # Method documentation
 ?HClustVar$fit
 ?KmeansVariables$predict
+?ModCluster$plot_mca
 
 # Dataset documentation
 ?autos
 ?players
 ?canines
+?vote
 ```
 ---
 
@@ -433,13 +469,15 @@ VarClustering/
 │   ├── ClusteringBase.R   # Parent class
 │   ├── HClustVar.R        # Hierarchical clustering
 │   ├── KmeansVariables.R  # K-means algorithm
+│   ├── ModClust.R         # Modality clustering
 │   ├── app_ui.R           # Shiny UI
 │   ├── app_server.R       # Shiny server
 │   └── data.R             # Dataset documentation
 ├── data/                   # Built-in datasets
 │   ├── autos.rda
 │   ├── players.rda
-│   └── canines.rda
+│   ├── canines.rda
+│   └── vote.rda
 ├── man/                    # Documentation (auto-generated)
 ├── vignettes/             # Tutorials
 │   └── Variable_clustering.Rmd
@@ -540,7 +578,10 @@ copies or substantial portions of the Software.
 
 4. **Ward, J. H. (1963).** *Hierarchical Grouping to Optimize an Objective Function.* Journal of the American Statistical Association, 58(301), 236-244.
 
-5. **Lebart, L., Morineau, A., & Piron, M. (2006).** *Statistique exploratoire multidimensionnelle : Visualisation et inférences en fouille de données (4e éd.).* Dunod.
+5. **Dice, L. R. (1945).** *Measures of the amount of ecologic association between species.* Ecology, 26(3), 297-302.
+   [DOI: 10.2307/1932409](https://doi.org/10.2307/1932409)
+
+6. **Lebart, L., Morineau, A., & Piron, M. (2006).** *Statistique exploratoire multidimensionnelle : Visualisation et inférences en fouille de données (4e éd.).* Dunod.
 
 
 ---

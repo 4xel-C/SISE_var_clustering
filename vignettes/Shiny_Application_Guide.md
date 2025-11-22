@@ -172,7 +172,7 @@ Configure the clustering algorithm and its parameters.
 <!-- Place screenshot here: screenshots/kmeans_params.png -->
 ![K-means Parameters](screenshots/kmeans_params.png)
 
-#### ModClust Parameters (Modality Clustering)
+#### ModCluster Parameters (Modality Clustering)
 
 | Parameter | Options | Description |
 |-----------|---------|-------------|
@@ -180,9 +180,9 @@ Configure the clustering algorithm and its parameters.
 | **Linkage method** | Complete, Average, Single | Agglomeration method for CAH |
 | **Number of clusters** | 2-10 | Target number of modality groups |
 
-<!-- 📸 SCREENSHOT: ModClust parameters panel -->
-<!-- Place screenshot here: screenshots/modclust_params.png -->
-![ModClust Parameters](screenshots/modclust_params.png)
+<!-- 📸 SCREENSHOT: ModCluster parameters panel -->
+<!-- Place screenshot here: screenshots/modcluster_params.png -->
+![ModCluster Parameters](screenshots/modcluster_params.png)
 
 ---
 
@@ -374,7 +374,7 @@ Random seed: 0 = random
 Number of clusters: 2-10
 ```
 
-### ModClust (Modality Clustering)
+### ModCluster (Modality Clustering)
 
 **Best for**: Categorical data analysis, understanding patterns in category co-occurrences.
 
@@ -395,7 +395,7 @@ Number of clusters: 2-10
 
 ## Output Tabs
 
-| Tab | HClustVar | K-means | ModClust | Description |
+| Tab | HClustVar | K-means | ModCluster | Description |
 |-----|-----------|---------|----------|-------------|
 | 📊 Data Preview | ✅ | ✅ | ✅ | View imported data |
 | 🔍 Variable Configuration | ✅ | ✅ | ✅ | Configure variable roles |
@@ -509,7 +509,7 @@ vignettes/
     ├── algorithm_selection.png
     ├── hclust_params.png
     ├── kmeans_params.png
-    ├── modclust_params.png
+    ├── modcluster_params.png
     ├── run_clustering.png
     ├── quality_metrics.png
     ├── cluster_summary_table.png
