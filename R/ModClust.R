@@ -310,6 +310,8 @@ ModCluster <- R6::R6Class(
   private = list(
     .method = "hclust",
     .disjunctive_matrix = NULL,
+    .disjunctive_matrix_illust = NULL,
+    .data_illust = NULL,
     .dice_matrix = NULL,
     .modality_dist = NULL,
     .clustering_object = NULL,
@@ -541,6 +543,70 @@ ModCluster <- R6::R6Class(
 
       names(dice_dists) <- private$.modality_names
       return(dice_dists)
+    },
+
+    #' @description
+    #' Project new observations into MCA space
+    #' @param axes Integer vector of MCA axes to use (default: all)
+    #' @return Matrix of projected coordinates
+    project_new_modalities = function(axes = NULL) {
+      # Get the illustrative data
+      new_data <- private$.data_illust
+      message("Projecting new modalities into MCA space...")
+
+      # Get the MCA result
+      mca_fit <- private$.mca_result
+
+      # Get individual coordinates from FactoMineR MCA result
+      ind_coords <- mca_fit$ind$coord
+
+      # Get eigenvalues
+      eigenvalues <- mca_fit$eig[, 1]  # First column contains eigenvalues
+
+
+      # Determine axes to use
+      if (is.null(axes)) {
+        axes <- 1:ncol(ind_coords)
+      }
+
+      # For each new variable: compute mean coordinates for each modality
+      new_mod_coords_list <- list()
+      n_new <- 0
+
+      for (var_name in colnames(new_data)) {
+        # Get the variable values
+        var_values <- new_data[[var_name]]
+
+        # For each unique modality of this variable
+        unique_mods <- unique(var_values)
+        unique_mods <- unique_mods[!is.na(unique_mods)]  # Remove NAs
+
+        for (mod in unique_mods) {
+          # Identify individuals with this modality
+          idx <- which(var_values == mod)
+          n_new <- n_new + length(idx)
+
+          # Compute mean of factorial coordinates for these individuals
+          mean_coords <- colMeans(ind_coords[idx, axes, drop = FALSE])
+
+          # Divide by square root of eigenvalues to get true coordinates
+          mean_coords <- mean_coords / sqrt(eigenvalues[axes])
+
+          # Store with label "variable.modality"
+          mod_label <- paste0(var_name, ".", mod)
+          new_mod_coords_list[[mod_label]] <- mean_coords
+        }
+      }
+
+      # Convert to matrix
+      new_mod_coords <- do.call(rbind, new_mod_coords_list)
+      colnames(new_mod_coords) <- paste0("Dim ", axes)
+
+      message("Projection completed for ", nrow(new_data), " observations")
+      message("  New modalities projected: ", length(new_mod_coords_list))
+      message("  Axes used: ", paste(axes, collapse = ", "))
+
+      return(new_mod_coords)
     }
   ),
 
@@ -631,25 +697,40 @@ ModCluster <- R6::R6Class(
       # Convert to factor
       new_data[] <- lapply(new_data, as.factor)
 
+      # Add the illustrative data into the private field
+      private$.data_illust <- new_data
+
       # transform into disjunctive table.
       disj_matrix_illust <- FactoMineR::tab.disjonctif(new_data)
 
-      # ALWAYS create unique names in format variable.level
-      var_names <- names(new_data)
+
+      # Create new modalities name considering the variable.
+      var_names <- colnames(new_data)
       new_names <- character(ncol(disj_matrix_illust))
       col_idx <- 1
 
       data_quali <- self$get_quali_data()
 
+      # Set the right name to the new ilustrative variables. (format newVariable.modality).
       for (var_name in var_names) {
-        levels_var <- levels(data_quali[[var_name]])
+
+        # Get the moldalities of the given illust variable
+        levels_var <- levels(new_data[[var_name]])
+
+        # Get the number of modalities
         n_levels <- length(levels_var)
+
+        # Copy the modality vector into the new_names vector
         new_names[col_idx:(col_idx + n_levels - 1)] <-
           paste(var_name, levels_var, sep = ".")
         col_idx <- col_idx + n_levels
       }
 
       colnames(disj_matrix_illust) <- new_names
+
+      # Add the disjunctive matrix illustrative to private field
+      private$.disjunctive_matrix_illust <- disj_matrix_illust
+
       # Calculate the dice matrix of illustrative variable with all data.
       d2 <- matrix(0, ncol(disj_matrix_illust), ncol(private$.disjunctive_matrix))
       for (j in 1:ncol(disj_matrix_illust)) {
@@ -712,54 +793,6 @@ ModCluster <- R6::R6Class(
       return(list(prediction = predicted_labels, distances = cluster_distances))
     },
 
-    #' @description
-    #' Project new observations into MCA space
-    #' @param new_data Data frame with same variables as training data
-    #' @param axes Integer vector of MCA axes to use (default: all)
-    #' @return Matrix of projected coordinates
-    project_new_modalities = function(new_data, axes = NULL) {
-
-      # TODO: correcting new modalities projection in MCA
-      if (!self$fitted) {
-        stop("Model must be fitted before projection")
-      }
-      if (is.null(private$.mca_result)) {
-        stop("MCA must be computed first")
-      }
-
-      if (is.null(axes)) {
-        axes <- 1:private$.n_dimensions
-      }
-
-      message("Projecting new modalities into MCA space...")
-
-      disj_new <- private$create_new_disjunctive(new_data)
-      n_new <- ncol(disj_new)
-
-      mod_coords <- private$.modality_coords
-      K <- length(private$.variable_info$var_names)
-
-      projected_coords <- matrix(0, nrow = n_new, ncol = length(axes))
-      colnames(projected_coords) <- paste0("Dim.", axes)
-
-      for (i in 1:n_new) {
-        active_mods <- names(which(disj_new[i, ] == 1))
-        valid_mods <- intersect(active_mods, rownames(mod_coords))
-
-        if (length(valid_mods) > 0) {
-          projected_coords[i, ] <- colMeans(mod_coords[valid_mods, axes, drop = FALSE])
-        } else {
-          warning("No valid modalities found for observation ", i)
-        }
-      }
-
-      rownames(projected_coords) <- paste0("New_", 1:n_new)
-
-      message("Projection completed for ", n_new, " observations")
-      message("  Axes used: ", paste(axes, collapse = ", "))
-
-      return(projected_coords)
-    },
 
     #' @description
     #' Get the Dice distance matrix
@@ -880,12 +913,9 @@ ModCluster <- R6::R6Class(
       if (is.null(private$.modality_labels)) {
         stop("No clusters defined. Use cut_tree(k) first.")
       }
-
       coords <- private$.modality_coords
       labels <- private$.modality_labels
-
       common_names <- intersect(rownames(coords), names(labels))
-
       if (length(common_names) == 0) {
         cat("ERROR - MCA modalities:\n")
         print(rownames(coords))
@@ -893,13 +923,17 @@ ModCluster <- R6::R6Class(
         print(names(labels))
         stop("No common modalities between MCA and clustering results")
       }
-
       coords <- coords[common_names, , drop = FALSE]
       labels <- labels[common_names]
       coords2d <- coords[, axes, drop = FALSE]
 
-      colors <- rainbow(private$.n_clusters, alpha = 0.8)[labels]
+      # Calculate symmetric limits around 0
+      max_x <- max(abs(coords2d[, 1])) * 1.1
+      max_y <- max(abs(coords2d[, 2])) * 1.1
+      xlim <- c(-max_x, max_x)
+      ylim <- c(-max_y, max_y)
 
+      colors <- rainbow(private$.n_clusters, alpha = 0.8)[labels]
       eig <- private$.mca_result$eig
       xlab <- sprintf("Dim %d (%.1f%%)", axes[1], eig[axes[1], 2])
       ylab <- sprintf("Dim %d (%.1f%%)", axes[2], eig[axes[2], 2])
@@ -912,17 +946,17 @@ ModCluster <- R6::R6Class(
         xlab = xlab,
         ylab = ylab,
         main = paste("MCA Projection -", private$.n_clusters, "Clusters"),
+        xlim = xlim,
+        ylim = ylim,
         panel.first = {
           grid(col = "gray90", lty = 1)
           abline(h = 0, v = 0, lty = 2, col = "gray50")
         }
       )
-
       if (show_labels) {
         text(coords2d, labels = rownames(coords2d),
              pos = 3, cex = label_cex, col = colors)
       }
-
       legend(
         "topright",
         legend = paste("Cluster", 1:private$.n_clusters),
@@ -931,7 +965,6 @@ ModCluster <- R6::R6Class(
         cex = 0.8,
         bg = "white"
       )
-
       invisible(NULL)
     },
 
@@ -942,7 +975,8 @@ ModCluster <- R6::R6Class(
     #' @param show_labels Logical, show labels (default: TRUE)
     #' @param label_cex Numeric, label text size (default: 0.7)
     #' @return Invisible list with coordinates and cluster labels
-    plot_mca_with_new = function(new_data, axes = c(1, 2), show_labels = TRUE, label_cex = 0.7) {
+    plot_mca_with_new = function(axes = c(1, 2), show_labels = TRUE, label_cex = 0.7) {
+      # Vérifications préliminaires
       if (!self$fitted) stop("Model must be fitted first")
       if (is.null(private$.mca_result)) {
         message("Computing MCA...")
@@ -951,97 +985,71 @@ ModCluster <- R6::R6Class(
       if (is.null(private$.modality_labels)) {
         stop("No clusters defined. Use cut_tree(k) first.")
       }
-
       # 1. Get training modality coordinates
-      coords_train <- private$.modality_coords
+      coords_train <- private$.modality_coords[, axes, drop = FALSE]
       labels_train <- private$.modality_labels
-
-      common_names <- intersect(rownames(coords_train), names(labels_train))
-      coords_train <- coords_train[common_names, , drop = FALSE]
-      labels_train <- labels_train[common_names]
-      coords2d_train <- coords_train[, axes, drop = FALSE]
-
+      eig <- private$.mca_result$eig
       # 2. Project new modalities
-      coords_new <- self$project_new_modalities(new_data, axes = axes)
-
-      # 3. Predict clusters for new modalities
-      predictions <- self$predict(new_data)
-      labels_new <- predictions$predicted_cluster
-
+      coords_new <- private$project_new_modalities(axes = axes)
+      # 3. Extract cluster labels for new modalities
+      labels_new <- as.numeric(gsub(".*_cluster", "", rownames(coords_new)))
       # 4. Prepare colors
       color_palette <- rainbow(private$.n_clusters, alpha = 0.8)
       colors_train <- color_palette[labels_train]
       colors_new <- color_palette[labels_new]
-
-      # 5. Calculate plot limits
-      all_x <- c(coords2d_train[, 1], coords_new[, 1])
-      all_y <- c(coords2d_train[, 2], coords_new[, 2])
-      xlim <- range(all_x) * 1.1
-      ylim <- range(all_y) * 1.1
-
+      # 5. Calculate plot limits (SYMMETRIC around 0)
+      all_coords <- rbind(coords_train, coords_new)
+      max_x <- max(abs(all_coords[, 1])) * 1.1
+      max_y <- max(abs(all_coords[, 2])) * 1.1
+      xlim <- c(-max_x, max_x)
+      ylim <- c(-max_y, max_y)
       # 6. Create plot
-      eig <- private$.mca_result$eig
-      xlab <- sprintf("Dim %d (%.1f%%)", axes[1], eig[axes[1], 2])
-      ylab <- sprintf("Dim %d (%.1f%%)", axes[2], eig[axes[2], 2])
-
-      plot(
-        coords2d_train,
-        col = colors_train,
-        pch = 19,
-        cex = 1.2,
-        xlab = xlab,
-        ylab = ylab,
-        main = paste("MCA Projection - Training + New Modalities"),
-        xlim = xlim,
-        ylim = ylim,
-        panel.first = {
-          grid(col = "gray90", lty = 1)
-          abline(h = 0, v = 0, lty = 2, col = "gray50")
-        }
-      )
-
-      # 7. Add new modalities as STARS (pch = 8)
-      points(
-        coords_new,
-        col = colors_new,
-        pch = 8,  # Stars
-        cex = 1.8,
-        lwd = 2
-      )
-
-      # 8. Labels
+      variance_explained <- eig[axes, 2]
+      plot(coords_train[, 1], coords_train[, 2],
+           xlim = xlim, ylim = ylim,
+           xlab = sprintf("Dim %d (%.2f%%)", axes[1], variance_explained[1]),
+           ylab = sprintf("Dim %d (%.2f%%)", axes[2], variance_explained[2]),
+           main = "MCA Factor Map: Training vs New Modalities",
+           col = colors_train,
+           pch = 16,
+           cex = 1.2)
+      # Add new modalities with different symbol
+      points(coords_new[, 1], coords_new[, 2],
+             col = colors_new,
+             pch = 17,  # triangles for new modalities
+             cex = 1.5)
+      # Add axes (now centered)
+      abline(h = 0, v = 0, col = "gray", lty = 2, lwd = 1.5)
+      # Add labels if requested
       if (show_labels) {
-        text(coords2d_train, labels = rownames(coords2d_train),
-             pos = 3, cex = label_cex, col = colors_train)
-
-        text(coords_new, labels = rownames(coords_new),
-             pos = 3, cex = label_cex * 1.1, col = colors_new, font = 2)
+        text(coords_train[, 1], coords_train[, 2],
+             labels = rownames(coords_train),
+             col = colors_train,
+             cex = label_cex,
+             pos = 3,
+             offset = 0.3)
+        text(coords_new[, 1], coords_new[, 2],
+             labels = rownames(coords_new),
+             col = colors_new,
+             cex = label_cex,
+             pos = 1,
+             offset = 0.3,
+             font = 2)  # bold for new modalities
       }
-
-      # 9. Legend
-      legend(
-        "topright",
-        legend = c(
-          paste("Cluster", 1:private$.n_clusters),
-          "",
-          "New modalities"
-        ),
-        col = c(color_palette, NA, "black", "black"),
-        pch = c(rep(19, private$.n_clusters), NA, 19, 8),
-        pt.cex = c(rep(1, private$.n_clusters), NA, 1.2, 1.8),
-        pt.lwd = c(rep(1, private$.n_clusters), NA, 1, 2),
-        cex = 0.8,
-        bg = "white"
-      )
-
-      # 10. Return projection info
+      # Add legend
+      legend("topright",
+             legend = c(paste("Cluster", 1:private$.n_clusters),
+                        "Training", "New"),
+             col = c(color_palette, "black", "black"),
+             pch = c(rep(16, private$.n_clusters), 16, 17),
+             bty = "n",
+             cex = 0.8)
+      # Return coordinates invisibly
       result <- list(
-        train_coords = coords2d_train,
-        new_coords = coords_new,
-        train_clusters = labels_train,
-        new_clusters = labels_new
+        coords_train = coords_train,
+        coords_new = coords_new,
+        variance = variance_explained
       )
-
       invisible(result)
     },
 
@@ -1296,7 +1304,10 @@ ModCluster <- R6::R6Class(
     modality_frequencies = function() private$.modality_frequencies,
 
     #' @field mca_result Complete MCA result object
-    mca_result = function() private$.mca_result
+    mca_result = function() private$.mca_result,
+
+    #' @field data_illust Return the illustrative data.
+    data_illust = function() private$.data_illust
   )
 )
 
