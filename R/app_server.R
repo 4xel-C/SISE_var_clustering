@@ -174,8 +174,8 @@ app_server <- function(input, output, session) {
         # Centroid correlation
         # --------------
         shiny::wellPanel(
-          shiny::h3("Centroids Correlations"),
-          shiny::tags$p("Correlation matrix between cluster centroids"),
+          shiny::h3("Cluster relationship"),
+          shiny::tags$p("Distance/proximity between cluster"),
           DT::DTOutput("centroids_correlation_table")
         ),
 
@@ -193,11 +193,10 @@ app_server <- function(input, output, session) {
         # All clusters R² matrix
         # --------------
         shiny::wellPanel(
-          shiny::h3("R² Matrix: All Variables vs All Clusters"),
+          shiny::h3("All Variables vs All Clusters"),
           shiny::tags$p(
-            "Complete correlation matrix showing R² values between each variable and all cluster centroids.",
+            "Complete matrix showing relationship between each variable and all cluster centroids.",
             shiny::tags$br(),
-            "Higher values indicate stronger association with that cluster."
           ),
           DT::DTOutput("all_clusters_R2_table")
         )
@@ -329,7 +328,7 @@ app_server <- function(input, output, session) {
     )
 
     # ------------------------------------------------------------
-    # HClust tabs
+    # HClust and modClust tabs
     # ------------------------------------------------------------
     hclust_tabs <- list(
 
@@ -361,7 +360,6 @@ app_server <- function(input, output, session) {
       )
     )
 
-    # TODO: ModalClust tab to be instantiated
 
     # ------------------------------------------------------------
     # Select the vector of tabs to display
@@ -371,7 +369,7 @@ app_server <- function(input, output, session) {
     } else if (algorithm == "kmeans") {
       all_tabs <- c(common_tabs, kmeans_tabs, predict_tab)
     } else {
-      all_tabs <- c(common_tabs, predict_tab_HMod)
+      all_tabs <- c(common_tabs, hclust_tabs, predict_tab_HMod)
     }
 
     # Create the tabsetpanel with the list of tabs to use
@@ -1319,7 +1317,7 @@ app_server <- function(input, output, session) {
   output$dendrogram_plot <- shiny::renderPlot({
     req(rv$model)
     req(rv$clustering_done)
-    req(rv$model_type == 'hclust')
+    req(rv$model_type == 'hclust' | rv$model_type == 'modClust')
 
     tryCatch({
       if (!is.null(input$n_clusters)) {
@@ -1336,7 +1334,6 @@ app_server <- function(input, output, session) {
   # -----------------------------------------------------------
   # Factorial projection
   # -----------------------------------------------------------
-  #TODO: repair kmeans acp's
   output$fact_plot <- shiny::renderPlot({
     req(rv$model)
     req(rv$clustering_done)
@@ -1350,8 +1347,11 @@ app_server <- function(input, output, session) {
 
       # Kmeans projection
       } else if (rv$model_type == "kmeans") {
-        print(rv$model)
         rv$model$plot_projection()
+      } else if (rv$model_type == "modClust") {
+
+        rv$model$plot_mca()
+
       } else {
         plot.new()
         text(0.5, 0.5, "Factorial projection not available.", cex = 1.1)
@@ -1399,6 +1399,8 @@ app_server <- function(input, output, session) {
         rv$model$plot_agg_levels()
       } else if (rv$model_type == "kmeans") {
         rv$model$plot_elbow()
+      } else if (rv$model_type == "modClust") {
+        rv$model$plot_heights()
       }
     }, error = function(e) {
       plot.new()
@@ -1528,10 +1530,7 @@ app_server <- function(input, output, session) {
 
     summary_data <- tryCatch(rv$model$summary(), error = function(e) NULL)
 
-    # Get average silouhette depending of the algorithm
-    if (rv$model_type == "kmeans" | rv$model_type == "hclust") {
-      avg_sil <- summary_data$avg_silhouette
-    }
+    avg_sil <- summary_data$avg_silhouette
 
 
     if (is.null(avg_sil)) {
@@ -1582,9 +1581,7 @@ app_server <- function(input, output, session) {
     summary_data <- tryCatch(rv$model$summary(), error = function(e) NULL)
 
     # Get total variance depending of the algorithm
-    if (rv$model_type == "kmeans" | rv$model_type == "hclust") {
-      total_var <- summary_data$total_var_explained
-    }
+    total_var <- summary_data$total_var_explained
 
 
     if (is.null(total_var)) {
@@ -1640,6 +1637,7 @@ app_server <- function(input, output, session) {
     if (is.null(summary_data)) {
       DT::datatable(data.frame())
     } else {
+
       # If clust_summary exists, show it. Else try to show whole summary object
       df <- if (!is.null(summary_data$clust_summary)) summary_data$clust_summary else as.data.frame(summary_data)
       dt <- DT::datatable(df, options = list(pageLength = 20, dom = 't'), rownames = FALSE)
@@ -1657,6 +1655,9 @@ app_server <- function(input, output, session) {
     # Get total variance depending of the algorithm
     if (rv$model_type == "kmeans" | rv$model_type == "hclust") {
       centroids_df <- summary_data$centroids_correlations
+
+    } else if (rv$model_type == "modClust") {
+      centroids_df <- summary_data$inter_cluster_distances
     }
 
     # Reformat to match the other algorithm
@@ -1682,8 +1683,8 @@ app_server <- function(input, output, session) {
       } # end for
 
       centroids_df <- new_centroids_df
-    }
 
+    }
 
     if (is.null(centroids_df)) {
       # Return empty datatable with message
@@ -1714,15 +1715,22 @@ app_server <- function(input, output, session) {
     req(rv$model)
     req(rv$clustering_done)
 
+    # Get the summary data
     summary_data <- tryCatch(rv$model$summary(), error = function(e) NULL)
     if (is.null(summary_data)) {
       DT::datatable(data.frame())
     } else {
-      df <- if (!is.null(summary_data$clust_members)) summary_data$clust_members else as.data.frame(summary_data)
-      dt <- DT::datatable(df, options = list(pageLength = 20, scrollX = TRUE), rownames = TRUE)
-      if ('own_cluster_R2' %in% colnames(df)) {
-        dt <- dt %>% DT::formatStyle('own_cluster_R2', backgroundColor = DT::styleInterval(c(0.5, 0.7), c('#FADBD8', '#FCF3CF', '#D5F4E6')))
+
+      # Specific preparation for modClust
+      if (rv$model_type == "modClust") {
+        df <- if (!is.null(summary_data$modality_quality)) summary_data$modality_quality else as.data.frame(summary_data)
+        dt <- DT::datatable(df, options = list(pageLength = 20, scrollX = TRUE), rownames = TRUE)
+
+      } else {
+        df <- if (!is.null(summary_data$clust_members)) summary_data$clust_members else as.data.frame(summary_data)
+        dt <- DT::datatable(df, options = list(pageLength = 20, scrollX = TRUE), rownames = TRUE)
       }
+
       dt
     }
   })
@@ -1734,14 +1742,7 @@ app_server <- function(input, output, session) {
 
     summary_data <- tryCatch(rv$model$summary(), error = function(e) NULL)
 
-    if (is.null(summary_data) || is.null(summary_data$all_clusters_R2)) {
-      # Return empty datatable with message
-      DT::datatable(
-        data.frame(Message = "R² matrix not available"),
-        options = list(dom = 't'),
-        rownames = FALSE
-      )
-    } else {
+    if (rv$model_type %in% c("hclust", "kmeans")) {
       all_clusters_R2 <- summary_data$all_clusters_R2
 
       DT::datatable(
@@ -1750,8 +1751,7 @@ app_server <- function(input, output, session) {
           pageLength = 20,
           scrollX = TRUE,
           scrollY = "500px",
-          dom = 'Bfrtip',
-          buttons = c('copy', 'csv', 'excel')
+          dom = 'Bfrtip'
         ),
         rownames = FALSE,
         class = 'cell-border stripe compact'
@@ -1774,7 +1774,32 @@ app_server <- function(input, output, session) {
             values = c('normal', 'bold')
           )
         )
-    }
+      } else if (rv$model_type == "modClust") {
+
+          df_distances <- summary_data$cluster_distances
+
+          DT::datatable(
+            df_distances,
+            options = list(
+              pageLength = 20,
+              scrollX = TRUE,
+              scrollY = "500px",
+              dom = 'Bfrtip'
+            ),
+            rownames = FALSE,
+            class = 'cell-border stripe compact'
+          )
+
+      } else {
+
+        # Return empty datatable with message
+        DT::datatable(
+          data.frame(Message = "R² matrix not available"),
+          options = list(dom = 't'),
+          rownames = FALSE
+        )
+      }
+
   })
 
 

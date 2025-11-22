@@ -1437,7 +1437,7 @@ ModCluster <- R6::R6Class(
       private$.summary_results <- list(
         avg_silhouette = round(average_silhouette, 4),
         total_var_explained = round(total_var_explained, 4),
-        cluster_summary = cluster_summary,
+        clust_summary = cluster_summary,
         modality_quality = modality_quality,
         inter_cluster_distances = inter_cluster_dists,
         cluster_distances = all_cluster_dists
