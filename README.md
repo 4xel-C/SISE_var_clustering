@@ -283,31 +283,27 @@ library(VarClustering)
 data(vote)
 
 # Initialize model
-mc <- ModCluster$new(
+model <- ModCluster$new(
   method = "hclust",
-  n_dimensions = 5,
-  hclust_method = "ward.D2"
+  n_dimensions = 2,
+  hclust_method = "average"
 )
 
 # Fit on data
-mc$fit(vote)
-
-# Visualize dendrogram
-mc$plot_dendrogram()
+model$fit(vote)
 
 # Determine optimal K
-mc$plot_heights()
+model$plot_heights()
 
 # Cut tree
-mc$cut_tree(k = 4)
+model$cut_tree(3)
 
 # Analyze results
-results <- mc$summary()
-mc$plot_silhouette()
-mc$plot_mca(axes = c(1, 2))
+summary(model)
 
-# Predict new observations
-predictions <- mc$predict(new_data)
+# Visualizations
+model$plot_dendrogram()
+model$plot_mca()
 ```
 
 ---

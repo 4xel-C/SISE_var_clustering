@@ -466,8 +466,8 @@ cat("Test:", nrow(vote_test), "observations\n")
 # Initialize ModCluster
 mc <- ModCluster$new(
   method = "hclust",
-  n_dimensions = 5,
-  hclust_method = "ward.D2"
+  n_dimensions = 2,
+  hclust_method = "average"
 )
 
 # Fit
@@ -490,7 +490,7 @@ mc$plot_heights()
 ### Cutting the Tree
 
 ```{r modclust-cut}
-mc$cut_tree(k = 4)
+mc$cut_tree(3)
 print(mc)
 ```
 
@@ -501,19 +501,13 @@ print(mc)
 ### Dendrogram
 
 ```{r modclust-dendro}
-mc$plot_dendrogram(k = 4, color_branches = TRUE)
+mc$plot_dendrogram()
 ```
 
 ### MCA Projection
 
 ```{r modclust-mca}
-mc$plot_mca(axes = c(1, 2), show_labels = TRUE, label_cex = 0.7)
-```
-
-### Silhouette
-
-```{r modclust-silhouette}
-mc$plot_silhouette()
+mc$plot_mca()
 ```
 
 ---
@@ -523,46 +517,7 @@ mc$plot_silhouette()
 ### Summary
 
 ```{r modclust-summary}
-results_mc <- mc$summary()
-
-# Cluster summary
-results_mc$clust_summary
-```
-
-### Cluster Members
-
-```{r modclust-members}
-results_mc$clust_members
-```
-
-### Cluster Table
-
-```{r modclust-table}
-cluster_table <- mc$get_cluster_table()
-cluster_table
-```
-
----
-
-## 3.6 Prediction
-
-### Predicting New Observations
-
-```{r modclust-predict}
-# Predict clusters
-predictions <- mc$predict(vote_test)
-head(predictions, 10)
-```
-
-### Visualizing with New Observations
-
-```{r modclust-plot-new}
-mc$plot_mca_with_new(
-  new_data = vote_test,
-  axes = c(1, 2),
-  show_labels = TRUE,
-  label_cex = 0.6
-)
+summary(mc)
 ```
 
 ---
