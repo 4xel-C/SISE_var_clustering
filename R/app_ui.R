@@ -254,7 +254,7 @@ app_ui <- function() {
             shiny::numericInput(
               "km_n_init",
               "K-means n_init (restarts)",
-              value = 10,
+              value = 2,
               min = 1,
               step = 1
             ),
