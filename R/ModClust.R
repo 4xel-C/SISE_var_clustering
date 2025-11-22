@@ -1300,7 +1300,7 @@ ModCluster <- R6::R6Class(
 
 
       # -------------------------
-      # Cluster summary
+      # Cluster summary (OPTIMIZED)
       # -------------------------
       cluster_summary <- data.frame(
         Cluster = 1:n_clust,
@@ -1308,9 +1308,11 @@ ModCluster <- R6::R6Class(
         stringsAsFactors = FALSE
       )
 
-      # Calculate within-cluster variance and between-cluster variance
+      # Calculate total variance (before clustering)
+      total_var <- sum(dist_matrix^2) / (2 * n_mod)
+
+      # Calculate within-cluster variance
       within_var <- numeric(n_clust)
-      avg_silhouette <- numeric(n_clust)
 
       for (k in 1:n_clust) {
         cluster_idx <- which(labels == k)
@@ -1323,46 +1325,50 @@ ModCluster <- R6::R6Class(
         } else {
           within_var[k] <- 0
         }
+      }
 
-        # Average silhouette for the cluster
-        if (n_k > 0) {
-          silhouettes <- numeric(n_k)
+      # -------------------------
+      # OPTIMIZED SILHOUETTE CALCULATION using modality_quality
+      # -------------------------
+      # Calculate silhouette for each modality using already computed distances
+      silhouettes_per_modality <- numeric(n_mod)
 
-          for (i in seq_along(cluster_idx)) {
-            idx <- cluster_idx[i]
+      for (i in 1:n_mod) {
+        a_i <- own_cluster_dist[i]      # Already computed!
+        b_i <- next_closest_dist[i]     # Already computed!
 
-            # a(i): average distance to points in the same cluster
-            if (n_k > 1) {
-              a_i <- mean(dist_matrix[idx, cluster_idx[-i]])
-            } else {
-              a_i <- 0
-            }
+        # Calculate silhouette
+        cluster_size <- cluster_summary$n_members[labels[i]]
 
-            # b(i): minimum average distance to points in other clusters
-            b_i <- Inf
-            for (other_k in setdiff(1:n_clust, k)) {
-              other_idx <- which(labels == other_k)
-              if (length(other_idx) > 0) {
-                mean_dist_other <- mean(dist_matrix[idx, other_idx])
-                b_i <- min(b_i, mean_dist_other)
-              }
-            }
-
-            # Calculate silhouette
-            if (n_k == 1) {
-              silhouettes[i] <- 0
-            } else {
-              silhouettes[i] <- (b_i - a_i) / max(a_i, b_i)
-            }
-          }
-
-          avg_silhouette[k] <- mean(silhouettes)
+        if (cluster_size == 1) {
+          silhouettes_per_modality[i] <- 0
         } else {
-          avg_silhouette[k] <- NA
+          silhouettes_per_modality[i] <- (b_i - a_i) / max(a_i, b_i)
         }
       }
 
-      # Add columns
+      # Calculate average silhouette per cluster
+      avg_silhouette <- numeric(n_clust)
+      for (k in 1:n_clust) {
+        cluster_idx <- which(labels == k)
+        avg_silhouette[k] <- mean(silhouettes_per_modality[cluster_idx])
+      }
+
+      # Calculate global metrics
+      total_within_var <- sum(within_var)
+      between_var <- total_var - total_within_var
+
+      # Total variance explained (R²)
+      total_var_explained <- if (total_var > 0) {
+        between_var / total_var
+      } else {
+        0
+      }
+
+      # Average silhouette across all modalities
+      average_silhouette <- mean(silhouettes_per_modality, na.rm = TRUE)
+
+      # Add columns to cluster summary
       cluster_summary$within_var <- round(within_var, 2)
       cluster_summary$avg_silhouette <- round(avg_silhouette * 100, 2)
 
@@ -1429,6 +1435,8 @@ ModCluster <- R6::R6Class(
       rownames(modality_quality) <- NULL
 
       private$.summary_results <- list(
+        avg_silhouette = round(average_silhouette, 4),
+        total_var_explained = round(total_var_explained, 4),
         cluster_summary = cluster_summary,
         modality_quality = modality_quality,
         inter_cluster_distances = inter_cluster_dists,
