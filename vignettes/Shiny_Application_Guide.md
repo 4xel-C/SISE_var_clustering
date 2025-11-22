@@ -137,8 +137,9 @@ Configure the clustering algorithm and its parameters.
 
 | Algorithm | Data Type | Description |
 |-----------|-----------|-------------|
-| **CAH Variables clustering** | Quant / Qual / Mixed | Hierarchical clustering with dendrogram |
+| **CAH Variables clustering** | Quant / Qual / Mixed | Hierarchical clustering of variables with dendrogram |
 | **K-means Variables clustering** | Quantitative only | Iterative reallocation with PCA centroids |
+| **CAH Modalities clustering** | Qualitative only | Hierarchical clustering of categories using Dice distance |
 
 <!-- 📸 SCREENSHOT: Algorithm selection dropdown -->
 <!-- Place screenshot here: screenshots/algorithm_selection.png -->
@@ -170,6 +171,18 @@ Configure the clustering algorithm and its parameters.
 <!-- 📸 SCREENSHOT: K-means parameters panel -->
 <!-- Place screenshot here: screenshots/kmeans_params.png -->
 ![K-means Parameters](screenshots/kmeans_params.png)
+
+#### ModClust Parameters (Modality Clustering)
+
+| Parameter | Options | Description |
+|-----------|---------|-------------|
+| **Variable type** | Qualitative | Categories to cluster (fixed) |
+| **Linkage method** | Complete, Average, Single | Agglomeration method for CAH |
+| **Number of clusters** | 2-10 | Target number of modality groups |
+
+<!-- 📸 SCREENSHOT: ModClust parameters panel -->
+<!-- Place screenshot here: screenshots/modclust_params.png -->
+![ModClust Parameters](screenshots/modclust_params.png)
 
 ---
 
@@ -361,20 +374,38 @@ Random seed: 0 = random
 Number of clusters: 2-10
 ```
 
+### ModClust (Modality Clustering)
+
+**Best for**: Categorical data analysis, understanding patterns in category co-occurrences.
+
+**Features**:
+- Clusters modalities (categories) rather than variables
+- Uses Dice distance for dissimilarity
+- Hierarchical clustering with dendrogram
+- MCA-based visualization of modalities
+
+**Parameters**:
+```
+Variable type: Qualitative (fixed)
+Linkage method: Complete / Average / Single
+Number of clusters: 2-10
+```
+
 ---
 
 ## Output Tabs
 
-| Tab | HClustVar | K-means | Description |
-|-----|-----------|---------|-------------|
-| 📊 Data Preview | ✅ | ✅ | View imported data |
-| 🔍 Variable Configuration | ✅ | ✅ | Configure variable roles |
-| 📋 Summary | ✅ | ✅ | Quality metrics and cluster details |
-| 📈 Elbow Method | ✅ | ✅ | Optimal K determination |
-| 🗺️ Factorial Projection | ✅ | ✅ | Variable visualization |
-| ➡️ Predict | ✅ | ✅ | Illustrative variable predictions |
-| 🌳 Dendrogram | ✅ | ❌ | Hierarchical tree |
-| 📊 Silhouette Plot | ✅ | ❌ | Cluster quality per variable |
+| Tab | HClustVar | K-means | ModClust | Description |
+|-----|-----------|---------|----------|-------------|
+| 📊 Data Preview | ✅ | ✅ | ✅ | View imported data |
+| 🔍 Variable Configuration | ✅ | ✅ | ✅ | Configure variable roles |
+| 📋 Summary | ✅ | ✅ | ✅ | Quality metrics and cluster details |
+| 📈 Elbow Method | ✅ | ✅ | ✅ | Optimal K determination |
+| 🗺️ Factorial Projection | ✅ | ✅ | ✅ | Variable/modality visualization |
+| ➡️ Predict | ✅ | ✅ | ✅ | Illustrative predictions |
+| 🌳 Dendrogram | ✅ | ❌ | ✅ | Hierarchical tree |
+| 📊 Silhouette Plot | ✅ | ❌ | ✅ | Cluster quality per element |
+| 🔄 Contribution | ❌ | ✅ | ❌ | Top contributing variables |
 
 ---
 
@@ -478,6 +509,7 @@ vignettes/
     ├── algorithm_selection.png
     ├── hclust_params.png
     ├── kmeans_params.png
+    ├── modclust_params.png
     ├── run_clustering.png
     ├── quality_metrics.png
     ├── cluster_summary_table.png
