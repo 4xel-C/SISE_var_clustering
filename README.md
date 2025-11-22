@@ -284,9 +284,9 @@ data(vote)
 
 # Initialize model
 mc <- ModCluster$new(
-  n_clusters = NULL,
-  hclust_method = "ward.D2",
-  n_dimensions = 5
+  method = "hclust",
+  n_dimensions = 5,
+  hclust_method = "ward.D2"
 )
 
 # Fit on data

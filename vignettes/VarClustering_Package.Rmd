@@ -465,7 +465,6 @@ cat("Test:", nrow(vote_test), "observations\n")
 ```{r modclust-fit}
 # Initialize ModCluster
 mc <- ModCluster$new(
-  n_clusters = NULL,
   method = "hclust",
   n_dimensions = 5,
   hclust_method = "ward.D2"
