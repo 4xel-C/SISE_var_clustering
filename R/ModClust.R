@@ -550,8 +550,20 @@ ModCluster <- R6::R6Class(
     #' @param axes Integer vector of MCA axes to use (default: all)
     #' @return Matrix of projected coordinates
     project_new_modalities = function(axes = NULL) {
+
+      # Check if fitted
+      if (!private$.fitted) {
+        stop("Model must be fitted")
+      }
+
       # Get the illustrative data
       new_data <- private$.data_illust
+
+      # Check if predict have been made.
+      if (is.null(new_data)) {
+        stop("Make a prediction first")
+      }
+
       message("Projecting new modalities into MCA space...")
 
       # Get the MCA result
@@ -969,8 +981,7 @@ ModCluster <- R6::R6Class(
     },
 
     #' @description
-    #' Plot training modalities (points) and new observations (stars) in MCA space
-    #' @param new_data Data frame with new observations
+    #' Plot training modalities (points) and new observations in MCA space
     #' @param axes Integer vector of length 2, which axes to plot (default: c(1, 2))
     #' @param show_labels Logical, show labels (default: TRUE)
     #' @param label_cex Numeric, label text size (default: 0.7)

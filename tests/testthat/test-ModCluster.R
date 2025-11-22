@@ -203,23 +203,28 @@ test_that("project_new_modalities() projette correctement", {
   model <- ModCluster$new()
   model$fit(test_data)
 
-  new_data <- create_test_data(5, seed = 888)
-  projected <- model$project_new_modalities(new_data)
+  new_data <- create_test_data(100, seed = 888)
+  model$cut_tree(3)
+  model$predict(new_data)
+
+  projected <- model$.__enclos_env__$private$project_new_modalities()
 
   expect_true(is.matrix(projected))
-  expect_equal(nrow(projected), 5)
-  expect_true(all(grepl("^Dim\\.", colnames(projected))))
+  expect_equal(nrow(projected), 9)
 })
 
 test_that("project_new_modalities() respecte les axes spécifiés", {
   model <- ModCluster$new(, n_dimensions = 5)
   model$fit(test_data)
 
-  new_data <- create_test_data(5, seed = 888)
-  projected <- model$project_new_modalities(new_data, axes = c(1, 3))
+  new_data <- create_test_data(100, seed = 888)
+  model$cut_tree(3)
+  model$predict(new_data)
+
+  projected <- model$.__enclos_env__$private$project_new_modalities(axes = c(1, 3))
 
   expect_equal(ncol(projected), 2)
-  expect_equal(colnames(projected), c("Dim.1", "Dim.3"))
+  expect_equal(colnames(projected), c("Dim 1", "Dim 3"))
 })
 
 test_that("project_new_modalities() échoue si non fitted", {
@@ -227,7 +232,7 @@ test_that("project_new_modalities() échoue si non fitted", {
   new_data <- create_test_data(5)
 
   expect_error(
-    model$project_new_modalities(new_data),
+    model$.__enclos_env__$private$project_new_modalities(),
     "Model must be fitted"
   )
 })

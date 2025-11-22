@@ -333,7 +333,7 @@ Dice, L. R. (1945). Measures of the amount of ecologic association between speci
 
 \item{\code{mca_result}}{Complete MCA result object}
 
-\item{\code{cluster_centers}}{Matrix of cluster centers}
+\item{\code{data_illust}}{Return the illustrative data.}
 }
 \if{html}{\out{</div>}}
 }
@@ -343,7 +343,6 @@ Dice, L. R. (1945). Measures of the amount of ecologic association between speci
 \item \href{#method-ModCluster-new}{\code{ModCluster$new()}}
 \item \href{#method-ModCluster-fit}{\code{ModCluster$fit()}}
 \item \href{#method-ModCluster-predict}{\code{ModCluster$predict()}}
-\item \href{#method-ModCluster-project_new_modalities}{\code{ModCluster$project_new_modalities()}}
 \item \href{#method-ModCluster-get_dice_matrix}{\code{ModCluster$get_dice_matrix()}}
 \item \href{#method-ModCluster-print}{\code{ModCluster$print()}}
 \item \href{#method-ModCluster-get_cluster_table}{\code{ModCluster$get_cluster_table()}}
@@ -383,30 +382,23 @@ Internal method to perform Multiple Correspondence Analysis
 Internal method to perform hierarchical clustering on Dice distances
 
 
-Internal method to calculate average profiles for each cluster
-
-
 Internal method to create indicator matrix for prediction
 
 
 Internal method to calculate distances from new profile to existing modalities
 
 
+Project new observations into MCA space
+
+
 Initialize a new ModCluster object
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ModCluster$new(
-  n_clusters = NULL,
-  method = "hclust",
-  n_dimensions = 5,
-  hclust_method = "average"
-)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{ModCluster$new(method = "hclust", n_dimensions = 2, hclust_method = "average")}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{n_clusters}}{Integer, target number of clusters (default: NULL)}
-
 \item{\code{method}}{Character, clustering method (default: "hclust")}
 
 \item{\code{n_dimensions}}{Integer, number of MCA dimensions (default: 5)}
@@ -416,6 +408,10 @@ Initialize a new ModCluster object
 \item{\code{new_data}}{Data frame with same variables as training data}
 
 \item{\code{new_profile}}{Binary vector representing a new observation}
+
+\item{\code{axes}}{Integer vector of MCA axes to use (default: all)}
+
+\item{\code{n_clusters}}{Integer, target number of clusters (default: NULL)}
 }
 \if{html}{\out{</div>}}
 }
@@ -462,28 +458,6 @@ Predict cluster membership for new observations
 }
 \subsection{Returns}{
 Data frame with predictions and distances
-}
-}
-\if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-ModCluster-project_new_modalities"></a>}}
-\if{latex}{\out{\hypertarget{method-ModCluster-project_new_modalities}{}}}
-\subsection{Method \code{project_new_modalities()}}{
-Project new observations into MCA space
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ModCluster$project_new_modalities(new_data, axes = NULL)}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{new_data}}{Data frame with same variables as training data}
-
-\item{\code{axes}}{Integer vector of MCA axes to use (default: all)}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Matrix of projected coordinates
 }
 }
 \if{html}{\out{<hr>}}
@@ -595,10 +569,9 @@ NULL (invisibly)
 \if{html}{\out{<a id="method-ModCluster-plot_mca_with_new"></a>}}
 \if{latex}{\out{\hypertarget{method-ModCluster-plot_mca_with_new}{}}}
 \subsection{Method \code{plot_mca_with_new()}}{
-Plot training modalities (points) and new observations (stars) in MCA space
+Plot training modalities (points) and new observations in MCA space
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{ModCluster$plot_mca_with_new(
-  new_data,
   axes = c(1, 2),
   show_labels = TRUE,
   label_cex = 0.7
@@ -608,8 +581,6 @@ Plot training modalities (points) and new observations (stars) in MCA space
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{new_data}}{Data frame with new observations}
-
 \item{\code{axes}}{Integer vector of length 2, which axes to plot (default: c(1, 2))}
 
 \item{\code{show_labels}}{Logical, show labels (default: TRUE)}
