@@ -223,7 +223,7 @@ app_ui <- function() {
             condition = "input.algorithm == 'hclust'",
             shiny::selectInput(
               "cah_method",
-              "Clustering method",
+              "Linkage method",
               choices = c(
                 "Ward D" = "ward.D",
                 "Ward D2" = "ward.D2",
@@ -266,6 +266,25 @@ app_ui <- function() {
               step = 1
             )
           ),
+
+          # ------------------------------------------------------------
+          # Parameters for Modalities Clustering
+          # ------------------------------------------------------------
+
+          shiny::conditionalPanel(
+            condition = "input.algorithm == 'modClust'",
+            shiny::selectInput(
+              "cah_mods_method",
+              "Linkage method",
+              choices = c(
+                "Complete" = "complete",
+                "Average" = "average",
+                "Single" = "single"
+              ),
+              selected = "average"
+            )
+          ),
+
 
           # ------------------------------------------------------------
           # Parameters for Number of clusters

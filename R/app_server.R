@@ -276,6 +276,59 @@ app_server <- function(input, output, session) {
     )
 
     # ------------------------------------------------------------
+    # HMod Prediction tab
+    # ------------------------------------------------------------
+    predict_tab_HMod <- list(
+      shiny::tabPanel(
+        "➡️ Predict",
+        shiny::br(),
+
+        # Limit the width of the table.
+        shiny::fluidRow(
+          shiny::column(
+            10,
+            offset = 1,
+
+            shiny::h3("Cluster prediction on illustrative modalities"),
+            shiny::br(),
+
+            # Message if no prediction
+            if (is.null(rv$prediction)) {
+              shiny::wellPanel(
+                style = "background-color: #FFF3E0; border-left: 4px solid #F39C12;",
+                shiny::h4(
+                  "ℹ️ No predictions available",
+                  style = "color: #F39C12; margin-top: 0;"
+                ),
+                shiny::tags$p("Configure Illustrative Variables and run a clustering to make your prediction.")
+              )
+            },
+
+            # Prediction labels table
+            shiny::wellPanel(
+              shiny::h4("📌 Predicted Clusters"),
+              shiny::tags$p("Cluster assignment for each illustrative modalities"),
+              DT::DTOutput("prediction_result")
+            ),
+
+            shiny::br(),
+
+            # Proximities table
+            shiny::wellPanel(
+              shiny::h4("📊 Distance Matrix"),
+              shiny::tags$p(
+                "Distance values between each illustrative modalities and all cluster centroids.",
+                shiny::tags$br(),
+                "Lower values indicate stronger association with that cluster."
+              ),
+              DT::DTOutput("prediction_proximities_table")
+            )
+          )
+        )
+      )
+    )
+
+    # ------------------------------------------------------------
     # HClust tabs
     # ------------------------------------------------------------
     hclust_tabs <- list(
@@ -318,7 +371,7 @@ app_server <- function(input, output, session) {
     } else if (algorithm == "kmeans") {
       all_tabs <- c(common_tabs, kmeans_tabs, predict_tab)
     } else {
-      all_tabs <- c(common_tabs, predict_tab)
+      all_tabs <- c(common_tabs, predict_tab_HMod)
     }
 
     # Create the tabsetpanel with the list of tabs to use
@@ -1184,6 +1237,54 @@ app_server <- function(input, output, session) {
             duration = 3
           )
 
+        # -----------------------------------------------------------
+        # CAH Modalities
+        # -----------------------------------------------------------
+        } else if (input$algorithm == 'modClust') {
+
+          # TODO: compute CAH modalities
+
+          # Initialize the ModClust with selected options
+          mhc <- ModCluster$new(
+            hclust_method = input$cah_mods_method
+          )
+
+          # Fit and cut
+          shiny::incProgress(0.3, detail = "Fitting hierarchical model...")
+          mhc$fit(data)
+
+          shiny::incProgress(0.3, detail = "Cutting tree...")
+          mhc$cut_tree(k = input$n_clusters)
+
+          shiny::incProgress(0.2, detail = "Finalizing...")
+          rv$model <- mhc
+          rv$model_type <- 'modClust'
+          rv$clustering_done <- TRUE
+
+          # Get the illustrative vars if any.
+          if (length(illust_vars) > 0) {
+            illustrative_df <-req(data_filtered())
+            illustrative_df <- illustrative_df[, illust_vars, drop = FALSE]
+
+
+            prediction_result <- mhc$predict(illustrative_df)
+
+            # Store the prediction as a dataframe
+            rv$prediction <- data.frame(
+              "Illustrative_modalities" = names(prediction_result$prediction),
+              "Predicted_clusters" = prediction_result$prediction,
+              stringsAsFactors = FALSE
+            )
+
+            # Save the matrix of similiraties.
+            rv$prediction_proximities <- prediction_result$distances
+
+            # If no illustrative vars, set the prediction to NULL.
+          } else {
+            rv$prediction <- NULL
+            rv$prediction_proximities <- NULL
+          }
+
         } else {
           stop('Unknown algorithm selected')
         }
@@ -1358,7 +1459,6 @@ app_server <- function(input, output, session) {
     ) %>%
       DT::formatStyle(
         'Predicted_clusters',
-        backgroundColor = '#E8F5E9',
         fontWeight = 'bold'
       )
   })
@@ -1371,35 +1471,50 @@ app_server <- function(input, output, session) {
 
     proximities_df <- rv$prediction_proximities
 
-    DT::datatable(
-      proximities_df,
-      options = list(
-        pageLength = 20,
-        scrollX = TRUE,
-        dom = 'Bfrtip',
-        buttons = c('copy', 'csv', 'excel')
-      ),
-      rownames = FALSE,
-      class = 'cell-border stripe compact'
-    ) %>%
-      # Color code based on proximity values
-      DT::formatStyle(
-        columns = 2:ncol(proximities_df),
-        backgroundColor = DT::styleInterval(
-          cuts = c(0.3, 0.5, 0.7, 0.85),
-          values = c('#FFEBEE', '#FFF3E0', '#FFF9C4', '#E8F5E9', '#C8E6C9')
+    # If mod clust, display the table differently.
+    if (rv$model_type == "modClust") {
+
+      DT::datatable(
+        proximities_df,
+        options = list(
+          pageLength = 20,
+          scrollX = TRUE,
+          dom = 'Bfrtip'
         )
       ) %>%
-      # Format numbers with 3 decimals
-      DT::formatRound(columns = 2:ncol(proximities_df), digits = 3) %>%
-      # Bold for high proximity (> 0.7)
-      DT::formatStyle(
-        columns = 2:ncol(proximities_df),
-        fontWeight = DT::styleInterval(
-          cuts = c(0.7),
-          values = c('normal', 'bold')
+        DT::formatRound(columns = 2:ncol(proximities_df), digits = 2)
+
+    } else {
+
+      DT::datatable(
+        proximities_df,
+        options = list(
+          pageLength = 20,
+          scrollX = TRUE,
+          dom = 'Bfrtip'
+        ),
+        rownames = FALSE,
+        class = 'cell-border stripe compact'
+      ) %>%
+        # Color code based on proximity values
+        DT::formatStyle(
+          columns = 2:ncol(proximities_df),
+          backgroundColor = DT::styleInterval(
+            cuts = c(0.3, 0.5, 0.7, 0.85),
+            values = c('#FFEBEE', '#FFF3E0', '#FFF9C4', '#E8F5E9', '#C8E6C9')
+          )
+        ) %>%
+        # Format numbers with 3 decimals
+        DT::formatRound(columns = 2:ncol(proximities_df), digits = 3) %>%
+        # Bold for high proximity (> 0.7)
+        DT::formatStyle(
+          columns = 2:ncol(proximities_df),
+          fontWeight = DT::styleInterval(
+            cuts = c(0.7),
+            values = c('normal', 'bold')
+          )
         )
-      )
+    }
   })
 
   # -----------------------------------------------------------
@@ -1561,7 +1676,7 @@ app_server <- function(input, output, session) {
             "cluster A"= clusters[i],
             "cluster B" = clusters[j],
             "correlation" = centroids_df[i, j],
-            "square_correlations" = centroids_df[i, j]
+            "square_correlations" = centroids_df[i, j] ** 2
           ))
         }
       } # end for
