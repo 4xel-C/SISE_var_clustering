@@ -307,23 +307,8 @@ app_ui <- function() {
             class = "btn-primary btn-block",
             style = "margin-top: 15px; font-weight: bold;"
           )
-        ),
-
-        # ------------------------------------------------------------
-        # Data export
-        # ------------------------------------------------------------
-        shiny::wellPanel(
-          shiny::h4("💾 Export Results", style = "color: #2C3E50;"),
-
-          shiny::conditionalPanel(
-            condition = "output.clustering_done",
-            shiny::downloadButton(
-              "download_results",
-              "Download Summary (CSV)",
-              class = "btn-success btn-block"
-            )
-          )
         )
+
       ),
 
       # ============================================================

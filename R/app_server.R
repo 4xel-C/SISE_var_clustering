@@ -1756,7 +1756,7 @@ app_server <- function(input, output, session) {
         rownames = FALSE,
         class = 'cell-border stripe compact'
       ) %>%
-        # Colorer selon les valeurs de R²
+        # R² coloration
         DT::formatStyle(
           columns = 2:ncol(all_clusters_R2),
           backgroundColor = DT::styleInterval(
@@ -1790,6 +1790,7 @@ app_server <- function(input, output, session) {
             class = 'cell-border stripe compact'
           )
 
+
       } else {
 
         # Return empty datatable with message
@@ -1801,33 +1802,4 @@ app_server <- function(input, output, session) {
       }
 
   })
-
-
-  # ===========================================================
-  # DOWNLOAD HANDLER
-  # ===========================================================
-
-  output$download_results <- shiny::downloadHandler(
-    filename = function() {
-      if (!is.null(rv$model_type) && rv$model_type == 'kmeans') {
-        paste0("kmeansvar_results_", Sys.Date(), ".csv")
-      } else {
-        paste0("hclustvar_results_", Sys.Date(), ".csv")
-      }
-    },
-    content = function(file) {
-      req(rv$model)
-      req(rv$clustering_done)
-
-      summary_data <- tryCatch(rv$model$summary(), error = function(e) NULL)
-      if (!is.null(summary_data) && !is.null(summary_data$clust_members)) {
-        write.csv(summary_data$clust_members, file, row.names = TRUE)
-      } else if (!is.null(summary_data)) {
-        # fallback: write the whole summary as csv if possible
-        write.csv(as.data.frame(summary_data), file, row.names = TRUE)
-      } else {
-        write.csv(data.frame(), file)
-      }
-    }
-  )
 }
