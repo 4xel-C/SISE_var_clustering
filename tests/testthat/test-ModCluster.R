@@ -249,10 +249,11 @@ test_that("summary() retourne les bonnes informations", {
   summ <- model$summary()
 
   expect_type(summ, "list")
-  expect_true("clust_summary" %in% names(summ))
-  expect_true("clust_members" %in% names(summ))
-  expect_equal(nrow(summ$clust_summary), 3)
-  expect_equal(nrow(summ$clust_members), 9)
+  expect_true("cluster_summary" %in% names(summ))
+  expect_true("modality_quality" %in% names(summ))
+  expect_true("inter_cluster_distances" %in% names(summ))
+  expect_true("cluster_distances" %in% names(summ))
+
 })
 
 test_that("get_cluster_table() retourne un tableau correct", {
