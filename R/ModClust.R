@@ -1220,87 +1220,222 @@ ModCluster <- R6::R6Class(
     #' @description
     #' Get comprehensive clustering statistics
     #' @return List with cluster summary and member details
+    # Get modality names
     summary = function() {
       if (!self$fitted || is.null(private$.modality_labels)) {
         cat("No clusters defined. Use cut_tree(k) first.\n")
         return(invisible(NULL))
       }
-
+      # Return cached data if already computed.
       if (!is.null(private$.summary_results)) {
         return(private$.summary_results)
       }
-
       n_clust <- private$.n_clusters
       labels <- private$.modality_labels
-      dice_mat <- private$.dice_matrix
+      dist_matrix <- private$.dice_matrix
+      # Convert to matrix if necessary
+      if (inherits(dist_matrix, "dist")) {
+        dist_matrix <- as.matrix(dist_matrix)
+      }
+      # Get modality names
+      modalities <- names(labels)
+      n_mod <- length(modalities)
 
-      clust_summary <- data.frame(
-        cluster = 1:n_clust,
-        n_members = as.vector(table(labels))
+      # -------------------------
+      # Modality x Cluster distances
+      # -------------------------
+      # Create table to store cluster distances
+      all_cluster_dists <- data.frame(
+        Modality = modalities,
+        Cluster = labels,
+        stringsAsFactors = FALSE
       )
+      # Calculate average distance to each cluster for each modality
+      for (k in 1:n_clust) {
+        cluster_idx <- which(labels == k)
+        cluster_distances <- numeric(n_mod)
+        for (i in seq_along(modalities)) {
+          if (length(cluster_idx) > 0) {
+            # Average distance from modality i to all modalities in cluster k
+            cluster_distances[i] <- round(mean(dist_matrix[i, cluster_idx]), 2)
+          } else {
+            cluster_distances[i] <- NA
+          }
+        }
+        # Add column for this cluster
+        all_cluster_dists[[paste0("Dist_Cluster_", k)]] <- cluster_distances
+      }
 
-      n_mod <- length(labels)
-      clust_members <- data.frame(
-        modality = names(labels),
-        cluster = labels,
-        frequency = private$.modality_frequencies[names(labels)],
+
+      # -------------------------
+      # Modality assignment quality
+      # -------------------------
+      modality_quality <- data.frame(
+        Modality = modalities,
+        Cluster = labels,
         stringsAsFactors = FALSE
       )
 
-      own_dist <- numeric(n_mod)
-      next_dist <- numeric(n_mod)
+      own_cluster_dist <- numeric(n_mod)
+      next_closest_dist <- numeric(n_mod)
 
-      for (i in 1:n_mod) {
-        mod_cluster <- labels[i]
-        same_cluster <- which(labels == mod_cluster & names(labels) != names(labels)[i])
+      for (i in seq_along(modalities)) {
+        # Get distances to all clusters for this modality
+        cluster_cols <- grep("^Dist_Cluster_", names(all_cluster_dists), value = TRUE)
+        dists_to_clusters <- as.numeric(all_cluster_dists[i, cluster_cols])
 
-        if (length(same_cluster) > 0) {
-          if (private$.hclust_method == "average") {
-            own_dist[i] <- mean(dice_mat[i, same_cluster])
-          } else if (private$.hclust_method == "single") {
-            own_dist[i] <- min(dice_mat[i, same_cluster])
-          } else if (private$.hclust_method == "complete") {
-            own_dist[i] <- max(dice_mat[i, same_cluster])
-          } else {
-            own_dist[i] <- mean(dice_mat[i, same_cluster])
-          }
-        } else {
-          own_dist[i] <- 0
-        }
+        # Own cluster distance
+        own_cluster <- labels[i]
+        own_cluster_dist[i] <- round(dists_to_clusters[own_cluster], 2)
 
-        other_clusters <- setdiff(1:n_clust, mod_cluster)
-        min_dist_to_other <- Inf
-
-        for (cl in other_clusters) {
-          other_members <- which(labels == cl)
-          if (length(other_members) > 0) {
-            if (private$.hclust_method == "average") {
-              d <- mean(dice_mat[i, other_members])
-            } else if (private$.hclust_method == "single") {
-              d <- min(dice_mat[i, other_members])
-            } else {
-              d <- max(dice_mat[i, other_members])
-            }
-            min_dist_to_other <- min(min_dist_to_other, d)
-          }
-        }
-        next_dist[i] <- min_dist_to_other
+        # Next closest cluster distance
+        other_dists <- dists_to_clusters[-own_cluster]
+        next_closest_dist[i] <- round(min(other_dists, na.rm = TRUE), 2)
       }
 
-      clust_members$dist_to_own <- round(sqrt(own_dist), 3)
-      clust_members$dist_to_next <- round(sqrt(next_dist), 3)
-      clust_members$ratio <- round(clust_members$dist_to_own / clust_members$dist_to_next, 3)
+      # Add columns
+      modality_quality$own_cluster_distance <- own_cluster_dist
+      modality_quality$next_closest_distance <- next_closest_dist
+      modality_quality$ratio <- round((own_cluster_dist / next_closest_dist) * 100, 2)
 
-      clust_members <- clust_members[order(clust_members$cluster, clust_members$dist_to_own), ]
-      rownames(clust_members) <- NULL
 
-      result <- list(
-        clust_summary = clust_summary,
-        clust_members = clust_members
+      # -------------------------
+      # Cluster summary
+      # -------------------------
+      cluster_summary <- data.frame(
+        Cluster = 1:n_clust,
+        n_members = as.vector(table(labels)),
+        stringsAsFactors = FALSE
       )
 
-      private$.summary_results <- result
-      return(result)
+      # Calculate within-cluster variance and between-cluster variance
+      within_var <- numeric(n_clust)
+      avg_silhouette <- numeric(n_clust)
+
+      for (k in 1:n_clust) {
+        cluster_idx <- which(labels == k)
+        n_k <- length(cluster_idx)
+
+        # Within-cluster variance (intra-cluster)
+        if (n_k > 1) {
+          dist_intra <- dist_matrix[cluster_idx, cluster_idx]
+          within_var[k] <- sum(dist_intra^2) / (2 * n_k)
+        } else {
+          within_var[k] <- 0
+        }
+
+        # Average silhouette for the cluster
+        if (n_k > 0) {
+          silhouettes <- numeric(n_k)
+
+          for (i in seq_along(cluster_idx)) {
+            idx <- cluster_idx[i]
+
+            # a(i): average distance to points in the same cluster
+            if (n_k > 1) {
+              a_i <- mean(dist_matrix[idx, cluster_idx[-i]])
+            } else {
+              a_i <- 0
+            }
+
+            # b(i): minimum average distance to points in other clusters
+            b_i <- Inf
+            for (other_k in setdiff(1:n_clust, k)) {
+              other_idx <- which(labels == other_k)
+              if (length(other_idx) > 0) {
+                mean_dist_other <- mean(dist_matrix[idx, other_idx])
+                b_i <- min(b_i, mean_dist_other)
+              }
+            }
+
+            # Calculate silhouette
+            if (n_k == 1) {
+              silhouettes[i] <- 0
+            } else {
+              silhouettes[i] <- (b_i - a_i) / max(a_i, b_i)
+            }
+          }
+
+          avg_silhouette[k] <- mean(silhouettes)
+        } else {
+          avg_silhouette[k] <- NA
+        }
+      }
+
+      # Add columns
+      cluster_summary$within_var <- round(within_var, 2)
+      cluster_summary$avg_silhouette <- round(avg_silhouette * 100, 2)
+
+      rownames(cluster_summary) <- NULL
+
+      # -------------------------
+      # Inter-cluster distances
+      # -------------------------
+      inter_cluster_dists <- data.frame(
+        Cluster_A = integer(),
+        Cluster_B = integer(),
+        avg_distance = numeric(),
+        stringsAsFactors = FALSE
+      )
+
+      # Calculate pairwise distances between clusters
+      for (k1 in 1:(n_clust - 1)) {
+        for (k2 in (k1 + 1):n_clust) {
+          cluster_idx_1 <- which(labels == k1)
+          cluster_idx_2 <- which(labels == k2)
+
+          if (length(cluster_idx_1) > 0 && length(cluster_idx_2) > 0) {
+            # Extract distances between the two clusters
+            dist_between <- dist_matrix[cluster_idx_1, cluster_idx_2, drop = FALSE]
+            avg_dist <- mean(dist_between)
+
+            # Add row to dataframe
+            inter_cluster_dists <- rbind(
+              inter_cluster_dists,
+              data.frame(
+                Cluster_A = k1,
+                Cluster_B = k2,
+                avg_distance = round(avg_dist, 2)
+              )
+            )
+          }
+        }
+      }
+
+      rownames(inter_cluster_dists) <- NULL
+
+
+      # -------------------------
+      # Cache and return
+      # -------------------------
+
+      # sort the values
+      modality_quality <- modality_quality[order(modality_quality$Cluster,
+                                                 modality_quality$own_cluster_distance), ]
+
+      # Sort all_cluster_dists by Cluster, then by own cluster distance
+      all_cluster_dists$own_dist_temp <- sapply(1:n_mod, function(i) {
+        own_cluster <- labels[i]
+        col_name <- paste0("Dist_Cluster_", own_cluster)
+        all_cluster_dists[i, col_name]
+      })
+
+      all_cluster_dists <- all_cluster_dists[order(all_cluster_dists$Cluster,
+                                                   all_cluster_dists$own_dist_temp), ]
+      all_cluster_dists$own_dist_temp <- NULL
+
+      # Get rid of the named index to avoid redundancy
+      rownames(all_cluster_dists) <- NULL
+      rownames(modality_quality) <- NULL
+
+      private$.summary_results <- list(
+        cluster_summary = cluster_summary,
+        modality_quality = modality_quality,
+        inter_cluster_distances = inter_cluster_dists,
+        cluster_distances = all_cluster_dists
+      )
+
+      return(private$.summary_results)
     }
   ),
 
