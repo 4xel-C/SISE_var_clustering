@@ -4,7 +4,7 @@
 
 ![R Version](https://img.shields.io/badge/R-%E2%89%A54.0.0-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Status](https://img.shields.io/badge/status-in%20development-yellow)
+![Status](https://img.shields.io/badge/version-1.0.0-brightgreen)
 ![Build](https://img.shields.io/badge/build-passing-brightgreen)
 
 *A comprehensive R package for clustering variables using hierarchical and partitioning methods*
