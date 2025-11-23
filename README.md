@@ -230,7 +230,7 @@ data(players)
 # Option 1: Manual K selection
 km <- KmeansVariables$new(
   n_clusters = 5,
-  n_init = 20,
+  n_init = 2,
   random_state = 42
 )
 km$fit(players)
