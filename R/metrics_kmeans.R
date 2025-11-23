@@ -44,7 +44,7 @@
 #' }
 #'
 #' @noRd
-kmeans_elbow <- function(data, k_range = 2:8, n_init = 10,
+kmeans_elbow <- function(data, k_range = 2:8, n_init = 1,
                          random_state = NULL, max_iter = 50, tol = 1e-3,
                          distance_metric = "r_squared") {
 
@@ -378,7 +378,7 @@ kmeans_calinski_harabasz <- function(data, clusters, centroids, distance_metric 
 #' }
 #'
 #' @noRd
-kmeans_calinski_harabasz_range <- function(data, k_range = 2:10, n_init = 10,
+kmeans_calinski_harabasz_range <- function(data, k_range = 2:10, n_init = 1,
                                            random_state = NULL, max_iter = 100,
                                            tol = 1e-4, distance_metric = "r_squared") {
 
@@ -627,7 +627,7 @@ kmeans_between_within_ratio <- function(data, clusters, centroids, distance_metr
 #'
 #' @noRd
 kmeans_find_optimal_k <- function(data, k_range = 2:10, method = "all",
-                                  n_init = 10, random_state = NULL,
+                                  n_init = 1, random_state = NULL,
                                   distance_metric = "r_squared") {
 
   if (!method %in% c("silhouette", "calinski", "all")) {
