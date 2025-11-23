@@ -89,11 +89,11 @@ This package is currently available on GitHub and can be installed using `devtoo
 ```r
 # Option 1: Using devtools
 if (!require("devtools")) install.packages("devtools")
-devtools::install_github("4xel-C/VarClustering")
+devtools::install_github("4xel-C/SISE_var_clustering")
 
 # Option 2: Using remotes (lighter dependency)
 if (!require("remotes")) install.packages("remotes")
-remotes::install_github("4xel-C/VarClustering")
+remotes::install_github("4xel-C/SISE_var_clustering")
 ```
 
 ### Install with Vignettes
@@ -101,7 +101,7 @@ remotes::install_github("4xel-C/VarClustering")
 To build and install the package with vignettes (recommended for learning):
 
 ```r
-devtools::install_github("4xel-C/VarClustering", 
+devtools::install_github("4xel-C/SISE_var_clustering", 
                          build_vignettes = TRUE,
                          dependencies = TRUE)
 ```
@@ -111,7 +111,7 @@ devtools::install_github("4xel-C/VarClustering",
 For the latest development features:
 
 ```r
-devtools::install_github("4xel-C/VarClustering", 
+devtools::install_github("4xel-C/SISE_var_clustering", 
                          ref = "dev")
 ```
 
