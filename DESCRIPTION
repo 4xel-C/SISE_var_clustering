@@ -16,6 +16,7 @@ Imports:
     FactoMineR,
     htmltools,
     R6,
+    readr,
     shiny
 Suggests: 
     knitr,

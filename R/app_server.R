@@ -380,18 +380,14 @@ app_server <- function(input, output, session) {
   # DATA LOADING
   # ===========================================================
 
+
   # Load the data from the selected file.
   data_loaded <- shiny::reactive({
-
     req(input$file_input)
-
     file_path <- input$file_input$datapath
     file_ext <- tools::file_ext(input$file_input$name)
-
     shiny::withProgress(message = 'Loading data...', value = 0.5, {
-
       tryCatch({
-
         if (file_ext %in% c("xlsx", "xls")) {
           # Excel
           data <- readxl::read_excel(
@@ -400,32 +396,28 @@ app_server <- function(input, output, session) {
             col_names = input$header
           )
         } else if (file_ext == "csv") {
-          # CSV
-          data <- read.csv(
+          # CSV with automatic detection using readr
+          data <- readr::read_delim(
             file_path,
-            header = input$header,
-            stringsAsFactors = FALSE
+            delim = NULL,  # automatic detection
+            col_names = input$header,
+            show_col_types = FALSE
           )
         } else {
           stop("Unsupported file format")
         }
-
         # Convert into dataframe
         data <- as.data.frame(data)
-
-        # Detect the column to convert into factor automaticly
+        # Detect the column to convert into factor automatically
         for (col in names(data)) {
           if (is.character(data[[col]]) ||
               (is.numeric(data[[col]]) && length(unique(data[[col]])) <= 2)) {
             data[[col]] <- as.factor(data[[col]])
           }
         }
-
         rv$data <- data
         rv$clustering_done <- FALSE
-
         return(data)
-
       }, error = function(e) {
         shiny::showNotification(
           paste("Error loading file:", e$message),
