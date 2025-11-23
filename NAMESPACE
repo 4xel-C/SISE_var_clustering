@@ -7,6 +7,7 @@ S3method(summary,HClustVar)
 S3method(summary,KmeansVariables)
 S3method(summary,ModCluster)
 export(HClustVar)
-export(KmeansVariables)
 export(ModCluster)
+export(KmeansVariables)
 export(varclust_gui)
+

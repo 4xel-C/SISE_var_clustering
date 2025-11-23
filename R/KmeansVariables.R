@@ -1224,4 +1224,25 @@ KmeansVariables <- R6::R6Class(
   )
 )
 
+# Print and summary overload
 
+#' @title Print Method for KmeansVariables
+#' @description Print a summary of the KmeansVariables object
+#' @param x A KmeansVariables object
+#' @param ... Additional arguments (ignored)
+#' @return Invisibly returns the object
+#' @export
+print.KmeansVariables <- function(x, ...) {
+  x$print()
+  invisible(x)
+}
+
+#' @title Summary Method for KmeansVariables
+#' @description Get detailed clustering statistics
+#' @param object A KmeansVariables object
+#' @param ... Additional arguments (ignored)
+#' @return A list containing cluster summary and member details
+#' @export
+summary.KmeansVariables <- function(object, ...) {
+  object$summary()
+}
