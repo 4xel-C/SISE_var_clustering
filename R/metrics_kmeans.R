@@ -597,11 +597,60 @@ kmeans_between_within_ratio <- function(data, clusters, centroids, distance_metr
 }
 
 
+#' Find Knee/Elbow Point in a Curve
+#'
+#' @description
+#' Finds the elbow point in a curve using the maximum perpendicular distance method.
+#' Draws a line from first to last point and finds the point with maximum distance to this line.
+#'
+#' @param x Numeric vector of x values (e.g., k values)
+#' @param y Numeric vector of y values (e.g., metric values)
+#' @param direction Character. Direction of the elbow: "decreasing" for metrics that decrease
+#'        with K (like inertia), "increasing" for metrics that increase (like silhouette).
+#'        Default: "decreasing".
+#'
+#' @return Integer index of the knee point in the input vectors
+#'
+#' @noRd
+find_knee_point <- function(x, y, direction = "decreasing") {
+  n <- length(x)
+  if (n < 3) return(1)
+
+  # Normalize x and y to [0, 1] for fair distance calculation
+  x_norm <- (x - min(x)) / (max(x) - min(x))
+  y_norm <- (y - min(y)) / (max(y) - min(y))
+
+  # Line from first to last point: ax + by + c = 0
+  # Points: (x_norm[1], y_norm[1]) and (x_norm[n], y_norm[n])
+  a <- y_norm[n] - y_norm[1]
+  b <- x_norm[1] - x_norm[n]
+  c <- x_norm[n] * y_norm[1] - x_norm[1] * y_norm[n]
+
+  # Calculate perpendicular distance from each point to the line
+  distances <- abs(a * x_norm + b * y_norm + c) / sqrt(a^2 + b^2)
+
+  # For increasing curves, we want the point above the line with max distance
+  # For decreasing curves, we want the point below the line with max distance
+  if (direction == "increasing") {
+    # For increasing metrics, the elbow is where curve is above the line
+    above_line <- (a * x_norm + b * y_norm + c) > 0
+    distances[!above_line] <- 0
+  } else {
+    # For decreasing metrics, the elbow is where curve is below the line
+    below_line <- (a * x_norm + b * y_norm + c) < 0
+    distances[!below_line] <- 0
+  }
+
+  knee_idx <- which.max(distances)
+  return(knee_idx)
+}
+
+
 #' Find Optimal Number of Clusters
 #'
 #' @description
-#' Automatically determines the optimal K using multiple criteria.
-#' Combines Elbow, Silhouette, and Calinski-Harabasz methods.
+#' Automatically determines the optimal K using the elbow/knee detection method.
+#' Uses perpendicular distance to find where marginal gains diminish.
 #'
 #' @param data data.frame or matrix of quantitative variables
 #' @param k_range Integer vector of K values to test. Default: 2:10.
@@ -646,22 +695,30 @@ kmeans_find_optimal_k <- function(data, k_range = 2:10, method = "all",
   metrics <- merge(elbow_data, sil_data, by = "k")
   metrics <- merge(metrics, ch_data, by = "k")
 
-  # Determine optimal K
+  # Determine optimal K using knee point detection
   if (method == "silhouette") {
-    optimal_k <- metrics$k[which.max(metrics$avg_silhouette)]
+    # Silhouette increases then decreases - find the knee where gains diminish
+    knee_idx <- find_knee_point(metrics$k, metrics$avg_silhouette, direction = "increasing")
+    optimal_k <- metrics$k[knee_idx]
   } else if (method == "calinski") {
-    optimal_k <- metrics$k[which.max(metrics$ch_index)]
+    # Calinski-Harabasz increases then decreases - find the knee
+    knee_idx <- find_knee_point(metrics$k, metrics$ch_index, direction = "increasing")
+    optimal_k <- metrics$k[knee_idx]
   } else {
-    # Combine both methods (majority vote)
-    k_sil <- metrics$k[which.max(metrics$avg_silhouette)]
-    k_ch <- metrics$k[which.max(metrics$ch_index)]
+    # Combine silhouette and calinski methods
+    knee_sil <- find_knee_point(metrics$k, metrics$avg_silhouette, direction = "increasing")
+    knee_ch <- find_knee_point(metrics$k, metrics$ch_index, direction = "increasing")
+
+    k_sil <- metrics$k[knee_sil]
+    k_ch <- metrics$k[knee_ch]
 
     if (k_sil == k_ch) {
       optimal_k <- k_sil
     } else {
       # If disagreement, prefer silhouette
       optimal_k <- k_sil
-      message("Methods disagree. Using silhouette criterion.")
+      message("Methods disagree (silhouette: ", k_sil, ", calinski: ", k_ch,
+              "). Using silhouette criterion.")
     }
   }
 
