@@ -228,7 +228,7 @@ kmeans_silhouette <- function(data, clusters, centroids, distance_metric = "r_sq
 #' }
 #'
 #' @noRd
-kmeans_silhouette_range <- function(data, k_range = 2:10, n_init = 10,
+kmeans_silhouette_range <- function(data, k_range = 2:10, n_init = 3,
                                     random_state = NULL, max_iter = 100,
                                     tol = 1e-4, distance_metric = "r_squared") {
 
@@ -378,7 +378,7 @@ kmeans_calinski_harabasz <- function(data, clusters, centroids, distance_metric 
 #' }
 #'
 #' @noRd
-kmeans_calinski_harabasz_range <- function(data, k_range = 2:10, n_init = 1,
+kmeans_calinski_harabasz_range <- function(data, k_range = 2:10, n_init = 3,
                                            random_state = NULL, max_iter = 100,
                                            tol = 1e-4, distance_metric = "r_squared") {
 
@@ -676,7 +676,7 @@ find_knee_point <- function(x, y, direction = "decreasing") {
 #'
 #' @noRd
 kmeans_find_optimal_k <- function(data, k_range = 2:10, method = "all",
-                                  n_init = 1, random_state = NULL,
+                                  n_init = 3, random_state = NULL,
                                   distance_metric = "r_squared") {
 
   if (!method %in% c("silhouette", "calinski", "all")) {
