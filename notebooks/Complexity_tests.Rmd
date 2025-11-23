@@ -7,12 +7,15 @@ output: html_document
 
 This notebook purpose is to test the complexity of the algorithms developped in this package.
 All algorithm will be tested with incremental size datasets (both rows and columns).
+All parameters were set up to their default values.
+Compexity evaluated on the `$fit()` method only.
 
 ## Load data
 ```{r}
 data(autos)
 data(vote)
 library(ggplot2)
+library(dplyr)
 ```
 
 
@@ -133,12 +136,19 @@ for (i in seq(7)) {
   results <- rbind(results, result1, result2)
 }
 ```
+
 ```{r}
 # Save the data file
 write.csv(results, file="complexity.csv")
 ```
 
 ## Plotting graph : Complexity in rows
+
+```{r}
+# Read the file if needed
+results <- read.csv("complexity.csv")
+```
+
 
 ```{r}
 
@@ -151,21 +161,45 @@ plot_time <- function(algorithm, type, growth) {
   geom_point() +
   geom_line() +
   labs(
-    title = paste("complexity for", algorithm, "on", type),
+    title = paste("complexity for", algorithm, "on", type, ":", growth, "complexity"),
     x = paste(growth, "size"),
     y = "Fit time (s)"
   )
   
 }
 
-plot_time("HClustVar", "quantitative", "rows")
+for (method in c("HClustVar", "KMeans", "ModClust")) {
+  for (type in c("quantitative", "qualitative")) {
+    
+    if (!(type %in% results$type[results$algorithm == method])) next
+    
+    for (growth in c("rows", "cols")) {
+      print(plot_time(method, type, growth))
+    }
+  }
+}
 
 ```
+```{r}
+grouped_results <- results %>%
+  mutate(size = if_else(growth == "rows", n_observations, n_variables)) %>%
+  group_by(algorithm, type, growth) %>%
+  summarise(
+    size = max(size, na.rm = TRUE),
+    fit_time = max(fit_time, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(fit_time = round(fit_time, 3))
 
+grouped_results
+```
+## Conclusion
 
+**Row growth**: Unsurprisingly, increasing the number of rows has minimal impact on performance (linear complexity for all algorithms). Since our algorithms cluster variables (columns), adding more rows has negligible effect.
 
+**Column growth**: HClust-based algorithms (HClustVar and ModClust) exhibit quadratic complexity. ModClust is twice as efficient as HClustVar because the latter also computes Cramér's V (which itself has quadratic complexity). For qualitative variables, processing time increases significantly with the number of columns, as the distance matrix (on which all calculations are based) grows accordingly.
 
-
+**Comparison with KMeans**: The comparison with KMeans on quantitative variables is insightful. On medium-sized datasets, HClust computes faster than KMeans. However, KMeans shows linear complexity, suggesting a higher computational overhead (due to its stochastic process with multiple initializations and iterations). On larger datasets, HClustVar may become overwhelmed, whereas KMeans should still handle bigger datasets in reasonable time.
 
 
 

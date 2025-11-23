@@ -570,7 +570,7 @@ KmeansVariables <- R6::R6Class(
     #
     # @return A new instance of `KmeansVariables`.
     initialize = function(n_clusters = 3, max_iter = 100, tol = 1e-4,
-                          n_init = 10, random_state = NULL,
+                          n_init = 3, random_state = NULL,
                           k_range = 2:10, selection_method = "silhouette",
                           distance_metric = "r_squared") {
 
