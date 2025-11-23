@@ -216,7 +216,8 @@ Journal of Statistical Software, 50(13), 1-16.
 \code{\link[stats]{cor}} for correlation calculations
 
 Other clustering classes: 
-\code{\link{HClustVar}}
+\code{\link{HClustVar}},
+\code{\link{ModCluster}}
 }
 \concept{clustering classes}
 \section{Super class}{

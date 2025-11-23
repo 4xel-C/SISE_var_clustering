@@ -129,14 +129,7 @@
 #' centers <- model$cluster_centers  # Cluster profiles
 #' }
 #'
-#' @seealso
-#' \code{\link[FactoMineR]{MCA}} for Multiple Correspondence Analysis,
-#' \code{\link[stats]{hclust}} for hierarchical clustering,
-#' \code{\link[stats]{dist}} for distance computation
-#'
-#'
-#' @name ModCluster
-#' @aliases modality_clustering dice_clustering categorical_clustering
+#' @family clustering classes
 #' @export
 ModCluster <- R6::R6Class(
   "ModCluster",
@@ -160,8 +153,9 @@ ModCluster <- R6::R6Class(
     .modality_coords = NULL,
     .variable_info = NULL,
 
+    #' @description
     #' Build the complete disjunctive matrix with unique modality names
-    #' @description Internal method to create indicator matrix from categorical data
+    #' Internal method to create indicator matrix from categorical data
     #' @return Matrix with binary indicators for each modality
     create_disjunctive_matrix = function() {
       if (length(private$.quali_indices) == 0) {
@@ -201,8 +195,9 @@ ModCluster <- R6::R6Class(
       return(disj_matrix)
     },
 
+    #' @description
     #' Compute Dice distances between all modalities
-    #' @description Internal method to calculate pairwise Dice distances
+    #' Internal method to calculate pairwise Dice distances
     #' @return NULL (stores result in private$.dice_matrix)
     compute_dice_distances = function() {
       disj <- private$.disjunctive_matrix
@@ -238,8 +233,9 @@ ModCluster <- R6::R6Class(
       return(invisible(NULL))
     },
 
+    #' @description
     #' Compute MCA for visualization
-    #' @description Internal method to perform Multiple Correspondence Analysis
+    #' Internal method to perform Multiple Correspondence Analysis
     #' @return NULL (stores result in private$.mca_result)
     compute_mca_for_visualization = function() {
       data_quali <- self$get_quali_data()
@@ -287,8 +283,9 @@ ModCluster <- R6::R6Class(
       return(invisible(NULL))
     },
 
+    #' @description
     #' Apply hierarchical clustering
-    #' @description Internal method to perform hierarchical clustering on Dice distances
+    #' Internal method to perform hierarchical clustering on Dice distances
     #' @return NULL (stores result in private$.clustering_object)
     apply_clustering = function() {
       if (is.null(private$.modality_dist)) {
@@ -313,8 +310,9 @@ ModCluster <- R6::R6Class(
 
 
 
+    #' @description
     #' Create disjunctive matrix for new data
-    #' @description Internal method to create indicator matrix for prediction
+    #' Internal method to create indicator matrix for prediction
     #' @param new_data Data frame with same variables as training data
     #' @return Matrix with binary indicators
     create_new_disjunctive = function(new_data) {
@@ -357,8 +355,9 @@ ModCluster <- R6::R6Class(
       return(disj_new)
     },
 
+    #' @description
     #' Compute Dice distance to modalities
-    #' @description Internal method to calculate distances from new profile to existing modalities
+    #' Internal method to calculate distances from new profile to existing modalities
     #' @param new_profile Binary vector representing a new observation
     #' @return Named vector of distances
     compute_dice_to_modalities = function(new_profile) {
@@ -458,6 +457,7 @@ ModCluster <- R6::R6Class(
   ),
 
   public = list(
+
     #' @description
     #' Initialize a new ModCluster object
     #' @param n_clusters Integer, target number of clusters (default: NULL)
@@ -1300,6 +1300,7 @@ ModCluster <- R6::R6Class(
   )
 )
 
+
 #' @title Print Method for ModCluster
 #' @description Print a summary of the ModCluster object
 #' @param x A ModCluster object
@@ -1310,6 +1311,7 @@ print.ModCluster <- function(x, ...) {
   x$print()
   invisible(x)
 }
+
 
 #' @title Summary Method for ModCluster
 #' @description Get detailed clustering statistics

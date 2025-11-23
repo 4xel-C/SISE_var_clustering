@@ -19,3 +19,5 @@ results/
 test.Rmd
 test.nb.html
 test.knit.md
+/doc/
+/Meta/

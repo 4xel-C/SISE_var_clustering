@@ -89,11 +89,11 @@ This package is currently available on GitHub and can be installed using `devtoo
 ```r
 # Option 1: Using devtools
 if (!require("devtools")) install.packages("devtools")
-devtools::install_github("4xel-C/VarClustering")
+devtools::install_github("4xel-C/SISE_var_clustering")
 
 # Option 2: Using remotes (lighter dependency)
 if (!require("remotes")) install.packages("remotes")
-remotes::install_github("4xel-C/VarClustering")
+remotes::install_github("4xel-C/SISE_var_clustering")
 ```
 
 ### Install with Vignettes
@@ -101,7 +101,7 @@ remotes::install_github("4xel-C/VarClustering")
 To build and install the package with vignettes (recommended for learning):
 
 ```r
-devtools::install_github("4xel-C/VarClustering", 
+devtools::install_github("4xel-C/SISE_var_clustering", 
                          build_vignettes = TRUE,
                          dependencies = TRUE)
 ```
@@ -111,7 +111,7 @@ devtools::install_github("4xel-C/VarClustering",
 For the latest development features:
 
 ```r
-devtools::install_github("4xel-C/VarClustering", 
+devtools::install_github("4xel-C/SISE_var_clustering", 
                          ref = "dev")
 ```
 
@@ -208,7 +208,7 @@ hc$mds_projection()
 - **Distance metrics**:
   - `"r_squared"` - Groups variables with high |correlation| (default)
   - `"r_signed"` - Groups only positively correlated variables
-- **Automatic K selection**: `n_clusters = "auto"` (via silhouette/Calinski-Harabasz)
+- **Automatic K selection**: `n_clusters = "auto"` (via silhouette/Calinski-Harabasz). ⚠️ Compute time can be long because of the numerous iterations needed for this method!
 - **Multiple initializations**: `n_init = 10` (avoids local minima)
 - **Variable types**: Quantitative only
 
@@ -225,7 +225,7 @@ hc$mds_projection()
 library(VarClustering)
 
 # Load sample data
-data(players)
+data(autos)
 
 # Option 1: Manual K selection
 km <- KmeansVariables$new(
@@ -233,7 +233,7 @@ km <- KmeansVariables$new(
   n_init = 2,
   random_state = 42
 )
-km$fit(players)
+km$fit(autos)
 
 # Option 2: Automatic K selection
 km_auto <- KmeansVariables$new(
@@ -241,7 +241,7 @@ km_auto <- KmeansVariables$new(
   k_range = 2:10,
   selection_method = "silhouette"
 )
-km_auto$fit(players)
+km_auto$fit(autos)
 
 # Analyze results
 km$summary(print_summary = TRUE)
@@ -412,6 +412,8 @@ VarClustering/
 │   └── Variable_clustering.Rmd
 ├── tests/                 # Unit tests
 │   └── testthat/
+├── notebooks/             # Notebooks of complexity testing  
+├── doc                    # Vignette and application guide
 ├── DESCRIPTION           # Package metadata
 ├── NAMESPACE            # Exports (auto-generated)
 └── README.md           # This file

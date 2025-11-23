@@ -278,15 +278,15 @@ The `KmeansVariables` class implements K-means clustering of variables using PCA
 ### Loading and Exploring
 
 ```{r kmeans-load}
-# Load players dataset
-data(players)
+# Load autos dataset
+data(autos)
 
 # Display structure
-cat("Dimensions:", dim(players), "\n")
-cat("Variables:", paste(head(names(players), 10), collapse = ", "), "...\n")
+cat("Dimensions:", dim(autos), "\n")
+cat("Variables:", paste(head(names(autos), 10), collapse = ", "), "...\n")
 
 # Summary
-summary(players[, 1:6])
+summary(autos[, 1:6])
 ```
 
 ### Fitting the Model
@@ -301,7 +301,7 @@ km <- KmeansVariables$new(
 )
 
 # Fit
-km$fit(players)
+km$fit(autos)
 
 # Print
 print(km)
@@ -325,9 +325,10 @@ cat("Total inertia:", round(km$inertia, 4), "\n")
 ## 2.3 Visualizations
 
 ### Elbow Plot
+Elbow plot require a lot of computation time because of all the iterations needed to compute the graph. this method should be avoided on dataset containing a lot of columns.
 
 ```{r kmeans-elbow}
-km$plot_elbow(k_range = 2:10)
+km$plot_elbow()
 ```
 
 ### Variable Projection
@@ -372,39 +373,6 @@ round(results_km$centroids_correlations, 3)
 
 ---
 
-## 2.5 Advanced Features
-
-### Automatic K Selection
-
-```{r kmeans-auto}
-# Automatic selection using silhouette
-km_auto <- KmeansVariables$new(
-  n_clusters = "auto",
-  k_range = 2:10,
-  selection_method = "silhouette",
-  random_state = 42
-)
-
-km_auto$fit(players)
-cat("Optimal K:", km_auto$n_clusters, "\n")
-```
-
-### Prediction
-
-```{r kmeans-predict}
-# Create test variables
-set.seed(123)
-test_vars <- data.frame(
-  test_pace = players$pace + rnorm(nrow(players), 0, 3),
-  test_defending = players$defending + rnorm(nrow(players), 0, 3)
-)
-
-# Predict
-km$predict(test_vars)
-```
-
----
-
 # Part 3: Modality Clustering (ModCluster)
 
 ## 3.1 Introduction
@@ -420,7 +388,7 @@ The `ModCluster` class implements hierarchical clustering of modalities (categor
 
 ### Dice Distance Formula
 
-$$D(j, j') = \sqrt{\frac{1}{2} \sum_{i=1}^{n} (x_{ij}(1-x_{ij'}) + (1-x_{ij})x_{ij'})}$$
+$$D(j, j') = \frac{1}{2} \sum_{i=1}^{n} (x_{ij} - x_{ij'})^2$$
 
 ### Key Features
 
@@ -603,9 +571,17 @@ Choose the appropriate method based on your data type and analysis goals.
 
 # References
 
-- Vigneau, E., & Qannari, E. M. (2003). Clustering of variables around latent components. *Communications in Statistics - Simulation and Computation*, 32(4), 1131-1150.
-- Chavent, M., et al. (2012). ClustOfVar: An R Package for the Clustering of Variables. *Journal of Statistical Software*, 50(13).
-- Ward, J. H. (1963). Hierarchical grouping to optimize an objective function. *Journal of the American Statistical Association*, 58(301), 236-244.
+- Rakotomalala, R. (2022). Clustering de variables. Support de cours, Université Lyon 2. https://eric.univ-lyon2.fr/ricco/cours/slides/classification_de_variables.pdf
+
+- Rakotomalala, R. (2008). Classification de variables. Tutoriels Tanagra pour le Data Mining. http://tutoriels-data-mining.blogspot.com/2008/03/classification-de-variables.html
+
+- Vigneau, E., & Qannari, E. M. (2003). Clustering of variables around latent components. Communications in Statistics-Simulation and Computation, 32(4), 1131-1150. https://doi.org/10.1081/SAC-120023882
+
+- Chavent, M., Kuentz-Simonet, V., Labenne, A., & Saracco, J. (2012). ClustOfVar: An R package for the clustering of variables. Journal of Statistical Software, 50(13), 1-16. https://doi.org/10.18637/jss.v050.i13
+
+- Ward, J. H. (1963). Hierarchical grouping to optimize an objective function. Journal of the American Statistical Association, 58(301), 236-244.
+
+- Lebart, L., Morineau, A., & Piron, M. (2006). Statistique exploratoire multidimensionnelle : Visualisation et inférences en fouille de données (4e éd.). Dunod.
 
 ---
 
