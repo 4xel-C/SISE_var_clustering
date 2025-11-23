@@ -34,7 +34,7 @@ This vignette provides a comprehensive guide to the **VarClustering** package, w
 
 1. **HClustVar** - Hierarchical clustering of variables (quantitative, qualitative, or mixed)
 2. **KmeansVariables** - K-means clustering of quantitative variables using PCA centroids
-3. **ModClust** - Modality-based clustering using Dice distance for categorical data
+3. **ModCluster** - Modality-based clustering using Dice distance for categorical data
 
 ## Package Overview
 
@@ -42,7 +42,7 @@ This vignette provides a comprehensive guide to the **VarClustering** package, w
 |-----------|-----------|---------------------|--------|
 | HClustVar | Quantitative / Qualitative / Mixed | R, R², Cramer's V | Variable clusters |
 | KmeansVariables | Quantitative only | R, R² | Variable clusters |
-| ModClust | Categorical only | Dice distance | Modality clusters |
+| ModCluster | Categorical only | Dice distance | Modality clusters |
 
 ## Loading the Package
 
@@ -405,11 +405,11 @@ km$predict(test_vars)
 
 ---
 
-# Part 3: Modality Clustering (ModClust)
+# Part 3: Modality Clustering (ModCluster)
 
 ## 3.1 Introduction
 
-The `ModClust` class implements hierarchical clustering of modalities (categories) using the Dice distance coefficient. It clusters the categories of categorical variables rather than the variables themselves.
+The `ModCluster` class implements hierarchical clustering of modalities (categories) using the Dice distance coefficient. It clusters the categories of categorical variables rather than the variables themselves.
 
 ### Algorithm Overview
 
@@ -463,12 +463,11 @@ cat("Test:", nrow(vote_test), "observations\n")
 ### Fitting the Model
 
 ```{r modclust-fit}
-# Initialize ModClust
+# Initialize ModCluster
 mc <- ModCluster$new(
-  n_clusters = NULL,
   method = "hclust",
-  n_dimensions = 5,
-  hclust_method = "ward.D2"
+  n_dimensions = 2,
+  hclust_method = "average"
 )
 
 # Fit
@@ -491,7 +490,7 @@ mc$plot_heights()
 ### Cutting the Tree
 
 ```{r modclust-cut}
-mc$cut_tree(k = 4)
+mc$cut_tree(3)
 print(mc)
 ```
 
@@ -502,19 +501,13 @@ print(mc)
 ### Dendrogram
 
 ```{r modclust-dendro}
-mc$plot_dendrogram(k = 4, color_branches = TRUE)
+mc$plot_dendrogram()
 ```
 
 ### MCA Projection
 
 ```{r modclust-mca}
-mc$plot_mca(axes = c(1, 2), show_labels = TRUE, label_cex = 0.7)
-```
-
-### Silhouette
-
-```{r modclust-silhouette}
-mc$plot_silhouette()
+mc$plot_mca()
 ```
 
 ---
@@ -524,46 +517,7 @@ mc$plot_silhouette()
 ### Summary
 
 ```{r modclust-summary}
-results_mc <- mc$summary()
-
-# Cluster summary
-results_mc$clust_summary
-```
-
-### Cluster Members
-
-```{r modclust-members}
-results_mc$clust_members
-```
-
-### Cluster Table
-
-```{r modclust-table}
-cluster_table <- mc$get_cluster_table()
-cluster_table
-```
-
----
-
-## 3.6 Prediction
-
-### Predicting New Observations
-
-```{r modclust-predict}
-# Predict clusters
-predictions <- mc$predict(vote_test)
-head(predictions, 10)
-```
-
-### Visualizing with New Observations
-
-```{r modclust-plot-new}
-mc$plot_mca_with_new(
-  new_data = vote_test,
-  axes = c(1, 2),
-  show_labels = TRUE,
-  label_cex = 0.6
-)
+summary(mc)
 ```
 
 ---
@@ -572,7 +526,7 @@ mc$plot_mca_with_new(
 
 ## Overview
 
-| Feature | HClustVar | KmeansVariables | ModClust |
+| Feature | HClustVar | KmeansVariables | ModCluster |
 |---------|-----------|-----------------|----------|
 | **Clusters** | Variables | Variables | Modalities |
 | **Data types** | Quant / Qual / Mixed | Quantitative only | Categorical only |
@@ -593,7 +547,7 @@ mc$plot_mca_with_new(
 - **Pros**: Fast, multiple initializations, automatic K selection
 - **Cons**: Quantitative only, sensitive to initialization
 
-### ModClust
+### ModCluster
 - **Best for**: Understanding categorical data patterns
 - **Pros**: Specialized for categories, MCA visualization
 - **Cons**: Categorical only, many modalities can be hard to interpret
@@ -606,7 +560,7 @@ mc$plot_mca_with_new(
 
 - **HClustVar**: Convert characters to factors for qualitative
 - **KmeansVariables**: Ensure all numeric, remove constant variables
-- **ModClust**: All variables must be factors
+- **ModCluster**: All variables must be factors
 
 ## 2. Choosing K
 
@@ -636,7 +590,7 @@ This vignette demonstrated the three clustering methods in the VarClustering pac
 
 1. **HClustVar**: Hierarchical variable clustering for quantitative, qualitative, or mixed data
 2. **KmeansVariables**: K-means variable clustering with PCA centroids for quantitative data
-3. **ModClust**: Modality clustering with Dice distance for categorical data
+3. **ModCluster**: Modality clustering with Dice distance for categorical data
 
 Each method provides:
 - Cluster quality assessment (silhouette, variance explained)
