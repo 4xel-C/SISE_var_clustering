@@ -142,14 +142,20 @@ kmeans_silhouette <- function(data, clusters, centroids, distance_metric = "r_sq
     stop("'distance_metric' must be either 'r_squared' or 'r_signed'")
   }
 
-  # Compute correlation matrix
-  cor_matrix <- cor(X, centroids)
+  # Compute distance matrix between all variables and all centroids
+  dist_matrix <- matrix(0, nrow = p, ncol = K)
 
-  # Compute distance matrix based on distance_metric
-  if (distance_metric == "r_squared") {
-    dist_matrix <- sqrt(1 - cor_matrix^2)
-  } else {
-    dist_matrix <- sqrt(1 - cor_matrix)
+  for (j in 1:p) {
+    for (k in 1:K) {
+      cor_val <- cor(X[, j], centroids[, k])
+
+      # Calculate distance based on distance_metric
+      if (distance_metric == "r_squared") {
+        dist_matrix[j, k] <- sqrt(1 - cor_val^2)
+      } else {
+        dist_matrix[j, k] <- sqrt(1 - cor_val)
+      }
+    }
   }
 
   silhouettes <- numeric(p)
@@ -499,18 +505,20 @@ kmeans_contributions <- function(data, clusters, centroids) {
   X <- as.matrix(data)
   p <- ncol(X)
 
-  # Compute all correlations at once
-  cor_matrix <- cor(X, centroids)
-
-  # Extract correlation with own cluster for each variable
-  correlations <- sapply(1:p, function(j) cor_matrix[j, clusters[j]])
-
   contributions <- data.frame(
     variable = colnames(X),
     cluster = clusters,
-    contribution = correlations^2,
-    correlation = correlations
+    contribution = numeric(p),
+    correlation = numeric(p)
   )
+
+  for (j in 1:p) {
+    k <- clusters[j]
+    cor_val <- cor(X[, j], centroids[, k])
+    contributions$correlation[j] <- cor_val
+    # Contribution = R² = squared correlation = cos² (angle with PC1)
+    contributions$contribution[j] <- cor_val^2
+  }
 
   return(contributions)
 }
@@ -589,11 +597,60 @@ kmeans_between_within_ratio <- function(data, clusters, centroids, distance_metr
 }
 
 
+#' Find Knee/Elbow Point in a Curve
+#'
+#' @description
+#' Finds the elbow point in a curve using the maximum perpendicular distance method.
+#' Draws a line from first to last point and finds the point with maximum distance to this line.
+#'
+#' @param x Numeric vector of x values (e.g., k values)
+#' @param y Numeric vector of y values (e.g., metric values)
+#' @param direction Character. Direction of the elbow: "decreasing" for metrics that decrease
+#'        with K (like inertia), "increasing" for metrics that increase (like silhouette).
+#'        Default: "decreasing".
+#'
+#' @return Integer index of the knee point in the input vectors
+#'
+#' @noRd
+find_knee_point <- function(x, y, direction = "decreasing") {
+  n <- length(x)
+  if (n < 3) return(1)
+
+  # Normalize x and y to [0, 1] for fair distance calculation
+  x_norm <- (x - min(x)) / (max(x) - min(x))
+  y_norm <- (y - min(y)) / (max(y) - min(y))
+
+  # Line from first to last point: ax + by + c = 0
+  # Points: (x_norm[1], y_norm[1]) and (x_norm[n], y_norm[n])
+  a <- y_norm[n] - y_norm[1]
+  b <- x_norm[1] - x_norm[n]
+  c <- x_norm[n] * y_norm[1] - x_norm[1] * y_norm[n]
+
+  # Calculate perpendicular distance from each point to the line
+  distances <- abs(a * x_norm + b * y_norm + c) / sqrt(a^2 + b^2)
+
+  # For increasing curves, we want the point above the line with max distance
+  # For decreasing curves, we want the point below the line with max distance
+  if (direction == "increasing") {
+    # For increasing metrics, the elbow is where curve is above the line
+    above_line <- (a * x_norm + b * y_norm + c) > 0
+    distances[!above_line] <- 0
+  } else {
+    # For decreasing metrics, the elbow is where curve is below the line
+    below_line <- (a * x_norm + b * y_norm + c) < 0
+    distances[!below_line] <- 0
+  }
+
+  knee_idx <- which.max(distances)
+  return(knee_idx)
+}
+
+
 #' Find Optimal Number of Clusters
 #'
 #' @description
-#' Automatically determines the optimal K using multiple criteria.
-#' Combines Elbow, Silhouette, and Calinski-Harabasz methods.
+#' Automatically determines the optimal K using the elbow/knee detection method.
+#' Uses perpendicular distance to find where marginal gains diminish.
 #'
 #' @param data data.frame or matrix of quantitative variables
 #' @param k_range Integer vector of K values to test. Default: 2:10.
@@ -626,83 +683,48 @@ kmeans_find_optimal_k <- function(data, k_range = 2:10, method = "all",
     stop("'method' must be 'silhouette', 'calinski', or 'all'")
   }
 
-  X <- as.matrix(data)
-  p <- ncol(X)
+  # Compute metrics with specified distance_metric
+  elbow_data <- kmeans_elbow(data, k_range, n_init, random_state,
+                            distance_metric = distance_metric)
+  sil_data <- kmeans_silhouette_range(data, k_range, n_init, random_state,
+                                      distance_metric = distance_metric)
+  ch_data <- kmeans_calinski_harabasz_range(data, k_range, n_init, random_state,
+                                            distance_metric = distance_metric)
 
-  # Initialize results storage
-  results <- data.frame(
-    k = integer(),
-    inertia = numeric(),
-    inertia_pct = numeric(),
-    avg_silhouette = numeric(),
-    min_silhouette = numeric(),
-    max_silhouette = numeric(),
-    ch_index = numeric()
-  )
+  # Merge results
+  metrics <- merge(elbow_data, sil_data, by = "k")
+  metrics <- merge(metrics, ch_data, by = "k")
 
-  # Single loop: fit K-means once per K and compute all metrics
-  for (k in k_range) {
-    # Skip K=1 for CH index
-    if (k == 1) next
-
-    # Fit K-means once
-    km <- KmeansVariables$new(
-      n_clusters = k,
-      max_iter = 50,
-      tol = 1e-3,
-      n_init = n_init,
-      random_state = random_state,
-      distance_metric = distance_metric
-    )
-    km$fit(data)
-
-    # Compute all metrics from this single fit
-    inertia <- km$inertia
-    inertia_pct <- (1 - inertia / p) * 100
-
-    # Silhouette
-    sil <- kmeans_silhouette(data, km$clusters, km$centroids, distance_metric)
-    avg_sil <- mean(sil$silhouette)
-    min_sil <- min(sil$silhouette)
-    max_sil <- max(sil$silhouette)
-
-    # Calinski-Harabasz
-    ch <- kmeans_calinski_harabasz(data, km$clusters, km$centroids, distance_metric)
-
-    # Store results
-    results <- rbind(results, data.frame(
-      k = k,
-      inertia = inertia,
-      inertia_pct = inertia_pct,
-      avg_silhouette = avg_sil,
-      min_silhouette = min_sil,
-      max_silhouette = max_sil,
-      ch_index = ch
-    ))
-  }
-
-  # Determine optimal K
+  # Determine optimal K using knee point detection
   if (method == "silhouette") {
-    optimal_k <- results$k[which.max(results$avg_silhouette)]
+    # Silhouette increases then decreases - find the knee where gains diminish
+    knee_idx <- find_knee_point(metrics$k, metrics$avg_silhouette, direction = "increasing")
+    optimal_k <- metrics$k[knee_idx]
   } else if (method == "calinski") {
-    optimal_k <- results$k[which.max(results$ch_index)]
+    # Calinski-Harabasz increases then decreases - find the knee
+    knee_idx <- find_knee_point(metrics$k, metrics$ch_index, direction = "increasing")
+    optimal_k <- metrics$k[knee_idx]
   } else {
-    # Combine both methods (majority vote)
-    k_sil <- results$k[which.max(results$avg_silhouette)]
-    k_ch <- results$k[which.max(results$ch_index)]
+    # Combine silhouette and calinski methods
+    knee_sil <- find_knee_point(metrics$k, metrics$avg_silhouette, direction = "increasing")
+    knee_ch <- find_knee_point(metrics$k, metrics$ch_index, direction = "increasing")
+
+    k_sil <- metrics$k[knee_sil]
+    k_ch <- metrics$k[knee_ch]
 
     if (k_sil == k_ch) {
       optimal_k <- k_sil
     } else {
       # If disagreement, prefer silhouette
       optimal_k <- k_sil
-      message("Methods disagree. Using silhouette criterion.")
+      message("Methods disagree (silhouette: ", k_sil, ", calinski: ", k_ch,
+              "). Using silhouette criterion.")
     }
   }
 
   return(list(
     optimal_k = optimal_k,
-    metrics = results,
+    metrics = metrics,
     method = method
   ))
 }
@@ -787,9 +809,21 @@ kmeans_correlation_table <- function(data, clusters, centroids, round_digits = 3
   )
 
   # Calculate correlation of each variable with each cluster centroid
-  cor_matrix <- cor(X, centroids)
-  cor_matrix[is.na(cor_matrix)] <- 0
+  cor_matrix <- matrix(NA, nrow = p, ncol = K)
   colnames(cor_matrix) <- paste0("Cluster", 1:K)
+
+  for (j in 1:p) {
+    for (k in 1:K) {
+      cor_val <- suppressWarnings(cor(X[, j], centroids[, k]))
+
+      # Handle NA from zero variance
+      if (is.na(cor_val)) {
+        cor_val <- 0
+      }
+
+      cor_matrix[j, k] <- cor_val
+    }
+  }
 
   # Add correlation columns to result
   result <- cbind(result, round(cor_matrix, round_digits))
