@@ -24,7 +24,6 @@
   - [Hierarchical Clustering (HClustVar)](#1️⃣-hierarchical-clustering-hclustvar)
   - [K-means Variable Clustering (KmeansVariables)](#2️⃣-k-means-variable-clustering-kmeansvariables)
   - [Modality Clustering (ModCluster)](#3️⃣-modality-clustering-modcluster)
-- [Quick Start](#-quick-start)
 - [Interactive Shiny App](#-interactive-shiny-app)
 - [Documentation](#-documentation)
 - [Examples](#-examples)
@@ -71,7 +70,6 @@ The package is ideal for:
 - 🎨 **Silhouette diagrams** (cluster quality)
 - 🗺️ **MDS/PCA projections** (2D variable maps)
 - 📈 **Contribution plots** (key variables per cluster)
-- 🔥 **Heatmaps** (correlation matrices)
 
 ### 🎮 Interactive Interface
 
@@ -133,8 +131,7 @@ install.packages(c(
 # Optional dependencies (recommended)
 install.packages(c(
   "readxl",       # Excel file support
-  "ggplot2",      # Enhanced visualizations
-  "plotly"        # Interactive plots
+  "ggplot2"      # Enhanced visualizations
 ))
 ```
 
@@ -308,56 +305,6 @@ model$plot_mca()
 
 ---
 
-## 🚀 Quick Start
-
-### 30-Second Example
-
-```r
-library(VarClustering)
-
-# Load data
-data(autos)
-
-# Cluster variables
-hc <- HClustVar$new()
-hc$fit(autos)
-hc$cut_tree(k = 3)
-
-# View results
-hc$summary()
-```
-
-### 5-Minute Tutorial
-
-```r
-# 1. Load package and data
-library(VarClustering)
-data(players)  # FIFA player stats
-
-# 2. Hierarchical clustering
-hc <- HClustVar$new(vartype = "quant", dist.metric = "rsquare")
-hc$fit(players)
-hc$plot_dendrogram()
-hc$plot_agg_levels()  # Choose optimal K
-hc$cut_tree(k = 5)
-
-# 3. Analyze clusters
-summary_data <- hc$summary()
-print(summary_data$clust_summary)
-print(summary_data$clust_members)
-
-# 4. Visualize
-hc$plot_silhouette()
-hc$mds_projection()
-
-# 5. Compare with K-means
-km <- KmeansVariables$new(n_clusters = 5)
-km$fit(players)
-km$plot_projection()
-```
-
----
-
 ## 🎮 Interactive Shiny App
 
 Launch the interactive web interface for exploratory analysis:
@@ -368,6 +315,7 @@ library(VarClustering)
 # Launch Shiny app
 varclust_gui()
 ```
+<img width="1430" height="744" alt="Capture d&#39;écran 2025-11-22 174456" src="https://github.com/user-attachments/assets/23d951ba-7b77-4d53-b417-278b8983b0c2" />
 
 ### App Features
 
@@ -387,19 +335,7 @@ Access comprehensive tutorials:
 
 ```r
 # View all available vignettes
-browseVignettes("VarClustering")
-
-# Introduction to variable clustering
-vignette("introduction", package = "VarClustering")
-
-# Hierarchical clustering guide
-vignette("hierarchical-clustering", package = "VarClustering")
-
-# K-means variable clustering
-vignette("kmeans-variables", package = "VarClustering")
-
-# Working with mixed data
-vignette("mixed-data", package = "VarClustering")
+browseVignettes("VarClustering_Package")
 ```
 
 ### Function Help
@@ -443,9 +379,6 @@ devtools::load_all()
 
 # Run tests
 devtools::test()
-
-# Check package (CRAN standards)
-devtools::check()
 
 # Build documentation
 devtools::document()
@@ -500,12 +433,7 @@ devtools::build()
 
 # Build binary package
 devtools::build(binary = TRUE)
-
-# Build and check
-devtools::build()
-R CMD check VarClustering_*.tar.gz
 ```
-
 ---
 
 ## 🤝 Contributing
@@ -562,22 +490,19 @@ copies or substantial portions of the Software.
 
 ## 📖 References
 
-### Scientific Publications
+1. **Rakotomalala, R. (2022).** *Clustering de variables.* Support de cours, Université Lyon 2. https://eric.univ-lyon2.fr/ricco/cours/slides/classification_de_variables.pdf
+  
+2. **Rakotomalala, R. (2008).** *Classification de variables.* Tutoriels Tanagra pour le Data Mining. http://tutoriels-data-mining.blogspot.com/2008/03/classification-de-variables.html
 
-1. **Rakotomalala, R. (2020).** *Clustering de variables.* Support de cours, Université Lyon 2.
-
-2. **Vigneau, E., & Qannari, E. M. (2003).** *Clustering of variables around latent components.* Communications in Statistics-Simulation and Computation, 32(4), 1131-1150.  
+4. **Vigneau, E., & Qannari, E. M. (2003).** *Clustering of variables around latent components.* Communications in Statistics-Simulation and Computation, 32(4), 1131-1150.  
    [DOI: 10.1081/SAC-120023882](https://doi.org/10.1081/SAC-120023882)
 
-3. **Chavent, M., Kuentz-Simonet, V., Labenne, A., & Saracco, J. (2012).** *ClustOfVar: An R Package for the Clustering of Variables.* Journal of Statistical Software, 50(13), 1-16.  
+5. **Chavent, M., Kuentz-Simonet, V., Labenne, A., & Saracco, J. (2012).** *ClustOfVar: An R Package for the Clustering of Variables.* Journal of Statistical Software, 50(13), 1-16.  
    [DOI: 10.18637/jss.v050.i13](https://doi.org/10.18637/jss.v050.i13)
 
-4. **Ward, J. H. (1963).** *Hierarchical Grouping to Optimize an Objective Function.* Journal of the American Statistical Association, 58(301), 236-244.
+6. **Ward, J. H. (1963).** *Hierarchical Grouping to Optimize an Objective Function.* Journal of the American Statistical Association, 58(301), 236-244.
 
-5. **Dice, L. R. (1945).** *Measures of the amount of ecologic association between species.* Ecology, 26(3), 297-302.
-   [DOI: 10.2307/1932409](https://doi.org/10.2307/1932409)
-
-6. **Lebart, L., Morineau, A., & Piron, M. (2006).** *Statistique exploratoire multidimensionnelle : Visualisation et inférences en fouille de données (4e éd.).* Dunod.
+7. **Lebart, L., Morineau, A., & Piron, M. (2006).** *Statistique exploratoire multidimensionnelle : Visualisation et inférences en fouille de données (4e éd.).* Dunod.
 
 
 ---
