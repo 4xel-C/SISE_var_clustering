@@ -2116,23 +2116,3 @@ HClustVar <- R6::R6Class(
   )
 )
 
-#' @title Print Method for HClustVar
-#' @description Print a summary of the HClustVar object
-#' @param x A HClustVar object
-#' @param ... Additional arguments (ignored)
-#' @return Invisibly returns the object
-#' @export
-print.HClustVar <- function(x, ...) {
-  x$print()
-  invisible(x)
-}
-
-#' @title Summary Method for HClustVar
-#' @description Get detailed clustering statistics
-#' @param object A HClustVar object
-#' @param ... Additional arguments (ignored)
-#' @return A list containing cluster summary and member details
-#' @export
-summary.HClustVar <- function(object, ...) {
-  object$summary()
-}

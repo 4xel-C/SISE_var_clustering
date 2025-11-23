@@ -14,7 +14,6 @@ A comprehensive guide to the interactive Shiny application for variable clusteri
    - [Step 3: Set Clustering Parameters](#step-3-set-clustering-parameters)
    - [Step 4: Run Clustering](#step-4-run-clustering)
    - [Step 5: Analyze Results](#step-5-analyze-results)
-   - [Step 6: Export Results](#step-6-export-results)
 4. [Available Algorithms](#available-algorithms)
 5. [Output Tabs](#output-tabs)
 6. [Troubleshooting](#troubleshooting)
@@ -47,7 +46,7 @@ If any package is missing, the app will display an error with installation instr
 
 ## Application Overview
 
-The VarClustering Shiny application provides an interactive interface for performing variable clustering analysis without writing code. It supports both **Hierarchical Variable Clustering (HClustVar)** and **K-means Variable Clustering**.
+The VarClustering Shiny application provides an interactive interface for performing variable clustering analysis without writing code. It supports both **Hierarchical Variable Clustering (HClustVar and ModClust)** and **K-means Variable Clustering**.
 
 ### Interface Layout
 
@@ -55,11 +54,9 @@ The application consists of two main areas:
 
 | Area | Description |
 |------|-------------|
-| **Sidebar (Left)** | Data import, variable configuration, clustering parameters, export |
+| **Sidebar (Left)** | Data import, variable configuration, clustering parameters |
 | **Main Panel (Right)** | Dynamic tabs with visualizations and results |
 
-<!-- 📸 SCREENSHOT: Full application interface overview -->
-<!-- Place screenshot here: screenshots/app_overview.png -->
 ![Application Overview](screenshots/app_overview.png)
 
 ---
@@ -83,8 +80,6 @@ The application accepts **CSV** and **Excel** files (.xlsx, .xls).
 - **Qualitative variables**: Factor/character columns
 - **Mixed**: Combination of both types
 
-<!-- 📸 SCREENSHOT: Data import panel -->
-<!-- Place screenshot here: screenshots/data_import.png -->
 ![Data Import](screenshots/data_import.png)
 
 #### After Import
@@ -94,8 +89,6 @@ Once your file is uploaded:
 2. The **Configure Variables** button becomes active
 3. Data summary displays number of observations and variables
 
-<!-- 📸 SCREENSHOT: Data preview tab with imported data -->
-<!-- Place screenshot here: screenshots/data_preview.png -->
 ![Data Preview](screenshots/data_preview.png)
 
 ---
@@ -123,8 +116,6 @@ After configuration, the **Variable Configuration** tab displays:
 - ℹ️ Illustrative variables (orange panel)
 - ❌ Excluded variables (red panel)
 
-<!-- 📸 SCREENSHOT: Variable configuration summary with three panels -->
-<!-- Place screenshot here: screenshots/variable_config_summary.png -->
 ![Variable Configuration Summary](screenshots/variable_config_summary.png)
 
 ---
@@ -141,8 +132,7 @@ Configure the clustering algorithm and its parameters.
 | **K-means Variables clustering** | Quantitative only | Iterative reallocation with PCA centroids |
 | **CAH Modalities clustering** | Qualitative only | Hierarchical clustering of categories using Dice distance |
 
-<!-- 📸 SCREENSHOT: Algorithm selection dropdown -->
-<!-- Place screenshot here: screenshots/algorithm_selection.png -->
+
 ![Algorithm Selection](screenshots/algorithm_selection.png)
 
 #### HClustVar Parameters
@@ -154,8 +144,7 @@ Configure the clustering algorithm and its parameters.
 | **Clustering method** | Ward D, Ward D2, Complete, Average, Single, etc. | Linkage method for CAH |
 | **Number of clusters** | 2-10 | Target number of clusters |
 
-<!-- 📸 SCREENSHOT: HClustVar parameters panel -->
-<!-- Place screenshot here: screenshots/hclust_params.png -->
+
 ![HClustVar Parameters](screenshots/hclust_params.png)
 
 #### K-means Parameters
@@ -164,12 +153,11 @@ Configure the clustering algorithm and its parameters.
 |-----------|---------|-------------|
 | **Distance metric** | R² | Correlation-based distance |
 | **Max iterations** | 100 | Maximum iterations per run |
-| **n_init (restarts)** | 10 | Number of random initializations |
+| **n_init (restarts)** | 3 | Number of random initializations |
 | **Random seed** | 0 (random) | For reproducibility |
 | **Number of clusters** | 3 | Target K value |
 
-<!-- 📸 SCREENSHOT: K-means parameters panel -->
-<!-- Place screenshot here: screenshots/kmeans_params.png -->
+
 ![K-means Parameters](screenshots/kmeans_params.png)
 
 #### ModCluster Parameters (Modality Clustering)
@@ -180,8 +168,7 @@ Configure the clustering algorithm and its parameters.
 | **Linkage method** | Complete, Average, Single | Agglomeration method for CAH |
 | **Number of clusters** | 2-10 | Target number of modality groups |
 
-<!-- 📸 SCREENSHOT: ModCluster parameters panel -->
-<!-- Place screenshot here: screenshots/modcluster_params.png -->
+
 ![ModCluster Parameters](screenshots/modcluster_params.png)
 
 ---
@@ -196,8 +183,7 @@ The application will:
 3. Generate all visualizations and summaries
 4. Predict clusters for illustrative variables (if configured)
 
-<!-- 📸 SCREENSHOT: Run Clustering button highlighted -->
-<!-- Place screenshot here: screenshots/run_clustering.png -->
+
 ![Run Clustering](screenshots/run_clustering.png)
 
 ---
@@ -217,8 +203,7 @@ The **Summary** tab provides comprehensive clustering results:
 | **Average Silhouette** | Clustering quality score | > 0.5 is good, > 0.7 is excellent |
 | **Total Variance Explained** | Proportion of variance captured | Higher is better |
 
-<!-- 📸 SCREENSHOT: Quality metrics cards (silhouette and variance) -->
-<!-- Place screenshot here: screenshots/quality_metrics.png -->
+
 ![Quality Metrics](screenshots/quality_metrics.png)
 
 ##### Cluster Summary Table
@@ -228,8 +213,6 @@ Shows for each cluster:
 - Variation explained
 - Proportion explained
 
-<!-- 📸 SCREENSHOT: Cluster summary table -->
-<!-- Place screenshot here: screenshots/cluster_summary_table.png -->
 ![Cluster Summary Table](screenshots/cluster_summary_table.png)
 
 ##### Variable Assignments Table
@@ -240,24 +223,19 @@ Details for each variable:
 - R² with next closest cluster
 - Ratio (quality indicator)
 
-<!-- 📸 SCREENSHOT: Variable assignments table -->
-<!-- Place screenshot here: screenshots/variable_assignments.png -->
+
 ![Variable Assignments](screenshots/variable_assignments.png)
 
 ##### Centroids Correlations
 
 Correlation matrix between cluster centroids (lower correlations = better separation).
 
-<!-- 📸 SCREENSHOT: Centroids correlation matrix -->
-<!-- Place screenshot here: screenshots/centroids_correlations.png -->
 ![Centroids Correlations](screenshots/centroids_correlations.png)
 
 ##### R² Matrix
 
 Complete matrix of R² values between all variables and all cluster centroids.
 
-<!-- 📸 SCREENSHOT: Full R² matrix -->
-<!-- Place screenshot here: screenshots/r2_matrix.png -->
 ![R² Matrix](screenshots/r2_matrix.png)
 
 ---
@@ -268,32 +246,24 @@ Complete matrix of R² values between all variables and all cluster centroids.
 
 Plot of aggregation levels (HClustVar) or inertia (K-means) to help determine optimal K.
 
-<!-- 📸 SCREENSHOT: Elbow plot -->
-<!-- Place screenshot here: screenshots/elbow_plot.png -->
 ![Elbow Plot](screenshots/elbow_plot.png)
 
 ##### Factorial Projection
 
 Variables projected in reduced dimensional space (MDS for HClustVar, PCA for K-means).
 
-<!-- 📸 SCREENSHOT: Factorial projection plot with colored clusters -->
-<!-- Place screenshot here: screenshots/factorial_projection.png -->
 ![Factorial Projection](screenshots/factorial_projection.png)
 
 ##### Dendrogram (HClustVar only)
 
 Hierarchical tree structure with cluster coloring.
 
-<!-- 📸 SCREENSHOT: Dendrogram with colored clusters -->
-<!-- Place screenshot here: screenshots/dendrogram.png -->
 ![Dendrogram](screenshots/dendrogram.png)
 
 ##### Silhouette Plot (HClustVar only)
 
 Silhouette coefficients for each variable showing cluster fit quality.
 
-<!-- 📸 SCREENSHOT: Silhouette plot -->
-<!-- Place screenshot here: screenshots/silhouette_plot.png -->
 ![Silhouette Plot](screenshots/silhouette_plot.png)
 
 ---
@@ -306,32 +276,7 @@ If illustrative variables were configured, this tab shows their predicted cluste
 
 Table with cluster assignment for each illustrative variable.
 
-<!-- 📸 SCREENSHOT: Prediction results table -->
-<!-- Place screenshot here: screenshots/prediction_results.png -->
 ![Prediction Results](screenshots/prediction_results.png)
-
-##### Proximity Matrix
-
-R² values between illustrative variables and all cluster centroids.
-
-<!-- 📸 SCREENSHOT: Prediction proximities matrix -->
-<!-- Place screenshot here: screenshots/prediction_proximities.png -->
-![Prediction Proximities](screenshots/prediction_proximities.png)
-
----
-
-### Step 6: Export Results
-
-Click **"Download Summary (CSV)"** in the sidebar to export clustering results.
-
-The exported file contains:
-- Variable names
-- Cluster assignments
-- Quality metrics
-
-<!-- 📸 SCREENSHOT: Export button in sidebar -->
-<!-- Place screenshot here: screenshots/export_button.png -->
-![Export Button](screenshots/export_button.png)
 
 ---
 
@@ -352,17 +297,17 @@ The exported file contains:
 Variable type: auto / quant / qual / mixed
 Distance metric: R² / r (for quantitative)
 Clustering method: ward.D / ward.D2 / complete / average / single
-Number of clusters: 2-10
+Number of clusters
 ```
 
 ### KmeansVariables (K-means Variable Clustering)
 
-**Best for**: Large quantitative datasets, when K is known or can be estimated.
+**Best for**: Larger quantitative datasets, when K is known or can be estimated.
 
 **Features**:
 - Fast computation with multiple initializations
 - PCA-based centroids
-- Automatic K selection (via elbow method)
+- K selection (via elbow plot)
 - Reproducible results with random seed
 
 **Parameters**:
@@ -371,12 +316,13 @@ Distance metric: R² / r
 Max iterations: 100 (default)
 n_init: 10 (default)
 Random seed: 0 = random
-Number of clusters: 2-10
+Number of clusters
 ```
 
 ### ModCluster (Modality Clustering)
 
-**Best for**: Categorical data analysis, understanding patterns in category co-occurrences.
+**Best for**: Categorical data analysis, understanding patterns in category co-occurrences. 
+Complete HClustVar algorithm on qualitatives.
 
 **Features**:
 - Clusters modalities (categories) rather than variables
@@ -388,7 +334,7 @@ Number of clusters: 2-10
 ```
 Variable type: Qualitative (fixed)
 Linkage method: Complete / Average / Single
-Number of clusters: 2-10
+Number of clusters
 ```
 
 ---
@@ -488,52 +434,7 @@ varclust_gui()
 #    - Set parameters (method, distance, K)
 #    - Click "Run Clustering"
 #    - Analyze results in the tabs
-#    - Export summary if needed
 ```
-
----
-
-## Screenshots Directory
-
-To complete this documentation, add screenshots in a `screenshots/` folder:
-
-```
-vignettes/
-├── Shiny_Application_Guide.md
-└── screenshots/
-    ├── app_overview.png
-    ├── data_import.png
-    ├── data_preview.png
-    ├── variable_config_modal.png
-    ├── variable_config_summary.png
-    ├── algorithm_selection.png
-    ├── hclust_params.png
-    ├── kmeans_params.png
-    ├── modcluster_params.png
-    ├── run_clustering.png
-    ├── quality_metrics.png
-    ├── cluster_summary_table.png
-    ├── variable_assignments.png
-    ├── centroids_correlations.png
-    ├── r2_matrix.png
-    ├── elbow_plot.png
-    ├── factorial_projection.png
-    ├── dendrogram.png
-    ├── silhouette_plot.png
-    ├── prediction_results.png
-    ├── prediction_proximities.png
-    └── export_button.png
-```
-
----
-
-## Session Info
-
-This application was developed using:
-
-- R version 4.x
-- Shiny 1.x
-- VarClustering package
 
 ---
 
