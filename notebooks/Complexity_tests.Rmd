@@ -1,0 +1,172 @@
+---
+title: "Complexity_tests"
+output: html_document
+---
+
+## Introduction
+
+This notebook purpose is to test the complexity of the algorithms developped in this package.
+All algorithm will be tested with incremental size datasets (both rows and columns).
+
+## Load data
+```{r}
+data(autos)
+data(vote)
+library(ggplot2)
+```
+
+
+## Initialization Result dataframe
+```{r}
+compute_time <- function(obj, data, algorithm, type, growth) {
+  
+  t0 <- Sys.time()
+  fit_result <- obj$fit(data)
+  fit_time <- Sys.time() - t0
+  fit_time <-  as.numeric(fit_time, units = "secs")
+
+  result <- data.frame(
+  "algorithm" = algorithm,
+  "type"  = type,
+  "n_observations" = nrow(data),
+  "n_variables" = ncol(data),
+  "fit_time" = fit_time,
+  "growth" = growth
+  )
+  
+  return(result)
+}
+
+# Initialize global result dataframe.
+results <- data.frame(
+  "algorithm" = c(),
+  "type"  = c(),
+  "n observations" = c(),
+  "n variables" = c(),
+  "fit_time" = c()
+)
+```
+
+## Quantitative data
+```{r}
+# Class instanciation.
+hcv <- HClustVar$new(vartype = "quant", cah.method="ward.D2")
+kmv <- KmeansVariables$new()
+
+df <- NULL
+
+
+# Complexity in n (observation)
+for (i in seq(10)) {
+  
+  if (i == 1) {
+    df <- autos[, 2:9]
+  } else {
+    df <- rbind(df, df)
+  }
+  
+  result1 <- compute_time(hcv, df, "HClustVar", "quantitative", "rows")
+  result2 <- compute_time(kmv, df, "KMeans", "quantitative", "rows")
+  
+  # Append the result to the global dataframe
+  results <- rbind(results, result1, result2)
+}
+
+# Complexity in p (variables)
+for (i in seq(10)) {
+  
+  if (i == 1) {
+    df <- autos[, 2:9]
+  } else {
+    df <- cbind(df, df)
+  }
+  
+  
+  result1 <- compute_time(hcv, df, "HClustVar", "quantitative", "cols")
+  result2 <- compute_time(kmv, df, "KMeans", "quantitative", "cols")
+  
+  # Append the result to the global dataframe
+  results <- rbind(results, result1, result2)
+}
+
+```
+
+## Qualitative data
+
+```{r}
+# Class instanciation.
+hcv <- HClustVar$new(vartype = "qual", cah.method="ward.D2")
+mc <- ModCluster$new()
+
+
+df <- NULL
+
+# Complexity in n (observation)
+for (i in seq(10)) {
+  
+  if (i == 1) {
+    df <- vote
+  } else {
+    df <- rbind(df, df)
+  }
+  
+  result1 <- compute_time(hcv, df, "HClustVar", "qualitative", "rows")
+  result2 <- compute_time(mc, df, "ModClust", "qualitative", "rows")
+  
+  # Append the result to the global dataframe
+  results <- rbind(results, result1, result2)
+}
+
+# Complexity in p (variables)
+for (i in seq(7)) {
+  
+  if (i == 1) {
+    df <- vote
+  } else {
+    df <- cbind(df, df)
+  }
+  
+  result1 <- compute_time(hcv, df, "HClustVar", "qualitative", "cols")
+  result2 <- compute_time(mc, df, "ModClust", "qualitative", "cols")
+  
+  # Append the result to the global dataframe
+  results <- rbind(results, result1, result2)
+}
+```
+```{r}
+# Save the data file
+write.csv(results, file="complexity.csv")
+```
+
+## Plotting graph : Complexity in rows
+
+```{r}
+
+plot_time <- function(algorithm, type, growth) {
+  
+  ggplot(results[results$algorithm == algorithm & results$type == type & results$growth == growth, ], aes(
+  x = ifelse(growth == "rows", n_observations, n_variables),
+  y = fit_time
+)) +
+  geom_point() +
+  geom_line() +
+  labs(
+    title = paste("complexity for", algorithm, "on", type),
+    x = paste(growth, "size"),
+    y = "Fit time (s)"
+  )
+  
+}
+
+plot_time("HClustVar", "quantitative", "rows")
+
+```
+
+
+
+
+
+
+
+
+
