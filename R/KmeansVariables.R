@@ -179,7 +179,8 @@
 #'     Fit the K-means model to the data. Runs multiple random initializations and keeps best solution.
 #'   }
 #'   \item{\code{$predict(data)}}{
-#'     Predict cluster assignments for new variables based on fitted centroids.
+#'     Predict cluster assignments for new variables (quanti or quali) based on fitted centroids.
+#'     Uses correlation for quanti, correlation ratio (η²) for quali.
 #'   }
 #'   \item{\code{$print()}}{Display concise model information}
 #'   \item{\code{$summary(print_summary = FALSE, top_n = 3)}}{
@@ -356,6 +357,29 @@ KmeansVariables <- R6::R6Class(
         cor_loadings = cor_loadings,  # Store with sign for proper alignment
         n_vars = n_vars
       ))
+    },
+
+    # Compute correlation ratio (eta-squared) between categorical and numeric variables
+    #
+    # @param quali A vector (will be coerced to factor) representing the categorical variable
+    # @param quanti A vector (will be coerced to numeric) representing the quantitative variable
+    # @return Numeric value between 0 and 1 representing the correlation ratio (η²)
+    correlation_ratio = function(quali, quanti) {
+      quali  <- as.factor(quali)
+      quanti <- as.numeric(quanti)
+
+      # compute total sum of squares
+      sst <- sum((quanti - mean(quanti))^2)
+
+      # compute sum of squares between
+      ssb <- sum(
+        tapply(quanti, quali, function(v) {length(v) * (mean(v) - mean(quanti))^2})
+      )
+
+      # calculate correlation ratio
+      if (sst == 0) return(0)
+      eta2 <- ssb / sst
+      return(eta2)
     },
 
     # Compute distances between variables and centroids
@@ -744,15 +768,23 @@ KmeansVariables <- R6::R6Class(
     # Predict cluster assignments for new variables
     #
     # @description
-    # Assigns new variables to existing clusters based on fitted centroids.
+    # Assigns new variables (quantitative or qualitative) to existing clusters
+    # based on their relationship with cluster centroids (latent components).
+    #
+    # For quantitative variables: uses correlation (r² or r depending on distance_metric)
+    # For qualitative variables: uses correlation ratio (η²)
+    #
+    # Distance is computed as sqrt(1 - correlation) for both types.
     #
     # @param data data.frame or matrix with same number of observations as training data.
+    #        Can contain both quantitative and qualitative variables.
     #
     # @return List with:
     # \itemize{
-    #   \item clusters: Integer vector of cluster assignments
-    #   \item distances: Matrix of distances to each centroid
-    #   \item correlations: Matrix of correlations with each centroid
+    #   \item clusters: Integer vector of cluster assignments for all variables
+    #   \item distances: Matrix (variables × clusters) of distances to each centroid
+    #   \item correlations: Matrix (variables × clusters) of correlations with each centroid
+    #         (r²/r for quanti, η² for quali)
     # }
     predict = function(data) {
 
@@ -765,25 +797,71 @@ KmeansVariables <- R6::R6Class(
         stop("'data' must be a data.frame or matrix")
       }
 
-      X_new <- as.matrix(data)
+      # Convert to data.frame to detect variable types
+      if (is.matrix(data)) {
+        data <- as.data.frame(data)
+      }
+
+      # Identify qualitative and quantitative variables
+      quali_mask <- sapply(data, function(x) is.factor(x) || is.character(x))
+      quali_names <- names(data)[quali_mask]
+      quanti_names <- names(data)[!quali_mask]
 
       # Check number of observations matches
-      if (nrow(X_new) != nrow(private$.centroids)) {
+      if (nrow(data) != nrow(private$.centroids)) {
         stop(paste0("New data must have ", nrow(private$.centroids),
                     " observations (same as training data)"))
       }
 
-      # Compute distances and correlations
-      result <- private$compute_distances(X_new, private$.centroids, return_correlations = TRUE)
+      # Get all variable names
+      all_names <- names(data)
+      n_vars <- length(all_names)
+      n_clusters <- ncol(private$.centroids)
 
-      # Assign to nearest clusters
-      clusters_new <- private$assign_clusters(result$distances)
-      names(clusters_new) <- colnames(X_new)
+      # Initialize matrices for all variables
+      correlations <- matrix(0, nrow = n_vars, ncol = n_clusters)
+      rownames(correlations) <- all_names
+      colnames(correlations) <- colnames(private$.centroids)
+
+      # Loop over each variable and compute correlation/eta_squared
+      for (i in seq_len(n_vars)) {
+        var_name <- all_names[i]
+        var_data <- data[[var_name]]
+
+        if (is.factor(var_data) || is.character(var_data)) {
+          # Qualitative variable: compute correlation ratio (η²)
+          for (k in seq_len(n_clusters)) {
+            correlations[i, k] <- private$correlation_ratio(var_data, private$.centroids[, k])
+          }
+        } else {
+          # Quantitative variable: compute correlation
+          for (k in seq_len(n_clusters)) {
+            r <- cor(var_data, private$.centroids[, k])
+            if (is.na(r)) r <- 0
+            # Use r² or r depending on distance metric
+            if (private$.distance_metric == "r_squared") {
+              correlations[i, k] <- r^2
+            } else {
+              correlations[i, k] <- r
+            }
+          }
+        }
+      }
+
+      # Compute distances: sqrt(1 - correlation)
+      # For r_squared: distance = sqrt(1 - r²)
+      # For r_signed: distance = sqrt(1 - r)
+      # For quali (η²): distance = sqrt(1 - η²)
+      distances <- sqrt(1 - correlations)
+
+      # Assign to nearest cluster (minimum distance)
+      clusters <- apply(distances, 1, which.min)
+      names(clusters) <- all_names
 
       return(list(
-        clusters = clusters_new,
-        distances = result$distances,
-        correlations = result$correlations
+        clusters = clusters,
+        distances = distances,
+        correlations = correlations
       ))
     },
 
