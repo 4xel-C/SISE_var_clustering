@@ -370,38 +370,27 @@ KmeansVariables <- R6::R6Class(
     # @return Matrix (p variables × K clusters) of distances, or list with distances and correlations
     compute_distances = function(X, centroids, return_correlations = FALSE) {
 
-      p <- ncol(X)
-      K <- ncol(centroids)
+      # Compute all correlations at once
+      cor_matrix <- cor(X, centroids)
 
-      dist_matrix <- matrix(0, nrow = p, ncol = K)
-      cor_matrix <- matrix(0, nrow = p, ncol = K)
-      rownames(dist_matrix) <- rownames(cor_matrix) <- colnames(X)
-      colnames(dist_matrix) <- colnames(cor_matrix) <- paste0("Cluster", 1:K)
+      # Handle NA from zero variance
+      cor_matrix[is.na(cor_matrix)] <- 0
 
-      for (j in 1:p) {
-        for (k in 1:K) {
-          # Correlation between variable j and centroid k
-          cor_val <- suppressWarnings(cor(X[, j], centroids[, k]))
+      # Set row/column names
+      rownames(cor_matrix) <- colnames(X)
+      colnames(cor_matrix) <- paste0("Cluster", 1:ncol(centroids))
 
-          # Handle NA from zero variance: set distance to 1 (maximum)
-          if (is.na(cor_val)) {
-            cor_val <- 0
-          }
-
-          # Store correlation
-          cor_matrix[j, k] <- cor_val
-
-          # Calculate distance based on distance_metric
-          if (private$.distance_metric == "r_squared") {
-            # R²-based: groups variables with high |correlation| (positive OR negative)
-            dist_matrix[j, k] <- sqrt(1 - cor_val^2)
-          } else {
-            # r-based: groups only variables with high positive correlation
-            # Uses correlation sign, so negatively correlated variables are pushed away
-            dist_matrix[j, k] <- sqrt(1 - cor_val)
-          }
-        }
+      # Calculate distance based on distance_metric
+      if (private$.distance_metric == "r_squared") {
+        # R²-based: groups variables with high |correlation| (positive OR negative)
+        dist_matrix <- sqrt(1 - cor_matrix^2)
+      } else {
+        # r-based: groups only variables with high positive correlation
+        dist_matrix <- sqrt(1 - cor_matrix)
       }
+
+      rownames(dist_matrix) <- colnames(X)
+      colnames(dist_matrix) <- paste0("Cluster", 1:ncol(centroids))
 
       if (return_correlations) {
         return(list(distances = dist_matrix, correlations = cor_matrix))
@@ -861,17 +850,11 @@ KmeansVariables <- R6::R6Class(
       var_names <- colnames(X)
       n_vars_total <- ncol(X)
 
-      r2_matrix <- matrix(0, nrow = n_vars_total, ncol = self$n_clusters)
+      # Compute R² matrix (squared correlations)
+      cor_matrix <- cor(X, private$.centroids)
+      r2_matrix <- cor_matrix^2
       rownames(r2_matrix) <- var_names
       colnames(r2_matrix) <- paste0("Cluster", 1:self$n_clusters)
-
-
-      for (j in 1:n_vars_total) {
-        for (k in 1:self$n_clusters) {
-          cor_val <- cor(X[, j], private$.centroids[, k])
-          r2_matrix[j, k] <- cor_val^2
-        }
-      }
 
       # Convert to dataframe.
       r2_all_vars <- as.data.frame(round(r2_matrix, 4))

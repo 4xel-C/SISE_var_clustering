@@ -142,20 +142,14 @@ kmeans_silhouette <- function(data, clusters, centroids, distance_metric = "r_sq
     stop("'distance_metric' must be either 'r_squared' or 'r_signed'")
   }
 
-  # Compute distance matrix between all variables and all centroids
-  dist_matrix <- matrix(0, nrow = p, ncol = K)
+  # Compute correlation matrix
+  cor_matrix <- cor(X, centroids)
 
-  for (j in 1:p) {
-    for (k in 1:K) {
-      cor_val <- cor(X[, j], centroids[, k])
-
-      # Calculate distance based on distance_metric
-      if (distance_metric == "r_squared") {
-        dist_matrix[j, k] <- sqrt(1 - cor_val^2)
-      } else {
-        dist_matrix[j, k] <- sqrt(1 - cor_val)
-      }
-    }
+  # Compute distance matrix based on distance_metric
+  if (distance_metric == "r_squared") {
+    dist_matrix <- sqrt(1 - cor_matrix^2)
+  } else {
+    dist_matrix <- sqrt(1 - cor_matrix)
   }
 
   silhouettes <- numeric(p)
@@ -505,20 +499,18 @@ kmeans_contributions <- function(data, clusters, centroids) {
   X <- as.matrix(data)
   p <- ncol(X)
 
+  # Compute all correlations at once
+  cor_matrix <- cor(X, centroids)
+
+  # Extract correlation with own cluster for each variable
+  correlations <- sapply(1:p, function(j) cor_matrix[j, clusters[j]])
+
   contributions <- data.frame(
     variable = colnames(X),
     cluster = clusters,
-    contribution = numeric(p),
-    correlation = numeric(p)
+    contribution = correlations^2,
+    correlation = correlations
   )
-
-  for (j in 1:p) {
-    k <- clusters[j]
-    cor_val <- cor(X[, j], centroids[, k])
-    contributions$correlation[j] <- cor_val
-    # Contribution = R² = squared correlation = cos² (angle with PC1)
-    contributions$contribution[j] <- cor_val^2
-  }
 
   return(contributions)
 }
@@ -634,27 +626,70 @@ kmeans_find_optimal_k <- function(data, k_range = 2:10, method = "all",
     stop("'method' must be 'silhouette', 'calinski', or 'all'")
   }
 
-  # Compute metrics with specified distance_metric
-  elbow_data <- kmeans_elbow(data, k_range, n_init, random_state,
-                            distance_metric = distance_metric)
-  sil_data <- kmeans_silhouette_range(data, k_range, n_init, random_state,
-                                      distance_metric = distance_metric)
-  ch_data <- kmeans_calinski_harabasz_range(data, k_range, n_init, random_state,
-                                            distance_metric = distance_metric)
+  X <- as.matrix(data)
+  p <- ncol(X)
 
-  # Merge results
-  metrics <- merge(elbow_data, sil_data, by = "k")
-  metrics <- merge(metrics, ch_data, by = "k")
+  # Initialize results storage
+  results <- data.frame(
+    k = integer(),
+    inertia = numeric(),
+    inertia_pct = numeric(),
+    avg_silhouette = numeric(),
+    min_silhouette = numeric(),
+    max_silhouette = numeric(),
+    ch_index = numeric()
+  )
+
+  # Single loop: fit K-means once per K and compute all metrics
+  for (k in k_range) {
+    # Skip K=1 for CH index
+    if (k == 1) next
+
+    # Fit K-means once
+    km <- KmeansVariables$new(
+      n_clusters = k,
+      max_iter = 50,
+      tol = 1e-3,
+      n_init = n_init,
+      random_state = random_state,
+      distance_metric = distance_metric
+    )
+    km$fit(data)
+
+    # Compute all metrics from this single fit
+    inertia <- km$inertia
+    inertia_pct <- (1 - inertia / p) * 100
+
+    # Silhouette
+    sil <- kmeans_silhouette(data, km$clusters, km$centroids, distance_metric)
+    avg_sil <- mean(sil$silhouette)
+    min_sil <- min(sil$silhouette)
+    max_sil <- max(sil$silhouette)
+
+    # Calinski-Harabasz
+    ch <- kmeans_calinski_harabasz(data, km$clusters, km$centroids, distance_metric)
+
+    # Store results
+    results <- rbind(results, data.frame(
+      k = k,
+      inertia = inertia,
+      inertia_pct = inertia_pct,
+      avg_silhouette = avg_sil,
+      min_silhouette = min_sil,
+      max_silhouette = max_sil,
+      ch_index = ch
+    ))
+  }
 
   # Determine optimal K
   if (method == "silhouette") {
-    optimal_k <- metrics$k[which.max(metrics$avg_silhouette)]
+    optimal_k <- results$k[which.max(results$avg_silhouette)]
   } else if (method == "calinski") {
-    optimal_k <- metrics$k[which.max(metrics$ch_index)]
+    optimal_k <- results$k[which.max(results$ch_index)]
   } else {
     # Combine both methods (majority vote)
-    k_sil <- metrics$k[which.max(metrics$avg_silhouette)]
-    k_ch <- metrics$k[which.max(metrics$ch_index)]
+    k_sil <- results$k[which.max(results$avg_silhouette)]
+    k_ch <- results$k[which.max(results$ch_index)]
 
     if (k_sil == k_ch) {
       optimal_k <- k_sil
@@ -667,7 +702,7 @@ kmeans_find_optimal_k <- function(data, k_range = 2:10, method = "all",
 
   return(list(
     optimal_k = optimal_k,
-    metrics = metrics,
+    metrics = results,
     method = method
   ))
 }
@@ -752,21 +787,9 @@ kmeans_correlation_table <- function(data, clusters, centroids, round_digits = 3
   )
 
   # Calculate correlation of each variable with each cluster centroid
-  cor_matrix <- matrix(NA, nrow = p, ncol = K)
+  cor_matrix <- cor(X, centroids)
+  cor_matrix[is.na(cor_matrix)] <- 0
   colnames(cor_matrix) <- paste0("Cluster", 1:K)
-
-  for (j in 1:p) {
-    for (k in 1:K) {
-      cor_val <- suppressWarnings(cor(X[, j], centroids[, k]))
-
-      # Handle NA from zero variance
-      if (is.na(cor_val)) {
-        cor_val <- 0
-      }
-
-      cor_matrix[j, k] <- cor_val
-    }
-  }
 
   # Add correlation columns to result
   result <- cbind(result, round(cor_matrix, round_digits))
