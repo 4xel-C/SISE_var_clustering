@@ -25,179 +25,13 @@
 #'         for visual interpretation
 #' }
 #'
-#' @section Methods:
-#' \describe{
-#'   \item{\code{new(n_clusters, method, n_dimensions, hclust_method)}}{
-#'     Initialize a new ModCluster object.
-#'     \itemize{
-#'       \item \code{n_clusters}: Integer, target number of clusters (default: NULL).
-#'             If NULL, the number of clusters must be specified later using \code{cut_tree(k)}.
-#'       \item \code{method}: Character, clustering method. Currently only "hclust" is supported
-#'             (default: "hclust").
-#'       \item \code{n_dimensions}: Integer, number of MCA dimensions to compute for visualization
-#'             purposes (default: 5). Higher values provide more detailed representation but
-#'             increase computational cost.
-#'       \item \code{hclust_method}: Character, linkage method for hierarchical clustering.
-#'             Must be one of: "ward.D2" (Ward's minimum variance), "ward.D", "single" (nearest neighbor),
-#'             "complete" (farthest neighbor), "average" (UPGMA), "mcquitty" (WPGMA),
-#'             "median" (WPGMC), "centroid" (UPGMC). Default is "average".
-#'     }
-#'   }
-#'
-#'   \item{\code{fit(data)}}{
-#'     Fit the clustering model on the training data.
-#'     \itemize{
-#'       \item \code{data}: Data frame containing categorical variables. All variables
-#'             should be factors or will be automatically converted to factors. The method
-#'             performs the following steps: (1) creates a complete disjunctive table,
-#'             (2) computes Dice distances between all modalities, (3) applies hierarchical
-#'             clustering, and (4) computes MCA for visualization.
-#'     }
-#'     Returns: Self (invisibly) for method chaining.
-#'   }
-#'
-#'   \item{\code{predict(new_data)}}{
-#'     Predict cluster membership for new observations based on their modality profiles.
-#'     \itemize{
-#'       \item \code{new_data}: Data frame with the same categorical variables as the
-#'             training data. Factor levels must match those in the training set.
-#'     }
-#'     Returns: Data frame with the following columns:
-#'     \itemize{
-#'       \item \code{observation}: Observation index (1 to n)
-#'       \item \code{predicted_cluster}: Predicted cluster assignment (integer from 1 to k)
-#'       \item \code{dist_cluster_1}, \code{dist_cluster_2}, ...: Dice distance to each
-#'             cluster centroid, providing confidence information about the assignment
-#'     }
-#'   }
-#'
-#'   \item{\code{project_new_modalities(new_data, axes)}}{
-#'     Project new observations into the MCA factorial space.
-#'     \itemize{
-#'       \item \code{new_data}: Data frame with the same categorical variables as training data.
-#'       \item \code{axes}: Integer vector specifying which MCA dimensions to use for projection
-#'             (default: all available dimensions).
-#'     }
-#'     Returns: Matrix of projected coordinates with rows representing observations and
-#'     columns representing MCA dimensions (named "Dim.1", "Dim.2", etc.).
-#'   }
-#'
-#'   \item{\code{cut_tree(k)}}{
-#'     Cut the hierarchical tree into k clusters. This method must be called if n_clusters
-#'     was not specified during initialization.
-#'     \itemize{
-#'       \item \code{k}: Integer, desired number of clusters.
-#'     }
-#'     Returns: Self (invisibly) for method chaining.
-#'   }
-#'
-#'   \item{\code{plot_dendrogram(k, color_branches)}}{
-#'     Plot the hierarchical clustering dendrogram showing the tree structure.
-#'     \itemize{
-#'       \item \code{k}: Integer, number of clusters to highlight with rectangles or colors
-#'             (default: uses current k value if available).
-#'       \item \code{color_branches}: Logical, whether to color dendrogram branches by cluster
-#'             (default: TRUE). Requires the \pkg{dendextend} package for colored output.
-#'     }
-#'   }
-#'
-#'   \item{\code{plot_mca(axes, show_labels, label_cex)}}{
-#'     Plot modalities in the MCA factorial space with colors representing cluster membership.
-#'     \itemize{
-#'       \item \code{axes}: Integer vector of length 2, specifying which MCA axes to plot
-#'             (default: c(1, 2) for the first factorial plane).
-#'       \item \code{show_labels}: Logical, whether to display modality labels on the plot
-#'             (default: TRUE).
-#'       \item \code{label_cex}: Numeric, character expansion factor for label text size
-#'             (default: 0.7).
-#'     }
-#'   }
-#'
-#'   \item{\code{plot_mca_with_new(new_data, axes, show_labels, label_cex)}}{
-#'     Plot both training modalities (as points) and new observations (as stars) in the
-#'     MCA factorial space.
-#'     \itemize{
-#'       \item \code{new_data}: Data frame containing new observations to project and display.
-#'       \item \code{axes}: Integer vector of length 2, specifying which MCA axes to plot
-#'             (default: c(1, 2)).
-#'       \item \code{show_labels}: Logical, whether to show labels for both training and
-#'             new observations (default: TRUE).
-#'       \item \code{label_cex}: Numeric, character expansion factor for label text
-#'             (default: 0.7).
-#'     }
-#'     Returns: Invisible list containing:
-#'     \itemize{
-#'       \item \code{train_coords}: Matrix of training modality coordinates
-#'       \item \code{new_coords}: Matrix of new observation coordinates
-#'       \item \code{train_clusters}: Cluster assignments for training modalities
-#'       \item \code{new_clusters}: Predicted cluster assignments for new observations
-#'     }
-#'   }
-#'
-#'   \item{\code{plot_silhouette()}}{
-#'     Plot silhouette values for each modality to assess clustering quality. The silhouette
-#'     coefficient measures how similar a modality is to its own cluster compared to other
-#'     clusters. Values range from -1 to 1, where high values indicate good cluster assignment.
-#'   }
-#'
-#'   \item{\code{plot_heights()}}{
-#'     Plot aggregation heights from the hierarchical clustering to help determine the
-#'     optimal number of clusters using the elbow method. The plot shows how the within-cluster
-#'     dissimilarity changes as clusters are merged.
-#'   }
-#'
-#'   \item{\code{summary()}}{
-#'     Get a comprehensive summary of clustering results including cluster statistics and
-#'     modality-level details.
-#'     Returns: List with two data frames:
-#'     \itemize{
-#'       \item \code{clust_summary}: Cluster-level summary containing cluster ID and number
-#'             of member modalities
-#'       \item \code{clust_members}: Modality-level details including modality name, cluster
-#'             assignment, frequency in the data, distance to own cluster centroid, distance
-#'             to nearest other cluster, and the ratio of these distances
-#'     }
-#'   }
-#'
-#'   \item{\code{get_cluster_table()}}{
-#'     Get a simple table of modalities with their cluster assignments and frequencies.
-#'     Returns: Data frame with columns Modality (character), Cluster (integer), and
-#'     Frequency (numeric).
-#'   }
-#'
-#'   \item{\code{get_dice_matrix()}}{
-#'     Get the complete Dice distance matrix between all modalities.
-#'     Returns: Symmetric matrix of Dice distances with rows and columns labeled by
-#'     modality names.
-#'   }
-#'
-#'   \item{\code{print()}}{
-#'     Print a concise summary of the ModCluster object showing the clustering method,
-#'     number of modalities, number of clusters, and cluster sizes.
-#'   }
-#' }
-#'
-#' @section Active Bindings:
-#' These read-only properties provide access to internal clustering results:
-#' \describe{
-#'   \item{\code{modality_labels}}{Named integer vector of cluster assignments for each modality.
-#'         Names correspond to modality names in "variable.level" format.}
-#'   \item{\code{modality_names}}{Character vector of all modality names in the format
-#'         "variable.level" (e.g., "color.red", "size.large").}
-#'   \item{\code{modality_frequencies}}{Named numeric vector showing the frequency (count)
-#'         of each modality in the training data.}
-#'   \item{\code{mca_result}}{Complete MCA result object from FactoMineR::MCA, containing
-#'         eigenvalues, coordinates, contributions, and other MCA outputs.}
-#'   \item{\code{cluster_centers}}{Matrix of cluster centers represented as binary profiles
-#'         in the complete disjunctive table space.}
-#' }
 #'
 #' @section Algorithm Details:
-#' The Dice distance between two modalities j and j' is computed as:
-#' \deqn{D(j, j') = \sqrt{\frac{1}{2} \sum_{i=1}^{n} (x_{ij}(1-x_{ij'}) + (1-x_{ij})x_{ij'})}}
+#' The Dice distance between two modalities j and k is computed as:
+#' \deqn{D(j, k) = \frac{1}{2} \sum_{i=1}^{n} (x_{ij} - x_{ik})^2}
 #'
-#' where \eqn{x_{ij}} is the indicator (0 or 1) that individual i has modality j, and n
-#' is the total number of individuals.
+#' where \eqn{x_{ij}} is the indicator (0 or 1) that individual i has modality j,
+#' \eqn{x_{ik}} is the indicator for modality k, and n is the total number of individuals.
 #'
 #' This distance measures the dissimilarity between two modalities based on how often they
 #' co-occur or occur separately across individuals. It is particularly well-suited for
@@ -264,8 +98,12 @@
 #' summary_results <- model$summary()  # Detailed statistics
 #'
 #' # Access clustering information
-#' print(summary_results$clust_summary)  # Cluster sizes
-#' print(summary_results$clust_members)  # Modality details
+#' print(summary_results$avg_silhouette)           # Overall clustering quality
+#' print(summary_results$total_var_explained)      # Variance explained (R²)
+#' print(summary_results$clust_summary)            # Cluster sizes and statistics
+#' print(summary_results$modality_quality)         # Modality assignment quality
+#' print(summary_results$inter_cluster_distances)  # Distances between clusters
+#' print(summary_results$cluster_distances)        # Full distance matrix
 #'
 #' # Create new data for prediction
 #' new_data <- data.frame(
@@ -296,9 +134,6 @@
 #' \code{\link[stats]{hclust}} for hierarchical clustering,
 #' \code{\link[stats]{dist}} for distance computation
 #'
-#' @references
-#' Dice, L. R. (1945). Measures of the amount of ecologic association between species.
-#' \emph{Ecology}, 26(3), 297-302.
 #'
 #' @name ModCluster
 #' @aliases modality_clustering dice_clustering categorical_clustering

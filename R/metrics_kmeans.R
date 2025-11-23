@@ -44,8 +44,8 @@
 #' }
 #'
 #' @noRd
-kmeans_elbow <- function(data, k_range = 2:10, n_init = 10,
-                         random_state = NULL, max_iter = 100, tol = 1e-4,
+kmeans_elbow <- function(data, k_range = 2:8, n_init = 10,
+                         random_state = NULL, max_iter = 50, tol = 1e-3,
                          distance_metric = "r_squared") {
 
   if (!is.numeric(k_range) || any(k_range < 1)) {
@@ -157,9 +157,9 @@ kmeans_silhouette <- function(data, clusters, centroids, distance_metric = "r_sq
       }
     }
   }
-  
+
   silhouettes <- numeric(p)
-  
+
   # Early check for single cluster case
   if (K == 1) {
     return(data.frame(
@@ -187,13 +187,13 @@ kmeans_silhouette <- function(data, clusters, centroids, distance_metric = "r_sq
       silhouettes[j] <- (b_j - a_j) / max(a_j, b_j)
     }
   }
-  
+
   results <- data.frame(
     variable = colnames(X),
     cluster = clusters,
     silhouette = silhouettes
   )
-  
+
   return(results)
 }
 
@@ -491,7 +491,7 @@ kmeans_intra_correlation <- function(data, clusters) {
 #' km <- KmeansVariables$new(n_clusters = 3)
 #' km$fit(data)
 #' contrib <- kmeans_contributions(data, km$clusters, km$centroids)
-#' 
+#'
 #' # Top 5 contributors per cluster
 #' top_contrib <- contrib %>%
 #'   group_by(cluster) %>%
@@ -501,17 +501,17 @@ kmeans_intra_correlation <- function(data, clusters) {
 #'
 #' @noRd
 kmeans_contributions <- function(data, clusters, centroids) {
-  
+
   X <- as.matrix(data)
   p <- ncol(X)
-  
+
   contributions <- data.frame(
     variable = colnames(X),
     cluster = clusters,
     contribution = numeric(p),
     correlation = numeric(p)
   )
-  
+
   for (j in 1:p) {
     k <- clusters[j]
     cor_val <- cor(X[, j], centroids[, k])
@@ -519,7 +519,7 @@ kmeans_contributions <- function(data, clusters, centroids) {
     # Contribution = R² = squared correlation = cos² (angle with PC1)
     contributions$contribution[j] <- cor_val^2
   }
-  
+
   return(contributions)
 }
 

@@ -277,7 +277,7 @@ Other clustering classes:
   n_clusters = 3,
   max_iter = 100,
   tol = 1e-04,
-  n_init = 10,
+  n_init = 3,
   random_state = NULL,
   k_range = 2:10,
   selection_method = "silhouette",
