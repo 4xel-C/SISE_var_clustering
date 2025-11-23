@@ -19,8 +19,3 @@ results/
 test.Rmd
 test.nb.html
 test.knit.md
-
-# Data files (but keep cleaned FIFA dataset)
-*.xlsx
-data/*.csv
-!data/players_22_cleaned.csv
