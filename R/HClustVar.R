@@ -1110,37 +1110,58 @@ HClustVar <- R6::R6Class(
       # 3. PREDICTION DEPENDING ON CAH METHOD
       # ============
 
-      for (i in seq_len(ncol(new_data))) {
+      # --- Case 3A: Centroid-based methods (optimized) ---
+      if (private$.cah.method %in% c("ward.D", "ward.D2", "centroid")) {
 
-        var_name <- colnames(new_data)[i]
+        if (is.null(self$centroids)) stop("Centroids not computed. Object may be broken.")
 
-        # --- Case 3A: Centroid-based methods ---
-        if (private$.cah.method %in% c("ward.D", "ward.D2", "centroid")) {
+        # Check if all variables are numeric for vectorized computation
+        all_numeric <- all(sapply(new_data, is.numeric))
 
-          if (is.null(self$centroids)) stop("Centroids not computed. Object may be broken.")
+        if (all_numeric) {
+          # Vectorized computation for all numeric variables
+          new_data_matrix <- as.matrix(new_data)
+          cor_matrix <- cor(new_data_matrix, self$centroids, use = "pairwise.complete.obs")
+          cor_matrix[is.na(cor_matrix)] <- 0
 
-          if (is.numeric(new_data[[i]])) {
-            values <- apply(self$centroids, 2, function(centroid) {
-              val <- cor(centroid, new_data[[i]], use = "complete.obs")
-              if (is.na(val)) return(0)
-              val
-            })
-
-            # Use the square correlation for vartype == mixed (because clustering made using V cramer, always postiive)
-            if (!is.null(self$dist.metric) && self$dist.metric == "rsquare" | private$.vartype == "mixed") values <- values^2
-
-          } else {
-            values <- apply(self$centroids, 2, function(centroid) {
-              private$correlation_ratio(new_data[[i]], centroid)
-            })
+          # Apply metric transformation
+          if (!is.null(self$dist.metric) && self$dist.metric == "rsquare" || private$.vartype == "mixed") {
+            cor_matrix <- cor_matrix^2
           }
 
-          # Store proximities and assign cluster
-          result_proximities[i, ] <- values
-          result[i] <- which.max(values)
+          result_proximities <- cor_matrix
+          colnames(result_proximities) <- paste0("Cluster_", 1:self$n_clusters)
+          rownames(result_proximities) <- colnames(new_data)
+          result <- apply(cor_matrix, 1, which.max)
 
-          # --- Case 3B: Other methods (single, complete, median, average, mcquitty) ---
-        } else if (private$.cah.method %in% c("single", "complete", "median", "average", "mcquitty")) {
+        } else {
+          # Mixed types: process individually
+          for (i in seq_len(ncol(new_data))) {
+            if (is.numeric(new_data[[i]])) {
+              values <- apply(self$centroids, 2, function(centroid) {
+                val <- cor(centroid, new_data[[i]], use = "complete.obs")
+                if (is.na(val)) return(0)
+                val
+              })
+
+              if (!is.null(self$dist.metric) && self$dist.metric == "rsquare" || private$.vartype == "mixed") {
+                values <- values^2
+              }
+
+            } else {
+              values <- apply(self$centroids, 2, function(centroid) {
+                private$correlation_ratio(new_data[[i]], centroid)
+              })
+            }
+
+            result_proximities[i, ] <- values
+            result[i] <- which.max(values)
+          }
+        }
+
+      } else {
+        # --- Case 3B: Other methods (single, complete, median, average, mcquitty) ---
+        for (i in seq_len(ncol(new_data))) {
 
           similarity <- numeric(ncol(self$data))
           names(similarity) <- colnames(self$data)
@@ -1198,13 +1219,6 @@ HClustVar <- R6::R6Class(
 
           result_proximities[i, ] <- cluster_proximity
           result[i] <- which.max(cluster_proximity)
-
-        } else {
-          stop(sprintf(
-            "Unknown CAH method: %s. Supported methods: %s",
-            private$.cah.method,
-            paste(c("ward.D","ward.D2","centroid","single","complete","median","average","mcquitty"), collapse = ", ")
-          ))
         }
       }
 
@@ -1790,46 +1804,59 @@ HClustVar <- R6::R6Class(
       percentage_var_explained <- total_var_explained / length(variables)
 
       # ----------------
-      # Cluster Members
+      # Compute R² matrix for all variables with all clusters (single computation)
       # ----------------
 
-      # Compute Cluster members table
+      # Create matrix to store all R² values
+      all_clusters_correlations <- matrix(
+        nrow = length(variables),
+        ncol = self$n_clusters,
+        dimnames = list(variables, paste0("Cluster_", 1:self$n_clusters))
+      )
+
+      # Vectorized computation for quantitative variables
+      if (self$vartype == "quant") {
+        X <- as.matrix(self$data[, variables])
+        cor_matrix <- cor(X, self$centroids, use = "pairwise.complete.obs")
+        all_clusters_correlations <- cor_matrix^2
+        rownames(all_clusters_correlations) <- variables
+        colnames(all_clusters_correlations) <- paste0("Cluster_", 1:self$n_clusters)
+      } else {
+        # For qualitative or mixed: use correlation ratio (requires loop)
+        for (i in seq_along(variables)) {
+          variable <- variables[i]
+          if (is.numeric(self$data[[variable]])) {
+            all_clusters_correlations[i, ] <- apply(self$centroids, 2, function(centroid) {
+              cor(self$data[[variable]], centroid, use = "complete.obs")^2
+            })
+          } else {
+            all_clusters_correlations[i, ] <- apply(self$centroids, 2, function(centroid) {
+              private$correlation_ratio(self$data[[variable]], centroid)
+            })
+          }
+        }
+      }
+
+      # ----------------
+      # Cluster Members (derived from R² matrix)
+      # ----------------
+
       clust_members <- data.frame(
         cluster = self$labels[variables]
       )
 
-      own_cluster_R2 <- numeric(length(variables))
-      next_closest_R2 <- numeric(length(variables))
+      # Extract own_cluster_R2 and next_closest_R2 from the R² matrix
+      own_cluster_R2 <- sapply(seq_along(variables), function(i) {
+        own_clust <- self$labels[variables[i]]
+        all_clusters_correlations[i, own_clust]
+      })
 
-      # Iteration on all variables to calculate their properties.
-      for (i in 1:length(variables)) {
+      next_closest_R2 <- sapply(seq_along(variables), function(i) {
+        own_clust <- self$labels[variables[i]]
+        max(all_clusters_correlations[i, -own_clust])
+      })
 
-        variable <- variables[i]
-
-        # initialize the vector of correlation with the other clusters
-        cor_clusters_temp = numeric(self$n_clusters)
-
-        # own_cluster
-        own_clust <- self$labels[variable]
-
-        # Compute the correlation² with all the other centroids
-        # Correlation if quantitative.
-        if (is.numeric(self$data[[variable]])) {
-          cor_clusters_temp <- apply(self$centroids, 2, function(centroid) {
-            cor(self$data[[variable]], centroid, use = "complete.obs")^2
-          })
-        } else {
-          # correlation ratio if qualitative.
-          cor_clusters_temp <- apply(self$centroids, MARGIN = 2, FUN = function(centroid) {
-            private$correlation_ratio(self$data[[variable]], centroid)
-          })
-        }
-
-        own_cluster_R2[i] <- cor_clusters_temp[own_clust]
-        next_closest_R2[i] <- max(cor_clusters_temp[-own_clust])
-      } # end for
-
-      # Update the dataframe.
+      # Update the dataframe
       clust_members["own_cluster_R2"] <- round(own_cluster_R2, 2)
       clust_members["next_closest_R2"] <- round(next_closest_R2, 2)
       clust_members["1 - R2_ratio"] <- round((1 - clust_members["own_cluster_R2"]) /
@@ -1870,43 +1897,13 @@ HClustVar <- R6::R6Class(
       component_correlations <- as.data.frame(t(combn(colnames(self$centroids), 2)))
       colnames(component_correlations) <- c("cluster A", "cluster B")
 
-      # iterate over all pairs to compute correlation on a "correlation column"
+      # Iterate over all pairs to compute correlation
       component_correlations$correlation <- apply(component_correlations, 1, function(row) {
         round(cor(self$centroids[,row[1]], self$centroids[,row[2]], use = "complete.obs"), 3)
       })
 
       # Add a squared correlation column
       component_correlations$squared_correlations <- round(component_correlations$correlation**2, 3)
-
-      # ----------------
-      # All clusters correlations for each variable
-      # ----------------
-
-      # Create a matrix to store all correlations
-      all_clusters_correlations <- matrix(
-        nrow = length(variables),
-        ncol = self$n_clusters,
-        dimnames = list(variables, paste0("Cluster_", 1:self$n_clusters))
-      )
-
-      # Iterate on all variables to calculate their R² with all clusters
-      for (i in 1:length(variables)) {
-
-        variable <- variables[i]
-
-        # Compute the correlation² with all centroids
-        if (is.numeric(self$data[[variable]])) {
-          # Correlation if quantitative
-          all_clusters_correlations[i, ] <- apply(self$centroids, 2, function(centroid) {
-            cor(self$data[[variable]], centroid, use = "complete.obs")^2
-          })
-        } else {
-          # Correlation ratio if qualitative
-          all_clusters_correlations[i, ] <- apply(self$centroids, MARGIN = 2, FUN = function(centroid) {
-            private$correlation_ratio(self$data[[variable]], centroid)
-          })
-        }
-      }
 
       # Convert to data frame and round values
       all_clusters_R2 <- as.data.frame(round(all_clusters_correlations, 3))
