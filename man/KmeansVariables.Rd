@@ -92,7 +92,8 @@ Initialize a new KmeansVariables object. See constructor documentation for param
 Fit the K-means model to the data. Runs multiple random initializations and keeps best solution.
 }
 \item{\code{$predict(data)}}{
-Predict cluster assignments for new variables based on fitted centroids.
+Predict cluster assignments for new variables (quanti or quali) based on fitted centroids.
+Uses correlation for quanti, correlation ratio (η²) for quali.
 }
 \item{\code{$print()}}{Display concise model information}
 \item{\code{$summary(print_summary = FALSE, top_n = 3)}}{
