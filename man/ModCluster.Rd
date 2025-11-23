@@ -2,9 +2,6 @@
 % Please edit documentation in R/ModClust.R
 \name{ModCluster}
 \alias{ModCluster}
-\alias{modality_clustering}
-\alias{dice_clustering}
-\alias{categorical_clustering}
 \title{Modality-Based Hierarchical Clustering with Dice Distance}
 \description{
 \code{ModCluster} implements a modality-based clustering approach using the Dice
@@ -144,10 +141,11 @@ centers <- model$cluster_centers  # Cluster profiles
 
 }
 \seealso{
-\code{\link[FactoMineR]{MCA}} for Multiple Correspondence Analysis,
-\code{\link[stats]{hclust}} for hierarchical clustering,
-\code{\link[stats]{dist}} for distance computation
+Other clustering classes: 
+\code{\link{HClustVar}},
+\code{\link{KmeansVariables}}
 }
+\concept{clustering classes}
 \section{Super class}{
 \code{\link[VarClustering:ClusteringBase]{VarClustering::ClusteringBase}} -> \code{ModCluster}
 }
@@ -199,21 +197,27 @@ centers <- model$cluster_centers  # Cluster profiles
 \if{html}{\out{<a id="method-ModCluster-new"></a>}}
 \if{latex}{\out{\hypertarget{method-ModCluster-new}{}}}
 \subsection{Method \code{new()}}{
+Build the complete disjunctive matrix with unique modality names
 Internal method to create indicator matrix from categorical data
 
 
+Compute Dice distances between all modalities
 Internal method to calculate pairwise Dice distances
 
 
+Compute MCA for visualization
 Internal method to perform Multiple Correspondence Analysis
 
 
+Apply hierarchical clustering
 Internal method to perform hierarchical clustering on Dice distances
 
 
+Create disjunctive matrix for new data
 Internal method to create indicator matrix for prediction
 
 
+Compute Dice distance to modalities
 Internal method to calculate distances from new profile to existing modalities
 
 
@@ -246,7 +250,6 @@ Initialize a new ModCluster object
 }
 \subsection{Returns}{
 Matrix with binary indicators for each modality
-Compute Dice distances between all modalities
 }
 }
 \if{html}{\out{<hr>}}

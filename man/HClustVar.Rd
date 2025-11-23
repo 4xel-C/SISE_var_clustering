@@ -238,7 +238,8 @@ Communications in Statistics - Simulation and Computation, 32(4), 1131-1150.
 }
 \seealso{
 Other clustering classes: 
-\code{\link{KmeansVariables}}
+\code{\link{KmeansVariables}},
+\code{\link{ModCluster}}
 }
 \concept{clustering classes}
 \section{Super class}{
