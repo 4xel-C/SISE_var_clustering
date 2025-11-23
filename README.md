@@ -412,6 +412,8 @@ VarClustering/
 │   └── Variable_clustering.Rmd
 ├── tests/                 # Unit tests
 │   └── testthat/
+├── notebooks/             # Notebooks of complexity testing  
+├── doc                    # Vignette and application guide
 ├── DESCRIPTION           # Package metadata
 ├── NAMESPACE            # Exports (auto-generated)
 └── README.md           # This file
