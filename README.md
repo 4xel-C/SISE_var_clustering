@@ -9,7 +9,7 @@
 
 *A comprehensive R package for clustering variables using hierarchical and partitioning methods*
 
-[Installation](#-installation) • [Features](#-features) • [Quick Start](#-quick-start) • [Documentation](#-documentation) • [Examples](#-examples)
+[Installation](#-installation) • [Features](#-features) • [Quick Start](#-quick-start) • [Documentation](#-documentation)
 
 </div>
 
