@@ -7,6 +7,6 @@
 # * https://testthat.r-lib.org/articles/special-files.html
 
 library(testthat)
-library(sise.var.clustering)
+library(VarClustering)
 
-test_check("sise.var.clustering")
+test_check("VarClustering")
