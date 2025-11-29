@@ -1154,7 +1154,6 @@ app_server <- function(input, output, session) {
 
 
 
-          # TODO: Check Kmeans
         # -----------------------------------------------------------
         # Kmeans
         # -----------------------------------------------------------
@@ -1232,7 +1231,6 @@ app_server <- function(input, output, session) {
         # -----------------------------------------------------------
         } else if (input$algorithm == 'modClust') {
 
-          # TODO: compute CAH modalities
 
           # Initialize the ModClust with selected options
           mhc <- ModCluster$new(
@@ -1766,22 +1764,25 @@ app_server <- function(input, output, session) {
             values = c('normal', 'bold')
           )
         )
+
       } else if (rv$model_type == "modClust") {
 
-          df_distances <- summary_data$cluster_distances
+        df_distances <- summary_data$cluster_distances
 
-          DT::datatable(
-            df_distances,
-            options = list(
-              pageLength = 20,
-              scrollX = TRUE,
-              scrollY = "500px",
-              dom = 'Bfrtip'
-            ),
-            rownames = FALSE,
-            class = 'cell-border stripe compact'
-          )
+        # Create the datatable
+        dt <- DT::datatable(
+          df_distances,
+          options = list(
+            pageLength = 20,
+            scrollX = TRUE,
+            scrollY = "500px",
+            dom = 'Bfrtip'
+          ),
+          rownames = FALSE,
+          class = 'cell-border stripe compact'
+        )
 
+        dt
 
       } else {
 

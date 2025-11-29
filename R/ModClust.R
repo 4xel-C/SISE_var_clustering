@@ -1131,7 +1131,7 @@ ModCluster <- R6::R6Class(
       # Add columns
       modality_quality$own_cluster_distance <- own_cluster_dist
       modality_quality$next_closest_distance <- next_closest_dist
-      modality_quality$ratio <- round((own_cluster_dist / next_closest_dist) * 100, 2)
+      modality_quality$ratio <- round((own_cluster_dist / next_closest_dist), 3)
 
 
       # -------------------------
