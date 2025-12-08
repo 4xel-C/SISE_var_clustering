@@ -335,7 +335,7 @@ Access comprehensive tutorials:
 
 ```r
 # View all available vignettes
-browseVignettes("VarClustering_Package")
+browseVignettes("VarClustering")
 ```
 
 ### Function Help
