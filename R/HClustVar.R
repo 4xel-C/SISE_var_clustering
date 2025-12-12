@@ -210,8 +210,6 @@
 #' hc$mds_projection()
 #' }
 #'
-#'
-#'
 #' @references
 #' Vigneau, E., & Qannari, E. M. (2003).
 #' Clustering of variables around latent components.
@@ -229,7 +227,6 @@ HClustVar <- R6::R6Class(
   # PRIVATE FIELDS
   # ==========================================================================
   private = list(
-
     # ==== Parameters
 
     # Metric used to compute distances between variables. (correlation or square correlation).
@@ -279,7 +276,6 @@ HClustVar <- R6::R6Class(
     #'
     #' @return None. Stops with error if validation fails, warns if parameters incompatible.
     check_input = function(vartype, dist.metric, cah.method) {
-
       # Checking metric selection
       if (vartype == "quant" && !(dist.metric %in% c("rsquare", "r"))) {
         stop(paste0("Parameter 'dist.metric' has invalid value for quantitative variables. Choose: 'rsquare', 'r'. Got: ", dist.metric))
@@ -294,7 +290,7 @@ HClustVar <- R6::R6Class(
       }
 
       # Test CAH method selection.
-      if (!cah.method %in% c('ward.D', 'ward.D2', 'single', 'complete', 'average', 'mcquitty', 'median', 'centroid')) {
+      if (!cah.method %in% c("ward.D", "ward.D2", "single", "complete", "average", "mcquitty", "median", "centroid")) {
         stop("Unknow CAH method selected. Please select: 'ward.D', 'ward.D2', 'single', 'complete', 'average', 'mcquitty', 'median', 'centroid'")
       }
     },
@@ -328,30 +324,24 @@ HClustVar <- R6::R6Class(
     #'
     #' @return Character string: "quant", "qual", or "mixed"
     auto_detect_vartype = function() {
-
       n_quanti <- length(private$.quanti_indices)
       n_quali <- length(private$.quali_indices)
 
       if (n_quali == 0) {
-
         # Only quantitative
         if (is.null(private$.dist.metric)) {
           private$.dist.metric <- "rsquare"
-
-        } else if (!private$.dist.metric %in% c('r', 'rsquare')) {
+        } else if (!private$.dist.metric %in% c("r", "rsquare")) {
           warning("Invalid metric for quantitative data. Using 'rsquare'.")
           private$.dist.metric <- "rsquare"
         }
         return("quant")
-
       } else if (n_quanti == 0) {
-
         # Only qualitative
         if (!is.null(private$.dist.metric)) {
           warning("dist.metric ignored for qualitative data")
         }
         return("qual")
-
       } else {
         # Mixte
         return("mixed")
@@ -392,7 +382,6 @@ HClustVar <- R6::R6Class(
     #' @return A \code{dist} object containing pairwise dissimilarities between
     #'   variables, suitable for use with \code{hclust()}.
     compute_distance_matrix = function() {
-
       if (private$.vartype == "quant") {
         cor_matrix <- cor(self$get_quanti_data())
 
@@ -401,9 +390,7 @@ HClustVar <- R6::R6Class(
         }
 
         return(as.dist(sqrt(1 - cor_matrix)))
-
       } else if (private$.vartype %in% c("qual", "mixed")) {
-
         df_quali <- if (private$.vartype == "qual") {
           self$get_quali_data()
         } else {
@@ -412,7 +399,6 @@ HClustVar <- R6::R6Class(
 
         vmatrix <- private$cramer_matrix(df_quali)
         return(as.dist(1 - vmatrix))
-
       } else {
         stop("Invalid vartype in object state")
       }
@@ -439,7 +425,6 @@ HClustVar <- R6::R6Class(
     #' Used internally for mixed variable clustering to treat all variables as categorical.
     #' Handles edge cases: empty indices, one-hot encoding, duplicate quantiles (small datasets).
     quantile_discretisation = function(df, quanti_index, n_groups) {
-
       # If no quantitative variable specified of quanti_index are not numeric, change nothing.
       if (length(quanti_index) == 0) {
         return(df)
@@ -449,7 +434,6 @@ HClustVar <- R6::R6Class(
       df_copy <- as.data.frame(df)
 
       for (i in quanti_index) {
-
         # Check if the numerical value is one hot encoded.
         if (length(unique(df[[i]])) <= 2 && all(df[[i]] %in% c(0, 1))) {
           df_copy[[i]] <- as.factor(df[[i]])
@@ -466,13 +450,13 @@ HClustVar <- R6::R6Class(
 
         # transform the quantitative columns into qualitatives.
         df_copy[[i]] <- cut(
-            df[[i]],
+          df[[i]],
 
-            # Set the breaks on the desired quantile of the column.
-            breaks = quantiles,
-            include.lowest = TRUE,
-            labels = paste0("Q", 1:(length(quantiles) - 1))  # Create the new label.
-          )
+          # Set the breaks on the desired quantile of the column.
+          breaks = quantiles,
+          include.lowest = TRUE,
+          labels = paste0("Q", 1:(length(quantiles) - 1)) # Create the new label.
+        )
 
         # Ensure the factor conversion.
         df_copy[[i]] <- as.factor(df_copy[[i]])
@@ -497,7 +481,6 @@ HClustVar <- R6::R6Class(
     #'
     #' @return A numeric value representing Cramer's V (between 0 and 1).
     cramer_v = function(x, y) {
-
       # Check if we have enough data.
       if (length(x) == 0 || length(y) == 0) {
         warning("Empty vectors provided to cramer_v, returning 0")
@@ -610,7 +593,6 @@ HClustVar <- R6::R6Class(
     #'
     #' @return None (invisible NULL). Results stored in private fields.
     compute_centroids = function() {
-
       if (is.null(self$labels)) {
         stop("Cannot compute centroids: tree has not been cut yet")
       }
@@ -630,7 +612,6 @@ HClustVar <- R6::R6Class(
 
       # Process each cluster
       for (i in 1:n_clust) {
-
         # Identify cluster variables
         cluster_vars <- names(self$labels)[self$labels == i]
 
@@ -644,37 +625,36 @@ HClustVar <- R6::R6Class(
         # ═══════════════════════════════════════════════════════════════
         # Factorial analysis
         # ═══════════════════════════════════════════════════════════════
-        res <- tryCatch({
-
-          if (all(sapply(sub_data, is.numeric))) {
-            FactoMineR::PCA(
-              sub_data,
-              ncp = 1,
-              graph = FALSE,
-              scale.unit = TRUE
-            )
-
-          } else if (all(sapply(sub_data, is.factor))) {
-            FactoMineR::MCA(
-              sub_data,
-              ncp = 1,
-              graph = FALSE
-            )
-
-          } else {
-            FactoMineR::FAMD(
-              sub_data,
-              ncp = 1,
-              graph = FALSE
-            )
+        res <- tryCatch(
+          {
+            if (all(sapply(sub_data, is.numeric))) {
+              FactoMineR::PCA(
+                sub_data,
+                ncp = 1,
+                graph = FALSE,
+                scale.unit = TRUE
+              )
+            } else if (all(sapply(sub_data, is.factor))) {
+              FactoMineR::MCA(
+                sub_data,
+                ncp = 1,
+                graph = FALSE
+              )
+            } else {
+              FactoMineR::FAMD(
+                sub_data,
+                ncp = 1,
+                graph = FALSE
+              )
+            }
+          },
+          error = function(e) {
+            stop(sprintf(
+              "FactoMineR analysis failed for cluster %d: %s",
+              i, e$message
+            ))
           }
-
-        }, error = function(e) {
-          stop(sprintf(
-            "FactoMineR analysis failed for cluster %d: %s",
-            i, e$message
-          ))
-        })
+        )
 
         # ═══════════════════════════════════════════════════════════════
         # Extract results
@@ -697,22 +677,21 @@ HClustVar <- R6::R6Class(
         # ═══════════════════════════════════════════════════════════════
 
         if (all(sapply(sub_data, is.numeric)) &&
-            !is.null(self$dist.metric) &&
-            !is.na(self$dist.metric) &&
-            self$dist.metric == "r") {
+          !is.null(self$dist.metric) &&
+          !is.na(self$dist.metric) &&
+          self$dist.metric == "r") {
+          # Check correlation with variables.
+          correlations <- apply(sub_data, MARGIN = 2, function(x) {
+            cor(x, first_component, use = "pairwise.complete.obs")
+          })
 
-            # Check correlation with variables.
-            correlations <- apply(sub_data, MARGIN = 2, function(x) {
-              cor(x, first_component, use = "pairwise.complete.obs")
-            })
 
+          mean_correlation <- mean(correlations, na.rm = TRUE)
 
-            mean_correlation <- mean(correlations, na.rm = TRUE)
-
-            # If mean correlation if < 0, correct the sign of the latent component.
-            if (!is.na(mean_correlation) && mean_correlation < 0) {
-              first_component <- -first_component
-            }
+          # If mean correlation if < 0, correct the sign of the latent component.
+          if (!is.na(mean_correlation) && mean_correlation < 0) {
+            first_component <- -first_component
+          }
         }
 
 
@@ -772,8 +751,7 @@ HClustVar <- R6::R6Class(
     #'
     #' @return Numeric value between 0 and 1 representing the correlation ratio (η²)
     correlation_ratio = function(quali, quanti) {
-
-      quali  <- as.factor(quali)
+      quali <- as.factor(quali)
       quanti <- as.numeric(quanti)
 
 
@@ -784,7 +762,9 @@ HClustVar <- R6::R6Class(
 
       # compute sum of squares between.
       ssb <- sum(
-        tapply(quanti, quali, function(v) {length(v) * (mean(v) - mean(quanti))^2})
+        tapply(quanti, quali, function(v) {
+          length(v) * (mean(v) - mean(quanti))^2
+        })
       )
 
       # calculate correlation factor.
@@ -813,7 +793,6 @@ HClustVar <- R6::R6Class(
     #'
     #' @return A numeric vector of silhouette coefficients, one per variable
     compute_silhouette = function() {
-
       # Check prerequisites
       if (!self$fitted) {
         stop("Model must be fitted before computing silhouette. Use fit() first.")
@@ -848,8 +827,6 @@ HClustVar <- R6::R6Class(
 
       return(silhouette_coef)
     }
-
-
   ),
 
   # ==========================================================================
@@ -857,7 +834,6 @@ HClustVar <- R6::R6Class(
   # ==========================================================================
 
   public = list(
-
     # -----------------------------------------------------------------------
     # Constructor
     # -----------------------------------------------------------------------
@@ -892,7 +868,6 @@ HClustVar <- R6::R6Class(
     #'
     #' @return None
     initialize = function(vartype = "auto", dist.metric = NULL, cah.method = "ward.D") {
-
       # update the auto_var_selection to allow refit with auto method.
       if (vartype == "auto") {
         private$.auto_var_selection <- TRUE
@@ -933,7 +908,6 @@ HClustVar <- R6::R6Class(
     #'
     #' @return None. The clustering tree is stored internally in `private$.tree`.
     fit = function(data) {
-
       # reset the summary cache.
       private$.summary_results <- NULL
 
@@ -986,7 +960,6 @@ HClustVar <- R6::R6Class(
     #'
     #'
     cut_tree = function(k = NULL, h = NULL) {
-
       # Check if the model is fitted.
       if (!self$fitted) {
         stop("Your model should be fitted on data first.")
@@ -1008,7 +981,6 @@ HClustVar <- R6::R6Class(
       private$.summary_results <- NULL
 
       return(self$labels)
-
     },
 
     # -----------------------------------------------------------------------
@@ -1067,7 +1039,6 @@ HClustVar <- R6::R6Class(
     #'   - labels contains all the label predicted per new variables.
     #'   - proximities (df) containing the detail about the proximities to all clusters.
     predict = function(new_data) {
-
       # ============
       # 1. Prerequisites validation
       # ============
@@ -1112,7 +1083,6 @@ HClustVar <- R6::R6Class(
 
       # --- Case 3A: Centroid-based methods (optimized) ---
       if (private$.cah.method %in% c("ward.D", "ward.D2", "centroid")) {
-
         if (is.null(self$centroids)) stop("Centroids not computed. Object may be broken.")
 
         # Check if all variables are numeric for vectorized computation
@@ -1133,21 +1103,21 @@ HClustVar <- R6::R6Class(
           colnames(result_proximities) <- paste0("Cluster_", 1:self$n_clusters)
           rownames(result_proximities) <- colnames(new_data)
           result <- apply(cor_matrix, 1, which.max)
-
         } else {
           # Mixed types: process individually
           for (i in seq_len(ncol(new_data))) {
             if (is.numeric(new_data[[i]])) {
               values <- apply(self$centroids, 2, function(centroid) {
                 val <- cor(centroid, new_data[[i]], use = "complete.obs")
-                if (is.na(val)) return(0)
+                if (is.na(val)) {
+                  return(0)
+                }
                 val
               })
 
               if (!is.null(self$dist.metric) && self$dist.metric == "rsquare" || private$.vartype == "mixed") {
                 values <- values^2
               }
-
             } else {
               values <- apply(self$centroids, 2, function(centroid) {
                 private$correlation_ratio(new_data[[i]], centroid)
@@ -1158,11 +1128,9 @@ HClustVar <- R6::R6Class(
             result[i] <- which.max(values)
           }
         }
-
       } else {
         # --- Case 3B: Other methods (single, complete, median, average, mcquitty) ---
         for (i in seq_len(ncol(new_data))) {
-
           similarity <- numeric(ncol(self$data))
           names(similarity) <- colnames(self$data)
 
@@ -1173,14 +1141,12 @@ HClustVar <- R6::R6Class(
             } else {
               similarity <- apply(self$data, 2, function(x) private$correlation_ratio(new_data[[i]], x))
             }
-
           } else if (self$vartype == "qual") {
             if (is.numeric(new_data[[i]])) {
               similarity <- apply(self$data, 2, function(x) private$correlation_ratio(x, new_data[[i]]))
             } else {
               similarity <- apply(self$data, 2, function(x) private$cramer_v(x, new_data[[i]]))
             }
-
           } else if (self$vartype == "mixed") {
             if (is.numeric(new_data[[i]])) {
               new_var_discretized <- private$quantile_discretisation(data.frame(temp_var = new_data[[i]]), 1, 4)[[1]]
@@ -1198,7 +1164,6 @@ HClustVar <- R6::R6Class(
               private$cramer_v(train_var_discretized, new_var_discretized)
             })
             names(similarity) <- colnames(self$data)
-
           } else {
             stop(sprintf("Unknown vartype: %s", self$vartype))
           }
@@ -1207,8 +1172,7 @@ HClustVar <- R6::R6Class(
           cluster_proximity <- numeric(self$n_clusters)
           for (cluster_id in seq_len(self$n_clusters)) {
             cluster_sim <- similarity[self$labels == cluster_id]
-            cluster_proximity[cluster_id] <- switch(
-              private$.cah.method,
+            cluster_proximity[cluster_id] <- switch(private$.cah.method,
               "single" = max(cluster_sim),
               "complete" = min(cluster_sim),
               "median" = median(cluster_sim),
@@ -1299,7 +1263,6 @@ HClustVar <- R6::R6Class(
     #'     \item Legend displaying the optimal k value
     #'   }
     plot_agg_levels = function(max_cluster = 0) {
-
       hc <- private$.tree
       # Get the height values
       heights <- rev(hc$height)
@@ -1312,13 +1275,10 @@ HClustVar <- R6::R6Class(
 
         # Default value: use all clusters
       } else if (max_cluster == 0) {
-
         # Reverse the n_clusters (last values beeing the highets aggregation level)
         n_clusters_plot <- n_clusters[-length(n_clusters)]
         heights_plot <- heights
-
       } else {
-
         # Limit to max_cluster clusters
         n_clusters_plot <- n_clusters[1:max_cluster]
         heights_plot <- heights[1:max_cluster]
@@ -1350,27 +1310,31 @@ HClustVar <- R6::R6Class(
 
       # Plot
       plot(n_clusters_plot, heights_plot,
-           type = "b", pch = 19,
-           xlab = "Number of clusters",
-           ylab = "Aggregation level",
-           main = "Elbow method (perpendicular distance)",
-           xaxt = "n")
+        type = "b", pch = 19,
+        xlab = "Number of clusters",
+        ylab = "Aggregation level",
+        main = "Elbow method (perpendicular distance)",
+        xaxt = "n"
+      )
       axis(1, at = n_clusters_plot)
       grid()
 
       # Line connecting the endpoints
       segments(n_clusters_plot[1], heights_plot[1],
-               n_clusters_plot[length(n_clusters_plot)], heights_plot[length(heights_plot)],
-               col = "gray", lty = 2)
+        n_clusters_plot[length(n_clusters_plot)], heights_plot[length(heights_plot)],
+        col = "gray", lty = 2
+      )
 
       # Mark the optimal k
       abline(v = k_optimal, col = "red", lty = 2, lwd = 2)
       points(k_optimal, heights_plot[which(n_clusters_plot == k_optimal)],
-             col = "red", pch = 19, cex = 2)
+        col = "red", pch = 19, cex = 2
+      )
 
       legend("topright",
-             legend = paste("Optimal k =", k_optimal),
-             col = "red", lty = 2, lwd = 2, bty = "n")
+        legend = paste("Optimal k =", k_optimal),
+        col = "red", lty = 2, lwd = 2, bty = "n"
+      )
     },
 
     # -----------------------------------------------------------------------
@@ -1395,7 +1359,6 @@ HClustVar <- R6::R6Class(
                                show_values = TRUE,
                                cex.names = 0.7,
                                sort_desc = FALSE) {
-
       # Compute silhouette coefficients
       sil_coef <- private$compute_silhouette()
 
@@ -1406,10 +1369,11 @@ HClustVar <- R6::R6Class(
       # Colors
       if (is.null(colors)) {
         if (self$n_clusters <= 8) {
-
           # Colorbrewer Set2 palette
-          colors <- c("#66C2A5", "#FC8D62", "#8DA0CB", "#E78AC3",
-                      "#A6D854", "#FFD92F", "#E5C494", "#B3B3B3")[1:self$n_clusters]
+          colors <- c(
+            "#66C2A5", "#FC8D62", "#8DA0CB", "#E78AC3",
+            "#A6D854", "#FFD92F", "#E5C494", "#B3B3B3"
+          )[1:self$n_clusters]
         } else {
           colors <- rainbow(self$n_clusters, s = 0.6, v = 0.8)
         }
@@ -1467,23 +1431,26 @@ HClustVar <- R6::R6Class(
         side = 3,
         line = 1,
         cex = 1,
-        col = if(overall_avg_sil > 0.5) "darkgreen" else if(overall_avg_sil > 0.25) "orange" else "red",
+        col = if (overall_avg_sil > 0.5) "darkgreen" else if (overall_avg_sil > 0.25) "orange" else "red",
         font = 2
       )
 
       # Add custom x-axis
       axis_breaks <- seq(ceiling(x_min * 10) / 10, floor(x_max * 10) / 10, by = 0.2)
       axis(1,
-           at = axis_breaks,
-           las = 1,
-           col = "gray50",
-           col.axis = "gray30",
-           cex.axis = 1)
+        at = axis_breaks,
+        las = 1,
+        col = "gray50",
+        col.axis = "gray30",
+        cex.axis = 1
+      )
       mtext("Silhouette Coefficient", side = 1, line = 3.5, cex = 1.1, col = "gray20", font = 2)
 
       # Add subtle grid
-      abline(v = seq(ceiling(x_min * 10) / 10, floor(x_max * 10) / 10, by = 0.1),
-             col = "gray90", lty = 1)
+      abline(
+        v = seq(ceiling(x_min * 10) / 10, floor(x_max * 10) / 10, by = 0.1),
+        col = "gray90", lty = 1
+      )
 
       # Add reference lines
       abline(v = 0, col = "gray40", lty = 2, lwd = 1.5)
@@ -1536,7 +1503,7 @@ HClustVar <- R6::R6Class(
             pos = 4,
             cex = cex.names,
             col = "gray20",
-            font = if(sil_val > avg_sil_per_cluster[k]) 2 else 1
+            font = if (sil_val > avg_sil_per_cluster[k]) 2 else 1
           )
 
           # Optionally add silhouette value
@@ -1545,7 +1512,7 @@ HClustVar <- R6::R6Class(
               x = sil_val,
               y = y_pos,
               labels = sprintf("%.2f", sil_val),
-              pos = if(sil_val > 0) 4 else 2,
+              pos = if (sil_val > 0) 4 else 2,
               cex = 0.6,
               col = "gray40"
             )
@@ -1610,7 +1577,6 @@ HClustVar <- R6::R6Class(
     #'
     #' @return None. Produces a plot as a side effect.
     mds_projection = function() {
-
       if (!self$fitted) {
         stop("Model has to be fitted to compute mds projection")
       }
@@ -1635,10 +1601,9 @@ HClustVar <- R6::R6Class(
       quality <- eigens / sum(eigens)
 
       # Plot the representation
-      plot(mds$points[,1],mds$points[,2],type="n",cex=0.3,asp=1, xlab = paste("1st component", round(quality[1] * 100, 2), "%"), ylab=paste("2nd component", round(quality[2] * 100, 2), "%"))
+      plot(mds$points[, 1], mds$points[, 2], type = "n", cex = 0.3, asp = 1, xlab = paste("1st component", round(quality[1] * 100, 2), "%"), ylab = paste("2nd component", round(quality[2] * 100, 2), "%"))
 
       if (!is.null(self$labels)) {
-
         # Create a color palette.
         cluster_levels <- unique(self$labels)
         colors <- setNames(rainbow(length(cluster_levels)), cluster_levels)
@@ -1646,14 +1611,13 @@ HClustVar <- R6::R6Class(
         # Get the color for each label.
         point_colors <- colors[self$labels]
 
-        text(mds$points[,1], mds$points[,2], labels = labels(self$dist.matrix), col = point_colors)
+        text(mds$points[, 1], mds$points[, 2], labels = labels(self$dist.matrix), col = point_colors)
       } else {
-        text(mds$points[,1], mds$points[,2], labels = labels(self$dist.matrix))
+        text(mds$points[, 1], mds$points[, 2], labels = labels(self$dist.matrix))
       }
 
-      title(main = paste("Multidimensional scaling - Projection", round(ceigens[2]*100,1), "%"))
+      title(main = paste("Multidimensional scaling - Projection", round(ceigens[2] * 100, 1), "%"))
     },
-
 
 
     # -----------------------------------------------------------------------
@@ -1754,7 +1718,6 @@ HClustVar <- R6::R6Class(
     #'   clusters}
     #' }
     summary = function() {
-
       # Return the result if already cached.
       if (!is.null(private$.summary_results)) {
         return(private$.summary_results)
@@ -1794,7 +1757,9 @@ HClustVar <- R6::R6Class(
       # Compute the cluster summary.
       clust_summary <- data.frame(
         cluster = 1:self$n_clusters,
-        n_members = sapply(1:self$n_clusters, FUN = function(x) {sum(self$labels == x)}),
+        n_members = sapply(1:self$n_clusters, FUN = function(x) {
+          sum(self$labels == x)
+        }),
         var_explained = round(self$clusters.eigen, 2)
       )
 
@@ -1860,7 +1825,7 @@ HClustVar <- R6::R6Class(
       clust_members["own_cluster_R2"] <- round(own_cluster_R2, 2)
       clust_members["next_closest_R2"] <- round(next_closest_R2, 2)
       clust_members["1 - R2_ratio"] <- round((1 - clust_members["own_cluster_R2"]) /
-                                               (1 - clust_members["next_closest_R2"]), 2)
+        (1 - clust_members["next_closest_R2"]), 2)
 
       # ----------------
       # Silhouette scores based on R²
@@ -1899,7 +1864,7 @@ HClustVar <- R6::R6Class(
 
       # Iterate over all pairs to compute correlation
       component_correlations$correlation <- apply(component_correlations, 1, function(row) {
-        round(cor(self$centroids[,row[1]], self$centroids[,row[2]], use = "complete.obs"), 3)
+        round(cor(self$centroids[, row[1]], self$centroids[, row[2]], use = "complete.obs"), 3)
       })
 
       # Add a squared correlation column
@@ -1960,7 +1925,6 @@ HClustVar <- R6::R6Class(
     #'
     #' @return Invisibly returns the object itself.
     print = function() {
-
       cat("\n")
       cat("══════════════════════════════════════════════════════\n")
       cat("            Hierarchical Variable Clustering          \n")
@@ -1976,8 +1940,10 @@ HClustVar <- R6::R6Class(
       cat("Status: ✓ FITTED\n\n")
 
       # Base info
-      cat(sprintf("Data:          %d variables × %d observations\n",
-                  ncol(self$data), nrow(self$data)))
+      cat(sprintf(
+        "Data:          %d variables × %d observations\n",
+        ncol(self$data), nrow(self$data)
+      ))
       cat(sprintf("Variable type: %s\n", private$.vartype))
       cat(sprintf("CAH method:    %s\n", private$.cah.method))
 
@@ -1993,7 +1959,6 @@ HClustVar <- R6::R6Class(
         cluster_sizes <- table(self$labels)
         size_str <- paste(sprintf("%d", cluster_sizes), collapse = " | ")
         cat(sprintf("Distribution:  %s variables\n", size_str))
-
       } else {
         cat("\nClusters:      Tree not cut (use $cut_tree())\n")
       }
@@ -2014,37 +1979,48 @@ HClustVar <- R6::R6Class(
   # ==========================================================================
 
   active = list(
-
     #' @field dist.metric Distance metric for quantitative variables.
     #'   Returns "r" (correlation), "rsquare" (squared correlation), or NULL
     #'   (for qualitative/mixed variables). Read-only.
-    dist.metric = function() {return(private$.dist.metric)},
+    dist.metric = function() {
+      return(private$.dist.metric)
+    },
 
     #' @field vartype Type of variables in the dataset.
     #'   Returns "quant" (quantitative), "qual" (qualitative), "mixed", or "auto"
     #'   (before fitting). Read-only after auto-detection.
-    vartype = function() {return(private$.vartype)},
+    vartype = function() {
+      return(private$.vartype)
+    },
 
     #' @field dist.matrix Dissimilarity matrix computed from the data.
     #'   Returns a \code{dist} object suitable for hierarchical clustering.
     #'   Available after \code{fit()} is called. Read-only.
-    dist.matrix = function() {return(private$.dist.matrix)},
+    dist.matrix = function() {
+      return(private$.dist.matrix)
+    },
 
     #' @field tree Hierarchical clustering tree.
     #'   Returns an \code{hclust} object containing the dendrogram structure.
     #'   Available after \code{fit()} is called. Read-only.
-    tree = function() {return(private$.tree)},
+    tree = function() {
+      return(private$.tree)
+    },
 
     #' @field cah.method Hierarchical clustering method used.
     #'   Returns one of: "ward.D", "ward.D2", "single", "complete", "average",
     #'   "mcquitty", "median", "centroid". Read-only.
-    cah.method = function() {return(private$.cah.method)},
+    cah.method = function() {
+      return(private$.cah.method)
+    },
 
     #' @field summary_results Cached results from the \code{summary()} method.
     #'   Returns a list with \code{clust_summary} and \code{clust_members} data frames,
     #'   or NULL if summary has not been computed yet. Cache is invalidated when
     #'   \code{fit()} or \code{cut_tree()} is called. Read-only.
-    summary_results = function() {return(private$.summary_results)},
+    summary_results = function() {
+      return(private$.summary_results)
+    },
 
 
     #' @field centroids Cluster centroids as synthetic variables.
@@ -2076,7 +2052,6 @@ HClustVar <- R6::R6Class(
       }
 
       private$.centroids <- value
-
     },
 
     #' @field clusters.eigen Eigenvalues (variance explained) for each cluster.
